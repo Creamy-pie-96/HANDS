@@ -1,0 +1,375 @@
+"""
+System Controller for HANDS
+
+Interfaces between gesture detection and actual system control (mouse/keyboard).
+Uses pynput for reliable cross-platform input control.
+"""
+
+import time
+import threading
+from typing import Tuple, Optional
+from collections import deque
+from dataclasses import dataclass
+import numpy as np
+
+try:
+    from pynput.mouse import Controller as MouseController, Button
+    from pynput.keyboard import Controller as KeyboardController, Key
+    PYNPUT_AVAILABLE = True
+except ImportError:
+    PYNPUT_AVAILABLE = False
+    print("⚠ pynput not available. Install with: pip install pynput")
+
+try:
+    import screeninfo
+    SCREENINFO_AVAILABLE = True
+except ImportError:
+    SCREENINFO_AVAILABLE = False
+    print("⚠ screeninfo not available. Install with: pip install screeninfo")
+
+from math_utils import EWMA
+
+
+@dataclass
+class ScreenBounds:
+    """Screen dimensions and boundaries."""
+    width: int
+    height: int
+    padding: int = 10  # Pixels to keep cursor away from edges
+    
+    def contains(self, x: int, y: int) -> bool:
+        """Check if point is within bounds."""
+        return (self.padding <= x < self.width - self.padding and
+                self.padding <= y < self.height - self.padding)
+    
+    def clamp(self, x: int, y: int) -> Tuple[int, int]:
+        """Clamp coordinates to screen bounds."""
+        x = max(self.padding, min(x, self.width - self.padding - 1))
+        y = max(self.padding, min(y, self.height - self.padding - 1))
+        return (x, y)
+
+
+class SystemController:
+    """
+    Controls system mouse and keyboard based on gestures.
+    Provides smooth cursor movement, click detection, and keyboard shortcuts.
+    """
+    
+    def __init__(self, config=None):
+        """
+        Initialize system controller.
+        
+        Args:
+            config: Configuration object (from config_manager)
+        """
+        if not PYNPUT_AVAILABLE:
+            raise RuntimeError("pynput library is required. Install with: pip install pynput")
+        
+        self.mouse = MouseController()
+        self.keyboard = KeyboardController()
+        
+        # Get screen dimensions
+        self.screen = self._get_screen_bounds()
+        
+        # Load configuration
+        if config:
+            from config_manager import get_system_control
+            self.cursor_smoothing = get_system_control('cursor', 'smoothing_factor', 0.3)
+            self.cursor_speed = get_system_control('cursor', 'speed_multiplier', 1.5)
+            self.precision_damping = get_system_control('cursor', 'precision_damping', 0.3)
+            self.scroll_sensitivity = get_system_control('scroll', 'sensitivity', 30)
+            self.zoom_sensitivity = get_system_control('zoom', 'sensitivity', 5)
+            self.double_click_timeout = get_system_control('click', 'double_click_timeout', 0.5)
+            self.drag_hold_duration = get_system_control('click', 'drag_hold_duration', 1.0)
+        else:
+            # Default values
+            self.cursor_smoothing = 0.3
+            self.cursor_speed = 1.5
+            self.precision_damping = 0.3
+            self.scroll_sensitivity = 30
+            self.zoom_sensitivity = 5
+            self.double_click_timeout = 0.5
+            self.drag_hold_duration = 1.0
+        
+        # Cursor smoothing filter
+        self.cursor_filter_x = EWMA(alpha=self.cursor_smoothing)
+        self.cursor_filter_y = EWMA(alpha=self.cursor_smoothing)
+        
+        # Click state tracking
+        self.last_click_time = 0.0
+        self.click_count = 0
+        self.is_dragging = False
+        self.pinch_start_time = None
+        
+        # Pause state
+        self.paused = False
+        
+        # Current cursor position (normalized)
+        self.current_norm_pos = (0.5, 0.5)
+        
+        print(f"✓ System Controller initialized")
+        print(f"  Screen: {self.screen.width}x{self.screen.height}")
+        print(f"  Cursor smoothing: {self.cursor_smoothing}")
+    
+    def _get_screen_bounds(self) -> ScreenBounds:
+        """Get screen dimensions."""
+        if SCREENINFO_AVAILABLE:
+            try:
+                monitors = screeninfo.get_monitors()
+                if monitors:
+                    primary = monitors[0]
+                    return ScreenBounds(width=primary.width, height=primary.height)
+            except Exception as e:
+                print(f"⚠ Error getting screen info: {e}")
+        
+        # Fallback to common resolution
+        print("⚠ Using default screen resolution 1920x1080")
+        return ScreenBounds(width=1920, height=1080)
+    
+    def toggle_pause(self):
+        """Toggle pause state."""
+        self.paused = not self.paused
+        return self.paused
+    
+    def normalized_to_screen(self, norm_x: float, norm_y: float) -> Tuple[int, int]:
+        """
+        Convert normalized coordinates (0..1) to screen pixels.
+        
+        Args:
+            norm_x: Normalized X coordinate (0 = left, 1 = right)
+            norm_y: Normalized Y coordinate (0 = top, 1 = bottom)
+        
+        Returns:
+            (screen_x, screen_y) in pixels
+        """
+        screen_x = int(norm_x * self.screen.width)
+        screen_y = int(norm_y * self.screen.height)
+        return self.screen.clamp(screen_x, screen_y)
+    
+    def move_cursor(self, norm_x: float, norm_y: float, precision_mode: bool = False):
+        """
+        Move cursor to normalized position with smoothing.
+        
+        Args:
+            norm_x: Target X position (0..1)
+            norm_y: Target Y position (0..1)
+            precision_mode: If True, apply extra damping for fine control
+        """
+        if self.paused:
+            return
+        
+        # Apply smoothing
+        smooth_x = self.cursor_filter_x.update(norm_x)
+        smooth_y = self.cursor_filter_y.update(norm_y)
+        
+        # Apply precision damping if needed
+        if precision_mode:
+            # Interpolate between current and target
+            current_x, current_y = self.current_norm_pos
+            smooth_x = current_x + (smooth_x - current_x) * self.precision_damping
+            smooth_y = current_y + (smooth_y - current_y) * self.precision_damping
+        
+        # Store current normalized position
+        self.current_norm_pos = (smooth_x, smooth_y)
+        
+        # Convert to screen coordinates
+        screen_x, screen_y = self.normalized_to_screen(smooth_x, smooth_y)
+        
+        # Move mouse
+        try:
+            self.mouse.position = (screen_x, screen_y)
+        except Exception as e:
+            print(f"⚠ Error moving cursor: {e}")
+    
+    def click(self, button: str = 'left', double: bool = False):
+        """
+        Perform mouse click.
+        
+        Args:
+            button: 'left', 'right', or 'middle'
+            double: If True, perform double click
+        """
+        if self.paused:
+            return
+        
+        btn = {
+            'left': Button.left,
+            'right': Button.right,
+            'middle': Button.middle
+        }.get(button, Button.left)
+        
+        try:
+            if double:
+                self.mouse.click(btn, 2)
+            else:
+                self.mouse.click(btn, 1)
+        except Exception as e:
+            print(f"⚠ Error clicking: {e}")
+    
+    def start_drag(self):
+        """Start drag operation (press and hold)."""
+        if self.paused or self.is_dragging:
+            return
+        
+        try:
+            self.mouse.press(Button.left)
+            self.is_dragging = True
+        except Exception as e:
+            print(f"⚠ Error starting drag: {e}")
+    
+    def stop_drag(self):
+        """Stop drag operation (release)."""
+        if not self.is_dragging:
+            return
+        
+        try:
+            self.mouse.release(Button.left)
+            self.is_dragging = False
+        except Exception as e:
+            print(f"⚠ Error stopping drag: {e}")
+    
+    def scroll(self, dx: int = 0, dy: int = 0):
+        """
+        Perform scroll action.
+        
+        Args:
+            dx: Horizontal scroll amount
+            dy: Vertical scroll amount (positive = down, negative = up)
+        """
+        if self.paused:
+            return
+        
+        try:
+            if dx != 0 or dy != 0:
+                self.mouse.scroll(dx, dy)
+        except Exception as e:
+            print(f"⚠ Error scrolling: {e}")
+    
+    def zoom(self, zoom_in: bool = True):
+        """
+        Perform system zoom (Ctrl + +/-).
+        
+        Args:
+            zoom_in: If True, zoom in. If False, zoom out.
+        """
+        if self.paused:
+            return
+        
+        try:
+            with self.keyboard.pressed(Key.ctrl):
+                if zoom_in:
+                    self.keyboard.press(Key.shift)
+                    self.keyboard.press('=')  # Shift+= is +
+                    self.keyboard.release('=')
+                    self.keyboard.release(Key.shift)
+                else:
+                    self.keyboard.press('-')
+                    self.keyboard.release('-')
+        except Exception as e:
+            print(f"⚠ Error zooming: {e}")
+    
+    def workspace_switch(self, direction: str):
+        """
+        Switch workspace (Ctrl+Alt+Arrow).
+        
+        Args:
+            direction: 'left', 'right', 'up', or 'down'
+        """
+        if self.paused:
+            return
+        
+        key_map = {
+            'left': Key.left,
+            'right': Key.right,
+            'up': Key.up,
+            'down': Key.down
+        }
+        
+        arrow_key = key_map.get(direction)
+        if not arrow_key:
+            return
+        
+        try:
+            with self.keyboard.pressed(Key.ctrl):
+                with self.keyboard.pressed(Key.alt):
+                    self.keyboard.press(arrow_key)
+                    self.keyboard.release(arrow_key)
+        except Exception as e:
+            print(f"⚠ Error switching workspace: {e}")
+    
+    def handle_pinch_gesture(self, pinch_detected: bool):
+        """
+        Handle pinch gesture for click/drag logic.
+        
+        Args:
+            pinch_detected: True if pinch is currently detected
+        """
+        now = time.time()
+        
+        if pinch_detected:
+            if self.pinch_start_time is None:
+                # Pinch just started
+                self.pinch_start_time = now
+                
+                # Check for double click
+                if (self.click_count > 0 and 
+                    now - self.last_click_time < self.double_click_timeout):
+                    self.click(double=True)
+                    self.click_count = 0
+                else:
+                    # Single click
+                    self.click()
+                    self.click_count = 1
+                    self.last_click_time = now
+        else:
+            if self.pinch_start_time is not None:
+                # Pinch just released
+                pinch_duration = now - self.pinch_start_time
+                
+                # If held long enough, it was a drag
+                if pinch_duration >= self.drag_hold_duration:
+                    self.stop_drag()
+                
+                self.pinch_start_time = None
+        
+        # Check if we should start dragging
+        if (self.pinch_start_time is not None and 
+            not self.is_dragging and
+            now - self.pinch_start_time >= self.drag_hold_duration):
+            self.start_drag()
+
+
+# Singleton instance
+_controller_instance = None
+
+def get_system_controller(config=None) -> SystemController:
+    """Get or create singleton system controller instance."""
+    global _controller_instance
+    if _controller_instance is None:
+        _controller_instance = SystemController(config)
+    return _controller_instance
+
+
+if __name__ == "__main__":
+    # Test system controller
+    print("\n=== System Controller Test ===\n")
+    
+    if not PYNPUT_AVAILABLE:
+        print("✗ pynput not installed. Run: pip install pynput")
+        exit(1)
+    
+    controller = SystemController()
+    
+    print("\nMoving cursor to center...")
+    controller.move_cursor(0.5, 0.5)
+    time.sleep(0.5)
+    
+    print("Moving cursor in circle...")
+    for angle in np.linspace(0, 2*np.pi, 20):
+        x = 0.5 + 0.2 * np.cos(angle)
+        y = 0.5 + 0.2 * np.sin(angle)
+        controller.move_cursor(x, y)
+        time.sleep(0.05)
+    
+    print("\n✓ System Controller test complete!")
+    print("  (Your cursor should have moved to center and drawn a circle)")

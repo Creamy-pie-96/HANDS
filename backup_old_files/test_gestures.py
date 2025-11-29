@@ -25,7 +25,7 @@ from gesture_detectors import (
 mp_hands = mp.solutions.hands
 hands = mp_hands.Hands(
     min_detection_confidence=0.7,
-    min_tracking_confidence=0.3,  # Lower for better fast motion tracking
+    min_tracking_confidence=0.5,  # Lower for better fast motion tracking
     max_num_hands=2  # Track both hands for two-hand gestures
 )
 mp_draw = mp.solutions.drawing_utils

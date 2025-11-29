@@ -229,8 +229,16 @@ class PinchDetector:
 
 
 class PointingDetector:
-    def __init__(self, min_extension_ratio: float = 0.12):
+    def __init__(self, min_extension_ratio: float = 0.12, max_speed: float = 0.5, max_extra_fingers: int = 1):
+        """
+        Args:
+            min_extension_ratio: Minimum distance from fingertip to palm center
+            max_speed: Maximum hand velocity to be considered stable pointing
+            max_extra_fingers: Number of extra fingers that can be extended (tolerance)
+        """
         self.min_extension_ratio = min_extension_ratio
+        self.max_speed = max_speed
+        self.max_extra_fingers = max_extra_fingers
     
     def detect(self, metrics: HandMetrics) -> GestureResult:
         if not metrics.fingers_extended['index']:
@@ -238,7 +246,7 @@ class PointingDetector:
     
         other_fingers = ['middle','ring','pinky']
         extended_count = sum(metrics.fingers_extended[f] for f in other_fingers)
-        if extended_count > 1: # tolerance of 1(1 extra finger other than index can be opened)
+        if extended_count > self.max_extra_fingers:
             return GestureResult(detected=False, gesture_name='pointing')
         
         # index finger should be far from palm
@@ -249,9 +257,9 @@ class PointingDetector:
         if distance < self.min_extension_ratio:
             return GestureResult(detected=False,gesture_name='pointing')
         
-        # Condition 4: Hand should be relatively stable (low velocity)
+        # Hand should be relatively stable (low velocity)
         speed = np.hypot(metrics.velocity[0], metrics.velocity[1])
-        if speed > 0.5:  # TODO: needs tweak threshold
+        if speed > self.max_speed:
             return GestureResult(detected=False, gesture_name='pointing')
 
         direction = (index_tip[0] - centroid[0], index_tip[1] - centroid[1])
@@ -263,7 +271,8 @@ class PointingDetector:
             metadata={
                 'tip_position': index_tip,
                 'direction': direction,
-                'distance': distance
+                'distance': distance,
+                'speed': speed
             }
         )
 
@@ -332,81 +341,83 @@ class ZoomDetector:
     def __init__(
         self,
         scale_threshold: float = 0.15,  # 15% change to trigger
-        history_size: int = 5
+        history_size: int = 5,
+        finger_gap_threshold: float = 0.19  # Max distance between index and middle
     ):
         self.scale_threshold = scale_threshold
         self.history = deque(maxlen=history_size)
+        self.finger_gap_threshold = finger_gap_threshold
+        self.zoom_active = False
+        self.zoom_direction = None
     
     def detect(self, metrics: HandMetrics) -> GestureResult:
         """
-        Improved zoom detection:
-        - Uses weighted distances (thumb distances weighted higher)
-        - Tracks continuous direction (zoom in vs out)
-        - Works for both starting positions (spread or pinched)
+        Improved continuous zoom detection:
+        - Once zoom is triggered, it remains active as long as spread changes in the same direction.
+        - Zoom ends only when direction reverses or gesture breaks.
         """
-        # Check if thumb, index, and middle are all extended
         required = ['thumb', 'index', 'middle']
+        # Check if gesture is broken (fingers not extended or gap too large)
         if not all(metrics.fingers_extended[f] for f in required):
-            self.history.clear()  # Reset if gesture breaks
-            return GestureResult(detected=False, gesture_name='zoom')
-        
-        # Compute weighted spread (thumb distances matter more!)
-        # User insight: thumb-index and thumb-middle change more than index-middle
-        # Note: keys are in tip_distances as 'index_thumb', 'thumb_middle', 'index_middle'
-        thumb_index = metrics.tip_distances.get('index_thumb', 0.0)
-        thumb_middle = metrics.tip_distances.get('thumb_middle', 0.0)
-        index_middle = metrics.tip_distances.get('index_middle', 0.0)
-        
-        # Weighted average: thumb distances get 2x weight
-        spread = (2 * thumb_index + 2 * thumb_middle + index_middle) / 5.0
-        
-        # Add to history
+            self.history.clear()
+            self.zoom_active = False
+            self.zoom_direction = None
+            return GestureResult(detected=False, gesture_name='zoom', metadata={'zoom_active': False, 'reason': 'fingers_not_extended'})
+        index_middle_dist = metrics.tip_distances.get('index_middle', 0.0)
+        if index_middle_dist > self.finger_gap_threshold:
+            self.history.clear()
+            self.zoom_active = False
+            self.zoom_direction = None
+            return GestureResult(detected=False, gesture_name='zoom', metadata={'zoom_active': False, 'reason': 'finger_gap_too_large'})
+        thumb_to_pair = metrics.tip_distances.get('index_thumb', 0.0)
+        spread = thumb_to_pair
         self.history.append(spread)
-        
-        # Need at least 3 frames to detect continuous direction
         if len(self.history) < 3:
-            return GestureResult(detected=False, gesture_name='zoom')
-        
-        # Check for continuous increasing or decreasing trend
-        recent = list(self.history)[-3:]  # Last 3 frames
-        
-        # Compute differences between consecutive frames
+            self.zoom_active = False
+            self.zoom_direction = None
+            return GestureResult(detected=False, gesture_name='zoom', metadata={'zoom_active': False, 'reason': 'not_enough_history'})
+        recent = list(self.history)[-3:]
         diff1 = recent[1] - recent[0]
         diff2 = recent[2] - recent[1]
-        
-        # Check if all differences have same sign (continuous direction)
         increasing = diff1 > 0 and diff2 > 0
         decreasing = diff1 < 0 and diff2 < 0
-        
-        if not (increasing or decreasing):
-            return GestureResult(detected=False, gesture_name='zoom')
-        
-        # Compute total change magnitude
         total_change = recent[-1] - recent[0]
-        relative_change = abs(total_change) / (recent[0] + 1e-6)  # Avoid div by zero
-        
-        # Detect zoom based on continuous direction and threshold
-        if increasing and relative_change > self.scale_threshold:
-            zoom_type = 'out'
-            detected = True
-        elif decreasing and relative_change > self.scale_threshold:
-            zoom_type = 'in'
-            detected = True
-        else:
-            detected = False
-            zoom_type = None
-        
-        return GestureResult(
-            detected=detected,
-            gesture_name='zoom',
-            confidence=1.0 if detected else 0.0,
-            metadata={
-                'zoom_type': zoom_type,
-                'relative_change': relative_change,
-                'spread': spread,
-                'trend': 'increasing' if increasing else 'decreasing' if decreasing else 'unstable'
-            }
-        )
+        relative_change = abs(total_change) / (abs(recent[0]) + 1e-6)
+        # Start zoom if not active and threshold met
+        if not self.zoom_active:
+            if increasing and relative_change > self.scale_threshold:
+                self.zoom_active = True
+                self.zoom_direction = 'out'
+            elif decreasing and relative_change > self.scale_threshold:
+                self.zoom_active = True
+                self.zoom_direction = 'in'
+        # If zoom is active, check if direction is still valid
+        if self.zoom_active:
+            # If direction reverses, stop zoom
+            if self.zoom_direction == 'out' and not increasing:
+                self.zoom_active = False
+                self.zoom_direction = None
+                return GestureResult(detected=False, gesture_name='zoom', metadata={'zoom_active': False, 'reason': 'direction_reversed'})
+            if self.zoom_direction == 'in' and not decreasing:
+                self.zoom_active = False
+                self.zoom_direction = None
+                return GestureResult(detected=False, gesture_name='zoom', metadata={'zoom_active': False, 'reason': 'direction_reversed'})
+            # Otherwise, keep zooming
+            return GestureResult(
+                detected=True,
+                gesture_name='zoom',
+                confidence=1.0,
+                metadata={
+                    'zoom_active': True,
+                    'zoom_type': self.zoom_direction,
+                    'relative_change': relative_change,
+                    'spread': spread,
+                    'finger_gap': index_middle_dist,
+                    'trend': self.zoom_direction,
+                }
+            )
+        # If not active, no zoom
+        return GestureResult(detected=False, gesture_name='zoom', metadata={'zoom_active': False, 'reason': 'no_continuous_trend'})
 
 
 class OpenHandDetector:
@@ -450,13 +461,61 @@ class GestureManager:
     Manages multiple gesture detectors and resolves conflicts.
     Maintains per-hand state and history.
     """
-    def __init__(self):
-        # Initialize all detectors
-        self.pinch = PinchDetector(thresh_rel=0.055, hold_frames=5, cooldown_s=0.6)
-        self.pointing = PointingDetector(min_extension_ratio=0.12)
-        self.swipe = SwipeDetector(velocity_threshold=0.8, cooldown_s=0.5)
-        self.zoom = ZoomDetector(scale_threshold=0.15)
-        self.open_hand = OpenHandDetector(min_fingers=4)
+    def __init__(self, use_config=True):
+        """
+        Initialize gesture manager with detectors.
+        
+        Args:
+            use_config: If True, load parameters from config.json
+        """
+        # Load configuration if available
+        if use_config:
+            try:
+                from config_manager import get_gesture_threshold
+                pinch_params = {
+                    'thresh_rel': get_gesture_threshold('pinch', 'threshold_rel', 0.055),
+                    'hold_frames': get_gesture_threshold('pinch', 'hold_frames', 5),
+                    'cooldown_s': get_gesture_threshold('pinch', 'cooldown_seconds', 0.6)
+                }
+                pointing_params = {
+                    'min_extension_ratio': get_gesture_threshold('pointing', 'min_extension_ratio', 0.12),
+                    'max_speed': get_gesture_threshold('pointing', 'max_speed', 0.5),
+                    'max_extra_fingers': get_gesture_threshold('pointing', 'max_extra_fingers', 1)
+                }
+                swipe_params = {
+                    'velocity_threshold': get_gesture_threshold('swipe', 'velocity_threshold', 0.8),
+                    'cooldown_s': get_gesture_threshold('swipe', 'cooldown_seconds', 0.5),
+                    'history_size': get_gesture_threshold('swipe', 'history_size', 8)
+                }
+                zoom_params = {
+                    'scale_threshold': get_gesture_threshold('zoom', 'scale_threshold', 0.15),
+                    'finger_gap_threshold': get_gesture_threshold('zoom', 'finger_gap_threshold', 0.06),
+                    'history_size': get_gesture_threshold('zoom', 'history_size', 5)
+                }
+                open_hand_params = {
+                    'min_fingers': get_gesture_threshold('open_hand', 'min_fingers', 4)
+                }
+            except ImportError:
+                # Fallback to defaults if config not available
+                pinch_params = {'thresh_rel': 0.055, 'hold_frames': 5, 'cooldown_s': 0.6}
+                pointing_params = {'min_extension_ratio': 0.12, 'max_speed': 0.5, 'max_extra_fingers': 1}
+                swipe_params = {'velocity_threshold': 0.8, 'cooldown_s': 0.5, 'history_size': 8}
+                zoom_params = {'scale_threshold': 0.15, 'finger_gap_threshold': 0.06, 'history_size': 5}
+                open_hand_params = {'min_fingers': 4}
+        else:
+            # Use defaults
+            pinch_params = {'thresh_rel': 0.055, 'hold_frames': 5, 'cooldown_s': 0.6}
+            pointing_params = {'min_extension_ratio': 0.12, 'max_speed': 0.5, 'max_extra_fingers': 1}
+            swipe_params = {'velocity_threshold': 0.8, 'cooldown_s': 0.5, 'history_size': 8}
+            zoom_params = {'scale_threshold': 0.15, 'finger_gap_threshold': 0.06, 'history_size': 5}
+            open_hand_params = {'min_fingers': 4}
+        
+        # Initialize all detectors with parameters
+        self.pinch = PinchDetector(**pinch_params)
+        self.pointing = PointingDetector(**pointing_params)
+        self.swipe = SwipeDetector(**swipe_params)
+        self.zoom = ZoomDetector(**zoom_params)
+        self.open_hand = OpenHandDetector(**open_hand_params)
         
         # State tracking
         self.history = {'left': deque(maxlen=16), 'right': deque(maxlen=16)}
