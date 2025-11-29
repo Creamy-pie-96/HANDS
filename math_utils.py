@@ -99,30 +99,35 @@ class MovingAverage:
 
 
 class ClickDetector:
-    """Detect a pinch/click based on distance threshold with hold frames + cooldown.
+    """Relative-only pinch/click detector.
 
-    The class exposes `pinched(dist_px)` which should be called each frame with the
-    current distance between thumb and index in pixels. It returns True when a
-    click/pinch is registered.
+    This detector operates on a normalized distance value (unitless) where
+    distances are expressed relative to the image diagonal (0..~1). Call
+    `pinched(dist_rel)` with `dist_rel = pixel_dist / image_diag_px`.
+
+    Rationale: using a distance normalized by the image diagonal makes the
+    detection invariant to camera resolution and hand distance from camera.
     """
 
-    def __init__(self, thresh_px: float = 30, hold_frames: int = 3, cooldown_s: float = 0.4) -> None:
-        self.thresh = float(thresh_px)
+    def __init__(self, thresh_rel: float = 0.08, hold_frames: int = 3, cooldown_s: float = 0.4) -> None:
+        # thresh_rel: fraction of image diagonal (e.g. 0.08 ~= 8% of diagonal)
+        self.thresh_rel = float(thresh_rel)
         self.hold_frames = int(hold_frames)
         self.cooldown_s = float(cooldown_s)
         self._count = 0
         self._last_time = -999.0
 
-    def pinched(self, dist_px: float) -> bool:
-        """Return True when a pinch/click is detected.
+    def pinched(self, dist_rel: float) -> bool:
+        """Return True when a pinch/click is detected using relative distance.
 
         Args:
-            dist_px: distance between index and thumb in pixels
+            dist_rel: distance between index and thumb normalized by image diagonal
         """
         now = time.time()
         if now - self._last_time < self.cooldown_s:
             return False
-        if dist_px <= self.thresh:
+
+        if float(dist_rel) <= self.thresh_rel:
             self._count += 1
             if self._count >= self.hold_frames:
                 self._last_time = now

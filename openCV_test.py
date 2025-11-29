@@ -3,6 +3,7 @@ import cv2
 import mediapipe as mp
 import time
 import os
+import numpy as np
 
 # pyautogui is optional; wrap import in case running headless or on systems without display
 try:
@@ -26,7 +27,8 @@ mp_draw = mp.solutions.drawing_utils
 idx_ewma = EWMA(alpha=0.25) # will tweak this alpha
 thumb_ewma = EWMA(alpha=0.25)
 # Use safer defaults to reduce false positives during early testing
-click_detector = ClickDetector(thresh_px=15, hold_frames=5, cooldown_s=0.6)
+# ClickDetector is now relative-only: set `thresh_rel` (fraction of image diagonal)
+click_detector = ClickDetector(thresh_rel=0.08, hold_frames=5, cooldown_s=0.6)
 
 ENABLE_MOUSE = False
 
@@ -91,47 +93,48 @@ def main(camera_idx=0, width=640, height=400):
                 # draw MP landmarks for visual debugging
                 mp_draw.draw_landmarks(frame_bgr, hand_landmarks, mp_hands.HAND_CONNECTIONS)
 
-                # convert to Nx2 normalized array
-                norm = landmarks_to_array(hand_landmarks.landmark) # shape [21,2]
-                # map normalized coords to pixel coords (returns (N,2) ints)
-                pts_px = normalized_to_pixels(norm, frame_bgr.shape)
-                #index fingertip = landmark 8, thump tips = landmark 4
-                idx_px = pts_px[8]
-                thumb_px = pts_px[4]
+                # convert to Nx2 normalized array (values in 0..1)
+                norm = landmarks_to_array(hand_landmarks.landmark)  # shape [21,2]
 
-                # sanity check: landmarks must lie inside the frame
+                # map normalized coords to pixel coords for bounding-box checks
+                pts_px = normalized_to_pixels(norm, frame_bgr.shape)
+
+                # operate in normalized coordinates for smoothing/distance
+                sm_idx = idx_ewma.update(norm[8])
+                sm_thumb = thumb_ewma.update(norm[4])
+
+                # sanity check: ensure smoothed normalized coords map inside frame
                 h, w = frame_bgr.shape[:2]
-                if not (
-                    0 <= idx_px[0] < w
-                    and 0 <= idx_px[1] < h
-                    and 0 <= thumb_px[0] < w
-                    and 0 <= thumb_px[1] < h
-                ):
-                    # Skip unreliable frame
+                idx_px = (int(sm_idx[0] * w), int(sm_idx[1] * h))
+                thumb_px = (int(sm_thumb[0] * w), int(sm_thumb[1] * h))
+                if not (0 <= idx_px[0] < w and 0 <= idx_px[1] < h and 0 <= thumb_px[0] < w and 0 <= thumb_px[1] < h):
                     if debug:
                         print("Landmarks out of frame bounds — skipping frame")
                     continue
 
-                # smoothing 
-                sm_idx = idx_ewma.update(idx_px)
-                sm_thumb = thumb_ewma.update(thumb_px)
+                # compute pixel distance between smoothed normalized points
+                dx = (sm_idx[0] - sm_thumb[0]) * w
+                dy = (sm_idx[1] - sm_thumb[1]) * h
+                pixel_dist = np.hypot(dx, dy)
 
-                #compute the distance (pixel units)
-                dist = euclidean(sm_idx,sm_thumb)
-                # compute velocities (px/s) using previous smoothed position
+                # normalize by image diagonal to get relative distance (0..~1)
+                img_diag = max(1.0, np.hypot(w, h))
+                dist_rel = pixel_dist / img_diag
+
+                # compute velocities (px/s) using previous smoothed pixel position
                 now = time.time()
                 if prev_time is not None and prev_pos is not None:
                     dt = max(1e-6, now - prev_time)
-                    vx = (sm_idx[0] - prev_pos[0]) / dt
-                    vy = (sm_idx[1] - prev_pos[1]) / dt
+                    vx = (sm_idx[0] * w - prev_pos[0]) / dt
+                    vy = (sm_idx[1] * h - prev_pos[1]) / dt
                 else:
                     vx, vy = 0.0, 0.0
                 prev_time = now
-                prev_pos = sm_idx.copy()
+                prev_pos = (sm_idx[0] * w, sm_idx[1] * h)
 
-                # debug prints: distance and velocity (reduced spam: only every 10 frames)
+                # debug prints: relative distance and velocity (reduced spam)
                 if debug and frame_count % 10 == 0:
-                    print(f"[Frame {frame_count}] dist={dist:.1f}, vx={vx:.1f}, vy={vy:.1f}")
+                    print(f"[Frame {frame_count}] dist_rel={dist_rel:.3f}, vx={vx:.1f}, vy={vy:.1f}")
 
                 # swipe detection based on velocity thresholds
                 if abs(vx) > SWIPE_VX_THRESH:
@@ -145,29 +148,35 @@ def main(camera_idx=0, width=640, height=400):
                                 cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 128, 255), 3)
                     print(f"Swipe {direction} detected (vy={vy:.1f})")
 
-                # visualization: draw raw and smoothed points
-                cv2.circle(frame_bgr, tuple(idx_px), 6, (255, 0, 0), 2)          # raw index
-                cv2.circle(frame_bgr, tuple(thumb_px), 6, (0, 0, 255), 2)        # raw thumb
-                cv2.circle(frame_bgr, tuple(sm_idx.astype(int)), 8, (0, 255, 0), -1)  # smoothed index
+                # visualization: draw smoothed points (pixel coords)
+                cv2.circle(frame_bgr, idx_px, 6, (255, 0, 0), 2)          # smoothed index
+                cv2.circle(frame_bgr, thumb_px, 6, (0, 0, 255), 2)        # smoothed thumb
+                cv2.circle(frame_bgr, idx_px, 8, (0, 255, 0), 1)          # marker
 
-                # show distance
-                cv2.putText(frame_bgr, f"d={int(dist)}", (10, frame_bgr.shape[0]-10),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255,255,255), 2)
+                # show relative distance and current threshold
+                cv2.putText(
+                    frame_bgr,
+                    f"d_rel={dist_rel:.3f} thresh_rel={click_detector.thresh_rel:.3f}",
+                    (10, frame_bgr.shape[0] - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (255, 255, 255),
+                    2,
+                )
 
-                # gesture detection
-                if click_detector.pinched(dist):
-                    cv2.putText(frame_bgr, "PINCH!", (10, 70),
-                                cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 255), 3)
+                # gesture detection (relative units)
+                if click_detector.pinched(dist_rel):
+                    cv2.putText(frame_bgr, "PINCH!", (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 255), 3)
                     if debug:
-                        print(f"[Frame {frame_count}] PINCH detected (dist={dist:.1f})")
+                        print(f"[Frame {frame_count}] PINCH detected (dist_rel={dist_rel:.3f})")
                     # only move/click the OS mouse if enabled
                     if enable_mouse and pyautogui is not None:
-                        # Map smoothed point to screen coordinates before moving:
+                        # Map smoothed normalized point to screen coordinates before moving:
                         screen_w, screen_h = pyautogui.size()
-                        fx = sm_idx[0] / frame_bgr.shape[1]   # normalized x
-                        fy = sm_idx[1] / frame_bgr.shape[0]   # normalized y
-                        px = int(fx * screen_w)
-                        py = int(fy * screen_h)
+                        fx = float(sm_idx[0])  # normalized x (0..1)
+                        fy = float(sm_idx[1])  # normalized y (0..1)
+                        px = int(max(0, min(1, fx)) * screen_w)
+                        py = int(max(0, min(1, fy)) * screen_h)
                         pyautogui.click(px, py)
                     elif enable_mouse and pyautogui is None:
                         print("ENABLE_MOUSE requested but pyautogui is not available on this system")
