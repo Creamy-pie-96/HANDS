@@ -77,7 +77,8 @@ LANDMARK_NAMES = {
 def compute_hand_metrics(
     landmarks,  # MediaPipe landmarks object
     img_shape: Tuple[int, int, int],  # (height, width, channels)
-    prev_metrics: Optional[HandMetrics] = None
+    prev_metrics: Optional[HandMetrics] = None,
+    handedness: str = 'right'
 ) -> HandMetrics:
     
     # Convert lnadmarks to numpy array
@@ -123,11 +124,11 @@ def compute_hand_metrics(
 
     # detect which finger is extented
     finger_extended = {
-        'thumb': is_finger_extended(norm, 'thumb'),
-        'index': is_finger_extended(norm, 'index'),
-        'middle': is_finger_extended(norm, 'middle'),
-        'ring': is_finger_extended(norm, 'ring'),
-        'pinky': is_finger_extended(norm, 'pinky'),
+        'thumb': is_finger_extended(norm, 'thumb', handedness),
+        'index': is_finger_extended(norm, 'index', handedness),
+        'middle': is_finger_extended(norm, 'middle', handedness),
+        'ring': is_finger_extended(norm, 'ring', handedness),
+        'pinky': is_finger_extended(norm, 'pinky', handedness),
     }
 
     # compute velocity 
@@ -177,11 +178,11 @@ def is_finger_extended(
     elif finger_name == 'thumb':
         # Thumb is trickier - it moves sideways not up/down
         # Using x-coordinate comparison
-        # For right hand: thumb extended means tip (4) is left of MCP (2)
-        # For left hand: opposite
-        if handedness == 'Right':
+        # For right hand: thumb extended means tip (4) is LEFT of MCP (2) (x decreases)
+        # For left hand: thumb extended means tip (4) is RIGHT of MCP (2) (x increases)
+        if handedness.lower() == 'right':
             return landmarks_norm[4][0] < landmarks_norm[2][0]
-        else:
+        else:  # left hand
             return landmarks_norm[4][0] > landmarks_norm[2][0]
 
     return False
@@ -351,9 +352,10 @@ class ZoomDetector:
         
         # Compute weighted spread (thumb distances matter more!)
         # User insight: thumb-index and thumb-middle change more than index-middle
-        thumb_index = metrics.tip_distances.get('index_thumb', 0)
-        thumb_middle = metrics.tip_distances.get('thumb_middle', 0)
-        index_middle = metrics.tip_distances.get('index_middle', 0)
+        # Note: keys are in tip_distances as 'index_thumb', 'thumb_middle', 'index_middle'
+        thumb_index = metrics.tip_distances.get('index_thumb', 0.0)
+        thumb_middle = metrics.tip_distances.get('thumb_middle', 0.0)
+        index_middle = metrics.tip_distances.get('index_middle', 0.0)
         
         # Weighted average: thumb distances get 2x weight
         spread = (2 * thumb_index + 2 * thumb_middle + index_middle) / 5.0
@@ -418,13 +420,18 @@ class OpenHandDetector:
     
     def detect(self, metrics: HandMetrics) -> GestureResult:
         """
-        Count extended fingers - simplest detector!
+        Count extended fingers and check they're not pinching.
+        Prevents false detection when doing pinch gesture.
         """
         # Count how many fingers are extended
         count = sum(metrics.fingers_extended.values())
         
-        # Detect if at least min_fingers are extended
-        detected = count >= self.min_fingers
+        # Additional check: if thumb and index are too close, it's a pinch, not open hand
+        thumb_index_dist = metrics.tip_distances.get('index_thumb', 0.0)
+        is_pinching = thumb_index_dist < 0.08  # If closer than this, it's a pinch
+        
+        # Detect if at least min_fingers are extended AND not pinching
+        detected = count >= self.min_fingers and not is_pinching
         
         return GestureResult(
             detected=detected,
@@ -481,22 +488,56 @@ class GestureManager:
         # Get previous metrics for velocity computation
         prev = self.history[hand_label][-1] if self.history[hand_label] else None
         
-        # Compute current metrics
-        metrics = compute_hand_metrics(landmarks, img_shape, prev)
+        # Compute current metrics with handedness
+        metrics = compute_hand_metrics(landmarks, img_shape, prev, handedness=hand_label)
         self.history[hand_label].append(metrics)
         
         # Run all detectors
         results = {}
         
-        # YOUR CODE HERE:
-        # Call each detector and collect results
-        # Example:
-        # pinch_result = self.pinch.detect(metrics)
-        # if pinch_result.detected:
-        #     results['pinch'] = pinch_result
+        # Call each detector
+        pinch_result = self.pinch.detect(metrics)
+        pointing_result = self.pointing.detect(metrics)
+        swipe_result = self.swipe.detect(metrics)
+        zoom_result = self.zoom.detect(metrics)
+        open_hand_result = self.open_hand.detect(metrics)
         
-        # Apply conflict resolution (implement priority logic)
-        # Example: if pinch is detected, don't report pointing
+        # Apply priority rules and conflict resolution:
+        # PRIORITY ORDER (highest to lowest):
+        # 1. Pinch - highest priority (specific gesture)
+        # 2. Zoom - 3-finger gesture, exclusive
+        # 3. Pointing - single finger extended
+        # 4. Swipe - can coexist with static gestures
+        # 5. Open hand - LOWEST priority (fallback for all fingers extended)
+        
+        # Check high-priority gestures first
+        if pinch_result.detected:
+            results['pinch'] = pinch_result
+            # Pinch blocks pointing and open_hand
+            if swipe_result.detected:
+                results['swipe'] = swipe_result
+            return results
+        
+        if zoom_result.detected:
+            results['zoom'] = zoom_result
+            # Zoom blocks other gestures (needs 3 fingers)
+            if swipe_result.detected:
+                results['swipe'] = swipe_result
+            return results
+        
+        if pointing_result.detected:
+            results['pointing'] = pointing_result
+            # Pointing blocks open_hand (only 1 finger vs 5)
+            if swipe_result.detected:
+                results['swipe'] = swipe_result
+            return results
+        
+        # Only check open_hand if no other gesture detected
+        if open_hand_result.detected:
+            results['open_hand'] = open_hand_result
+        
+        if swipe_result.detected:
+            results['swipe'] = swipe_result
         
         return results
 
