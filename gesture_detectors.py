@@ -13,6 +13,7 @@ Design principles:
 
 import numpy as np
 import time
+import cv2
 from collections import deque
 from typing import Dict, Tuple, Optional, List
 from dataclasses import dataclass, field
@@ -20,9 +21,7 @@ from dataclasses import dataclass, field
 from math_utils import landmarks_to_array, euclidean, EWMA, ClickDetector
 
 
-# ============================================================================
 # Data Structures
-# ============================================================================
 
 @dataclass
 class HandMetrics:
@@ -65,11 +64,6 @@ class GestureResult:
     confidence: float = 1.0
     metadata: Dict = field(default_factory=dict)
 
-
-# ============================================================================
-# STEP 1: Compute Hand Metrics (Foundation for all detectors)
-# ============================================================================
-
 # MediaPipe Hand Landmark indices (for reference)
 LANDMARK_NAMES = {
     'WRIST': 0,
@@ -85,37 +79,81 @@ def compute_hand_metrics(
     img_shape: Tuple[int, int, int],  # (height, width, channels)
     prev_metrics: Optional[HandMetrics] = None
 ) -> HandMetrics:
-    """
-    Compute comprehensive hand metrics from MediaPipe landmarks.
     
-    TODO (STEP 1 - YOU IMPLEMENT THIS):
-    1. Use landmarks_to_array() from math_utils to convert landmarks to np.ndarray
-    2. Compute centroid as mean of all landmarks
-    3. Compute bbox as (min_x, min_y, max_x, max_y)
-    4. Extract tip positions for each finger (indices: thumb=4, index=8, middle=12, ring=16, pinky=20)
-    5. Compute distances between key tips (use euclidean from math_utils)
-    6. Compute hand diagonal relative to image diagonal
-    7. Detect which fingers are extended (call is_finger_extended for each)
-    8. Compute velocity if prev_metrics exists
+    # Convert lnadmarks to numpy array
+    norm = landmarks_to_array(landmarks.landmark)
+
+    # Compute centroid
+    centroid = (float(norm[:, 0].mean()), float(norm[:, 1].mean()))
+
+    # Compute bounding box 
+    xmin, xmax = float(norm[:,0].min()), float(norm[:,0].max())
+    ymin, ymax = float(norm[:,1].min()), float(norm[:,1].max())
+
+    bbox = (xmin,ymin,xmax,ymax)
+    # Extract finget tips positions
+    tip_positions = {
+        'thumb' : tuple(norm[4]),
+        'index' : tuple(norm[8]),
+        'middle' : tuple(norm[12]),
+        'ring' : tuple(norm[16]),
+        'pinky' : tuple(norm[20]),
+    }
+
+    # Distence between tips
+    tip_distances = {
+        'index_thumb' : float(euclidean(norm[4],norm[8])),
+        'index_middle' : float(euclidean(norm[8],norm[12])),
+        'index_ring' : float(euclidean(norm[8],norm[16])),
+        'index_pinky' : float(euclidean(norm[8],norm[20])),
+        'thumb_middle' : float(euclidean(norm[4],norm[12])),
+        'thumb_ring' : float(euclidean(norm[4],norm[16])),
+        'thumb_pinky' : float(euclidean(norm[4],norm[20])),
+        'middle_ring' : float(euclidean(norm[12],norm[16])),
+        'middle_pinky' : float(euclidean(norm[12],norm[20])),
+        'ring_pinky' : float(euclidean(norm[16],norm[20]))
+    }
+
+    # diagonal relations
+
+    h, w = img_shape[0], img_shape[1]
+    hand_diag_px = np.hypot(xmax-xmin,ymax-ymin)
+    img_diag_px = np.hypot(w,h)
+    diag_rel = hand_diag_px / img_diag_px
+
+    # detect which finger is extented
+    finger_extended = {
+        'thumb': is_finger_extended(norm, 'thumb'),
+        'index': is_finger_extended(norm, 'index'),
+        'middle': is_finger_extended(norm, 'middle'),
+        'ring': is_finger_extended(norm, 'ring'),
+        'pinky': is_finger_extended(norm, 'pinky'),
+    }
+
+    # compute velocity 
+    velocity = (0.0,0.0)
+    if prev_metrics is not None:
+        dt = time.time() - prev_metrics.timestamp
+        if dt > 0:
+            vx = (centroid[0]-prev_metrics.centroid[0])/dt
+            vy = (centroid[1] - prev_metrics.centroid[1])/dt
+            velocity = (vx, vy)
     
-    Args:
-        landmarks: MediaPipe hand landmarks object
-        img_shape: frame shape (height, width, channels)
-        prev_metrics: previous frame's metrics for velocity computation
-        
-    Returns:
-        HandMetrics object with all computed values
-        
-    Example skeleton:
-        norm = landmarks_to_array(landmarks.landmark)
-        centroid = (float(norm[:, 0].mean()), float(norm[:, 1].mean()))
-        # ... continue implementation
-    """
-    # YOUR CODE HERE - follow the TODO steps above
-    # Hint: Start by converting landmarks and computing simple metrics first
-    # Then add finger detection and distances
-    
-    pass  # Remove this and implement
+    return HandMetrics(
+        landmarks_norm= norm,
+        timestamp= time.time(),
+        centroid= centroid,
+        bbox=bbox,
+        tip_positions=tip_positions,
+        tip_distances= tip_distances,
+        fingers_extended= finger_extended,
+        diag_rel= diag_rel,
+        velocity= velocity
+
+    )
+
+
+
 
 
 def is_finger_extended(
@@ -123,32 +161,30 @@ def is_finger_extended(
     finger_name: str,
     handedness: str = 'Right'
 ) -> bool:
-    """
-    Detect if a specific finger is extended.
     
-    TODO (STEP 2 - YOU IMPLEMENT THIS):
-    Rule for most fingers: tip.y < pip.y (remember y increases downward in image coords)
-    Rule for thumb: more complex - compare x-positions and angle
-    
-    Args:
-        landmarks_norm: (21, 2) array of normalized landmarks
-        finger_name: 'thumb', 'index', 'middle', 'ring', or 'pinky'
-        handedness: 'Right' or 'Left' (affects thumb detection)
-        
-    Returns:
-        True if finger is extended, False otherwise
-        
-    Hints:
-    - For index: compare landmarks_norm[8][1] < landmarks_norm[6][1]
-    - For thumb: check if tip is far from palm center in x-direction
-    - Use LANDMARK_NAMES dict to get indices
-    """
-    # YOUR CODE HERE
-    # Start with index finger (simplest case)
-    # Then add other fingers
-    # Thumb is the trickiest - implement last
-    
-    pass  # Remove this and implement
+    if finger_name == 'index':
+        return landmarks_norm[8][1] < landmarks_norm[6][1]
+
+    elif finger_name == 'middle':
+        return landmarks_norm[12][1] < landmarks_norm[10][1]
+
+    elif finger_name == 'ring':
+        return landmarks_norm[16][1] < landmarks_norm[14][1]
+
+    elif finger_name == 'pinky':
+        return landmarks_norm[20][1] < landmarks_norm[18][1]
+
+    elif finger_name == 'thumb':
+        # Thumb is trickier - it moves sideways not up/down
+        # Using x-coordinate comparison
+        # For right hand: thumb extended means tip (4) is left of MCP (2)
+        # For left hand: opposite
+        if handedness == 'Right':
+            return landmarks_norm[4][0] < landmarks_norm[2][0]
+        else:
+            return landmarks_norm[4][0] > landmarks_norm[2][0]
+
+    return False
 
 
 # ============================================================================
@@ -168,52 +204,67 @@ class PinchDetector:
         self._last_time = -999.0
     
     def detect(self, metrics: HandMetrics) -> GestureResult:
-        """
-        TODO (STEP 3A - ADAPT EXISTING CODE):
-        Take the logic from ClickDetector.pinched() and adapt it here.
-        Use metrics.tip_distances['index_thumb'] instead of passing dist_rel directly.
-        
-        Returns:
-            GestureResult with detected=True when pinch occurs
-        """
-        # YOUR CODE HERE - copy and adapt from ClickDetector
-        pass
+       
+        dist_rel = metrics.tip_distances['index_thumb']
+        now = time.time()
+        if now - self._last_time < self.cooldown_s:
+            return GestureResult(detected=False, gesture_name='pinch')
+
+        if dist_rel <= self.thresh_rel:
+            self._count += 1
+            if self._count >= self.hold_frames:
+                self._last_time = now
+                self._count = 0
+                return GestureResult(
+                    detected=True,
+                    gesture_name='pinch',
+                    confidence=1.0,
+                    metadata={'dist_rel': dist_rel}
+                )
+        else:
+            self._count = 0
+
+        return GestureResult(detected=False, gesture_name='pinch')
 
 
 class PointingDetector:
-    """
-    Detects single index finger pointing gesture.
-    Used for cursor control.
-    """
     def __init__(self, min_extension_ratio: float = 0.12):
-        """
-        Args:
-            min_extension_ratio: minimum distance from palm to index tip (relative to img diag)
-        """
         self.min_extension_ratio = min_extension_ratio
     
     def detect(self, metrics: HandMetrics) -> GestureResult:
-        """
-        TODO (STEP 4 - YOU IMPLEMENT THIS):
+        if not metrics.fingers_extended['index']:
+            return GestureResult(detected=False,gesture_name='pointing')
+    
+        other_fingers = ['middle','ring','pinky']
+        extended_count = sum(metrics.fingers_extended[f] for f in other_fingers)
+        if extended_count > 1: # tolerance of 1(1 extra finger other than index can be opened)
+            return GestureResult(detected=False, gesture_name='pointing')
         
-        Conditions for pointing:
-        1. Index finger is extended (metrics.fingers_extended['index'] == True)
-        2. All other fingers are NOT extended (or at most 1 other for tolerance)
-        3. Index tip is sufficiently far from palm (use centroid)
-        4. Hand is relatively stable (low velocity)
-        
-        Returns:
-            GestureResult with metadata containing:
-            - 'direction': normalized vector from palm to index tip
-            - 'tip_position': (x, y) normalized coords of index tip
-        """
-        # YOUR CODE HERE
-        # Start with condition 1 and 2
-        # Then add distance check
-        # Finally add velocity check for stability
-        
-        pass
+        # index finger should be far from palm
+        index_tip = metrics.tip_positions['index']
+        centroid = metrics.centroid
+        distance = euclidean(index_tip, centroid)
 
+        if distance < self.min_extension_ratio:
+            return GestureResult(detected=False,gesture_name='pointing')
+        
+        # Condition 4: Hand should be relatively stable (low velocity)
+        speed = np.hypot(metrics.velocity[0], metrics.velocity[1])
+        if speed > 0.5:  # TODO: needs tweak threshold
+            return GestureResult(detected=False, gesture_name='pointing')
+
+        direction = (index_tip[0] - centroid[0], index_tip[1] - centroid[1])
+
+        return GestureResult(
+            detected=True,
+            gesture_name='pointing',
+            confidence=1.0,
+            metadata={
+                'tip_position': index_tip,
+                'direction': direction,
+                'distance': distance
+            }
+        )
 
 class SwipeDetector:
     """
@@ -232,23 +283,44 @@ class SwipeDetector:
         self.last_swipe_time = -999.0
     
     def detect(self, metrics: HandMetrics) -> GestureResult:
-        """
-        TODO (STEP 5 - YOU IMPLEMENT THIS):
-        
-        1. Add current metrics to history deque
-        2. Check if cooldown has passed
-        3. Compute velocity from history (use EWMA or simple average)
-        4. If |vx| or |vy| > threshold, determine direction
-        5. Return result with direction metadata
-        
-        Velocity computation hint:
-        - Get last 3-5 frames from history
-        - Compute centroid displacement
-        - Divide by time difference
-        - Compare to threshold
-        """
-        # YOUR CODE HERE
-        pass
+        self.history.append(metrics)
+
+        # Need at least 3 frames to compute velocity reliably
+        if len(self.history) < 3:
+            return GestureResult(detected=False, gesture_name='swipe')
+
+        # Check cooldown
+        now = time.time()
+        if now - self.last_swipe_time < self.cooldown_s:
+            return GestureResult(detected=False, gesture_name='swipe')
+
+        # Compute velocity from current metrics (already has velocity!)
+        vx, vy = metrics.velocity
+        speed = np.hypot(vx, vy)
+
+        # Check if speed exceeds threshold
+        if speed < self.velocity_threshold:
+            return GestureResult(detected=False, gesture_name='swipe')
+
+        # Determine direction based on which component is larger
+        if abs(vx) > abs(vy):
+            direction = 'right' if vx > 0 else 'left'
+        else:
+            direction = 'down' if vy > 0 else 'up'
+
+        # Update cooldown timer
+        self.last_swipe_time = now
+
+        return GestureResult(
+            detected=True,
+            gesture_name='swipe',
+            confidence=1.0,
+            metadata={
+                'direction': direction,
+                'speed': speed,
+                'velocity': (vx, vy)
+            }
+        )
 
 
 class ZoomDetector:
@@ -266,19 +338,73 @@ class ZoomDetector:
     
     def detect(self, metrics: HandMetrics) -> GestureResult:
         """
-        TODO (STEP 6 - YOU IMPLEMENT THIS):
-        
-        1. Check if thumb, index, and middle are all extended
-        2. Compute current "spread" = average distance between the 3 tips
-        3. Compare to previous spread (from history)
-        4. If ratio > 1 + threshold -> zoom out
-        5. If ratio < 1 - threshold -> zoom in
-        
-        Hint: Use metrics.tip_distances to get pairwise distances
-        Compute spread as mean of (thumb-index, thumb-middle, index-middle)
+        Improved zoom detection:
+        - Uses weighted distances (thumb distances weighted higher)
+        - Tracks continuous direction (zoom in vs out)
+        - Works for both starting positions (spread or pinched)
         """
-        # YOUR CODE HERE
-        pass
+        # Check if thumb, index, and middle are all extended
+        required = ['thumb', 'index', 'middle']
+        if not all(metrics.fingers_extended[f] for f in required):
+            self.history.clear()  # Reset if gesture breaks
+            return GestureResult(detected=False, gesture_name='zoom')
+        
+        # Compute weighted spread (thumb distances matter more!)
+        # User insight: thumb-index and thumb-middle change more than index-middle
+        thumb_index = metrics.tip_distances.get('index_thumb', 0)
+        thumb_middle = metrics.tip_distances.get('thumb_middle', 0)
+        index_middle = metrics.tip_distances.get('index_middle', 0)
+        
+        # Weighted average: thumb distances get 2x weight
+        spread = (2 * thumb_index + 2 * thumb_middle + index_middle) / 5.0
+        
+        # Add to history
+        self.history.append(spread)
+        
+        # Need at least 3 frames to detect continuous direction
+        if len(self.history) < 3:
+            return GestureResult(detected=False, gesture_name='zoom')
+        
+        # Check for continuous increasing or decreasing trend
+        recent = list(self.history)[-3:]  # Last 3 frames
+        
+        # Compute differences between consecutive frames
+        diff1 = recent[1] - recent[0]
+        diff2 = recent[2] - recent[1]
+        
+        # Check if all differences have same sign (continuous direction)
+        increasing = diff1 > 0 and diff2 > 0
+        decreasing = diff1 < 0 and diff2 < 0
+        
+        if not (increasing or decreasing):
+            return GestureResult(detected=False, gesture_name='zoom')
+        
+        # Compute total change magnitude
+        total_change = recent[-1] - recent[0]
+        relative_change = abs(total_change) / (recent[0] + 1e-6)  # Avoid div by zero
+        
+        # Detect zoom based on continuous direction and threshold
+        if increasing and relative_change > self.scale_threshold:
+            zoom_type = 'out'
+            detected = True
+        elif decreasing and relative_change > self.scale_threshold:
+            zoom_type = 'in'
+            detected = True
+        else:
+            detected = False
+            zoom_type = None
+        
+        return GestureResult(
+            detected=detected,
+            gesture_name='zoom',
+            confidence=1.0 if detected else 0.0,
+            metadata={
+                'zoom_type': zoom_type,
+                'relative_change': relative_change,
+                'spread': spread,
+                'trend': 'increasing' if increasing else 'decreasing' if decreasing else 'unstable'
+            }
+        )
 
 
 class OpenHandDetector:
@@ -292,15 +418,20 @@ class OpenHandDetector:
     
     def detect(self, metrics: HandMetrics) -> GestureResult:
         """
-        TODO (STEP 7 - EASY ONE TO START WITH):
-        
-        Simply count how many fingers are extended.
-        If count >= self.min_fingers, return detected=True
-        
-        Hint: sum(metrics.fingers_extended.values())
+        Count extended fingers - simplest detector!
         """
-        # YOUR CODE HERE - this is the simplest detector, start here!
-        pass
+        # Count how many fingers are extended
+        count = sum(metrics.fingers_extended.values())
+        
+        # Detect if at least min_fingers are extended
+        detected = count >= self.min_fingers
+        
+        return GestureResult(
+            detected=detected,
+            gesture_name='open_hand',
+            confidence=1.0 if detected else 0.0,
+            metadata={'finger_count': count}
+        )
 
 
 # ============================================================================
@@ -377,17 +508,58 @@ class GestureManager:
 def visualize_hand_metrics(frame, metrics: HandMetrics, color=(0, 255, 0)):
     """
     Draw hand metrics overlays on frame for debugging.
-    
-    TODO (STEP 10 - VISUALIZATION):
-    1. Draw bounding box
-    2. Draw centroid as circle
-    3. Draw finger tips with different colors based on extended state
-    4. Draw text showing distances and velocity
-    
-    This helps you see what the detectors are "seeing"
+    Shows bounding box, centroid, finger tips, and velocity.
     """
-    # YOUR CODE HERE
-    pass
+    h, w = frame.shape[:2]
+    
+    # Draw bounding box
+    bbox = metrics.bbox
+    pt1 = (int(bbox[0] * w), int(bbox[1] * h))
+    pt2 = (int(bbox[2] * w), int(bbox[3] * h))
+    cv2.rectangle(frame, pt1, pt2, (255, 0, 255), 2)
+    
+    # Draw centroid
+    cx, cy = metrics.centroid
+    center = (int(cx * w), int(cy * h))
+    cv2.circle(frame, center, 8, (0, 255, 255), -1)
+    
+    # Draw finger tips with different colors based on extended state
+    finger_colors = {
+        'thumb': (255, 0, 0),
+        'index': (0, 255, 0),
+        'middle': (0, 0, 255),
+        'ring': (255, 255, 0),
+        'pinky': (255, 0, 255)
+    }
+    
+    for finger_name, pos in metrics.tip_positions.items():
+        px, py = int(pos[0] * w), int(pos[1] * h)
+        is_extended = metrics.fingers_extended[finger_name]
+        finger_color = finger_colors[finger_name] if is_extended else (128, 128, 128)
+        cv2.circle(frame, (px, py), 6, finger_color, -1)
+        
+        # Label the finger
+        cv2.putText(frame, finger_name[0].upper(), (px+8, py), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.4, finger_color, 1)
+    
+    # Draw velocity arrow if significant
+    vx, vy = metrics.velocity
+    speed = np.hypot(vx, vy)
+    if speed > 0.1:
+        end_x = int((cx + vx * 0.2) * w)
+        end_y = int((cy + vy * 0.2) * h)
+        cv2.arrowedLine(frame, center, (end_x, end_y), (0, 255, 0), 2, tipLength=0.3)
+    
+    # Draw text info at bottom
+    info_lines = [
+        f"Speed: {speed:.2f}",
+        f"Fingers: {sum(metrics.fingers_extended.values())}",
+        f"Diag: {metrics.diag_rel:.3f}"
+    ]
+    
+    for i, line in enumerate(info_lines):
+        cv2.putText(frame, line, (10, h - 60 + i*20), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
 
 def test_detector(detector, test_cases: List[Dict]) -> None:

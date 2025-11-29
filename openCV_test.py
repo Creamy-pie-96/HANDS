@@ -18,9 +18,12 @@ from math_utils import(
     euclidean
 ) 
 
-# Media Pipe setup
+# Media Pipe setup with optimizations for fast motion tracking
 mp_hands = mp.solutions.hands
-hands = mp_hands.Hands(min_detection_confidence=0.7, min_tracking_confidence=0.5)
+hands = mp_hands.Hands(
+    min_detection_confidence=0.7,
+    min_tracking_confidence=0.3  # Lower for better fast motion tracking
+)
 mp_draw = mp.solutions.drawing_utils
 
 # Smoothers & detectors
@@ -45,8 +48,16 @@ def main(camera_idx=0, width=640, height=400):
     # Create a named window (helps some backends) and allow resize
     cv2.namedWindow("web demo", cv2.WINDOW_NORMAL)
 
+    # Performance optimizations
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+    cap.set(cv2.CAP_PROP_FPS, 60)  # Request 60 FPS (hardware dependent)
+    
+    # Verify actual camera settings
+    actual_fps = cap.get(cv2.CAP_PROP_FPS)
+    actual_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    actual_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    print(f"Camera settings: {actual_width}x{actual_height} @ {actual_fps:.1f} FPS")
 
     try:
         running = True
@@ -163,6 +174,30 @@ def main(camera_idx=0, width=640, height=400):
                     (255, 255, 255),
                     2,
                 )
+                
+                # Real-time tuning display in top-right corner
+                tune_x = frame_bgr.shape[1] - 250
+                tune_y = 50
+                cv2.putText(frame_bgr, "TUNING VALUES:", (tune_x, tune_y),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
+                tune_y += 20
+                cv2.putText(frame_bgr, f"Pinch dist: {dist_rel:.4f}", (tune_x, tune_y),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+                tune_y += 15
+                cv2.putText(frame_bgr, f"Threshold: {click_detector.thresh_rel:.4f}", (tune_x, tune_y),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+                tune_y += 15
+                cv2.putText(frame_bgr, f"Velocity X: {vx:.1f} px/s", (tune_x, tune_y),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+                tune_y += 15
+                cv2.putText(frame_bgr, f"Velocity Y: {vy:.1f} px/s", (tune_x, tune_y),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+                tune_y += 15
+                cv2.putText(frame_bgr, f"VX thresh: {SWIPE_VX_THRESH:.0f}", (tune_x, tune_y),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200), 1)
+                tune_y += 15
+                cv2.putText(frame_bgr, f"VY thresh: {SWIPE_VY_THRESH:.0f}", (tune_x, tune_y),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200), 1)
 
                 # gesture detection (relative units)
                 if click_detector.pinched(dist_rel):
