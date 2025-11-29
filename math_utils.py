@@ -109,7 +109,7 @@ class ClickDetector:
     detection invariant to camera resolution and hand distance from camera.
     """
 
-    def __init__(self, thresh_rel: float = 0.08, hold_frames: int = 3, cooldown_s: float = 0.4) -> None:
+    def __init__(self, thresh_rel: float = 0.055, hold_frames: int = 3, cooldown_s: float = 0.4) -> None:
         # thresh_rel: fraction of image diagonal (e.g. 0.08 ~= 8% of diagonal)
         self.thresh_rel = float(thresh_rel)
         self.hold_frames = int(hold_frames)
