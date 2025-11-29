@@ -28,7 +28,7 @@ idx_ewma = EWMA(alpha=0.25) # will tweak this alpha
 thumb_ewma = EWMA(alpha=0.25)
 # Use safer defaults to reduce false positives during early testing
 # ClickDetector is now relative-only: set `thresh_rel` (fraction of image diagonal)
-click_detector = ClickDetector(thresh_rel=0.08, hold_frames=5, cooldown_s=0.6)
+click_detector = ClickDetector(thresh_rel=0.055, hold_frames=5, cooldown_s=0.6)
 
 ENABLE_MOUSE = False
 
