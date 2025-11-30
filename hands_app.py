@@ -43,6 +43,12 @@ class HANDSApplication:
         # Load configuration
         print("Loading configuration...")
         self.config = config
+        self.config_path = config._config_path
+        try:
+            self.last_config_mtime = os.path.getmtime(self.config_path)
+        except Exception:
+            self.last_config_mtime = 0
+
         
         # Initialize camera
         camera_width = config.get('camera', 'width', default=640)
@@ -225,6 +231,26 @@ class HANDSApplication:
                     self.fps = 30.0 / (now - self.fps_time)
                     self.fps_time = now
                 
+                    self.fps_time = now
+                
+                # Check for config updates (every 30 frames approx)
+                if self.frame_count % 30 == 0:
+                    try:
+                        current_mtime = os.path.getmtime(self.config_path)
+                        if current_mtime != self.last_config_mtime:
+                            print("\n🔄 Config change detected, reloading...")
+                            self.last_config_mtime = current_mtime
+                            self.config.reload()
+                            
+                            # Re-initialize components with new config
+                            self.gesture_mgr = ComprehensiveGestureManager()
+                            if self.enable_system_control:
+                                self.system_ctrl = SystemController(self.config)
+                            self.visual = VisualFeedback(self.config)
+                            print("✓ Components reloaded with new configuration\n")
+                    except Exception as e:
+                        print(f"⚠ Error checking config update: {e}")
+
                 # Process with MediaPipe
                 frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
                 results = self.hands.process(frame_rgb)

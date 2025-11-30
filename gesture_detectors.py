@@ -525,6 +525,61 @@ class OpenHandDetector:
         )
 
 
+
+class ThumbsDetector:
+    """
+    Detects Thumbs Up/Down and their movements.
+    """
+    def __init__(self, velocity_threshold: float = 0.2):
+        self.velocity_threshold = velocity_threshold
+
+    def detect(self, metrics: HandMetrics) -> GestureResult:
+        extended = metrics.fingers_extended
+        # Check if only thumb is extended
+        only_thumb = extended['thumb'] and not any([extended['index'], extended['middle'], extended['ring'], extended['pinky']])
+        
+        if not only_thumb:
+            return GestureResult(detected=False, gesture_name='none')
+            
+        thumb_tip_y = metrics.landmarks_norm[4][1]
+        pinky_mcp_y = metrics.landmarks_norm[17][1]
+        
+        is_thumbs_up = thumb_tip_y < pinky_mcp_y
+        is_thumbs_down = thumb_tip_y > pinky_mcp_y
+        
+        vx, vy = metrics.velocity
+        
+        velocity_up = vy < -self.velocity_threshold
+        velocity_down = vy > self.velocity_threshold
+        
+        gesture_name = 'none'
+        detected = False
+        
+        if is_thumbs_up:
+            detected = True
+            if velocity_up:
+                gesture_name = 'thumbs_up_moving_up'
+            elif velocity_down:
+                gesture_name = 'thumbs_up_moving_down'
+            else:
+                gesture_name = 'thumbs_up'
+        elif is_thumbs_down:
+            detected = True
+            if velocity_up:
+                gesture_name = 'thumbs_down_moving_up'
+            elif velocity_down:
+                gesture_name = 'thumbs_down_moving_down'
+            else:
+                gesture_name = 'thumbs_down'
+                
+        return GestureResult(
+            detected=detected,
+            gesture_name=gesture_name,
+            confidence=1.0 if detected else 0.0,
+            metadata={'velocity': (vx, vy)}
+        )
+
+
 # ============================================================================
 # STEP 8: Gesture Manager (Orchestrates all detectors)
 # ============================================================================
@@ -562,6 +617,8 @@ class GestureManager:
             finger_motion_sigmoid_k = get_gesture_threshold('finger_extension', 'motion_sigmoid_k', default=20.0)
 
             open_min = get_gesture_threshold('open_hand', 'min_fingers', default=4)
+            
+            thumbs_velocity_thresh = get_gesture_threshold('thumbs', 'velocity_threshold', default=0.2)
         except Exception:
             print("Failed to load config file and so falling back to hadcoded value")
             # Fallback to hardcoded defaults if config access fails
@@ -571,6 +628,7 @@ class GestureManager:
             zoom_scale, zoom_gap, zoom_hist = 0.15, 0.06, 5
             open_min = 4
             open_ratio, close_ratio = 1.20, 1.10
+            thumbs_velocity_thresh = 0.2
 
         # Initialize detectors with resolved parameters
         self.pinch = PinchDetector(thresh_rel=pinch_thresh, hold_frames=pinch_hold, cooldown_s=pinch_cd)
@@ -578,6 +636,7 @@ class GestureManager:
         self.swipe = SwipeDetector(velocity_threshold=swipe_thresh, cooldown_s=swipe_cd, history_size=swipe_hist)
         self.zoom = ZoomDetector(scale_threshold=zoom_scale, history_size=zoom_hist, finger_gap_threshold=zoom_gap)
         self.open_hand = OpenHandDetector(min_fingers=open_min)
+        self.thumbs = ThumbsDetector(velocity_threshold=thumbs_velocity_thresh)
         # Store finger-extension hysteresis for use during metric computation
         self.finger_open_ratio = open_ratio
         self.finger_close_ratio = close_ratio
@@ -635,6 +694,7 @@ class GestureManager:
         pointing_result = self.pointing.detect(metrics)
         swipe_result = self.swipe.detect(metrics)
         zoom_result = self.zoom.detect(metrics)
+        thumbs_result = self.thumbs.detect(metrics)
         open_hand_result = self.open_hand.detect(metrics)
         
         # Apply priority rules and conflict resolution:
@@ -669,6 +729,12 @@ class GestureManager:
         if pointing_result.detected:
             results['pointing'] = pointing_result
             # Pointing blocks open_hand (only 1 finger vs 5)
+            if swipe_result.detected:
+                results['swipe'] = swipe_result
+            return results
+            
+        if thumbs_result.detected:
+            results['thumbs'] = thumbs_result
             if swipe_result.detected:
                 results['swipe'] = swipe_result
             return results

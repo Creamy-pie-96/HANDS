@@ -13,14 +13,14 @@
       "description": "Single finger pointing detection"
     },
     "swipe": {
-      "velocity_threshold": 0.8,
+      "velocity_threshold": 0.7,
       "cooldown_seconds": 0.4,
       "history_size": 8,
       "description": "Fast directional hand movement"
     },
     "finger_extension": {
-      "open_ratio": 1.20,
-      "close_ratio": 1.10,
+      "open_ratio": 1.2,
+      "close_ratio": 1.1,
       "motion_speed_threshold": 0.2,
       "motion_sigmoid_k": 20.0,
       "description": "Tip/PIP to palm-centroid ratio thresholds for finger-extended detection (hysteresis)"
@@ -35,6 +35,10 @@
       "min_fingers": 4,
       "pinch_exclusion_distance": 0.08,
       "description": "Open palm gesture (4-5 fingers)"
+    },
+    "thumbs": {
+      "velocity_threshold": 0.2,
+      "description": "Thumbs up/down and movement detection"
     }
   },
   "system_control": {
