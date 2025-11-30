@@ -78,14 +78,30 @@ def compute_hand_metrics(
     landmarks,  # MediaPipe landmarks object
     img_shape: Tuple[int, int, int],  # (height, width, channels)
     prev_metrics: Optional[HandMetrics] = None,
-    handedness: str = 'right'
+    handedness: str = 'right',
+    open_ratio: float = 1.20,
+    close_ratio: float = 1.10,
+    motion_speed_threshold: float = 0.15,
+    motion_sigmoid_k: float = 20.0,
 ) -> HandMetrics:
     
     # Convert lnadmarks to numpy array
     norm = landmarks_to_array(landmarks.landmark)
 
-    # Compute centroid
-    centroid = (float(norm[:, 0].mean()), float(norm[:, 1].mean()))
+    # Compute a more stable palm-centered centroid using wrist + MCP joints
+    # (wrist, index_mcp, middle_mcp, ring_mcp, pinky_mcp). This is more
+    # resilient to finger pose and gives a better reference for extension
+    # and pointing calculations. If something goes wrong, fall back to the
+    # mean of all landmarks so we never raise an exception here.
+    try:
+        mcp_indices = [LANDMARK_NAMES['WRIST'], LANDMARK_NAMES['INDEX_MCP'],
+                       LANDMARK_NAMES['MIDDLE_MCP'], LANDMARK_NAMES['RING_MCP'],
+                       LANDMARK_NAMES['PINKY_MCP']]
+        palm_points = norm[mcp_indices, :]
+        centroid = (float(palm_points[:, 0].mean()), float(palm_points[:, 1].mean()))
+    except Exception:
+        # Fallback to global mean to avoid crashing in unusual cases
+        centroid = (float(norm[:, 0].mean()), float(norm[:, 1].mean()))
 
     # Compute bounding box 
     xmin, xmax = float(norm[:,0].min()), float(norm[:,0].max())
@@ -118,27 +134,61 @@ def compute_hand_metrics(
     # diagonal relations
 
     h, w = img_shape[0], img_shape[1]
-    hand_diag_px = np.hypot(xmax-xmin,ymax-ymin)
-    img_diag_px = np.hypot(w,h)
-    diag_rel = hand_diag_px / img_diag_px
+    # bbox is in normalized coords; convert to pixel sizes for diagonal
+    bbox_w_px = (xmax - xmin) * w
+    bbox_h_px = (ymax - ymin) * h
+    hand_diag_px = float(np.hypot(bbox_w_px, bbox_h_px))
+    img_diag_px = float(np.hypot(w, h))
+    # diag_rel: hand diagonal relative to image diagonal (unitless)
+    eps = 1e-6
+    diag_rel = hand_diag_px / (img_diag_px + eps)
 
-    # detect which finger is extented
-    finger_extended = {
-        'thumb': is_finger_extended(norm, 'thumb', handedness),
-        'index': is_finger_extended(norm, 'index', handedness),
-        'middle': is_finger_extended(norm, 'middle', handedness),
-        'ring': is_finger_extended(norm, 'ring', handedness),
-        'pinky': is_finger_extended(norm, 'pinky', handedness),
-    }
-
-    # compute velocity 
-    velocity = (0.0,0.0)
+    # compute velocity early so we can apply motion-aware adjustments
+    # Normalize velocity by hand size (hand diagonal) so motion thresholds
+    # are independent of how close/far the hand is from the camera.
+    velocity = (0.0, 0.0)
+    speed = 0.0
     if prev_metrics is not None:
         dt = time.time() - prev_metrics.timestamp
         if dt > 0:
-            vx = (centroid[0]-prev_metrics.centroid[0])/dt
-            vy = (centroid[1] - prev_metrics.centroid[1])/dt
-            velocity = (vx, vy)
+            # centroid is normalized; convert to pixel coords
+            cx_px, cy_px = centroid[0] * w, centroid[1] * h
+            prev_cx_px, prev_cy_px = prev_metrics.centroid[0] * w, prev_metrics.centroid[1] * h
+
+            dx_px = cx_px - prev_cx_px
+            dy_px = cy_px - prev_cy_px
+
+            # velocity in pixels/sec
+            vx_px = dx_px / dt
+            vy_px = dy_px / dt
+
+            # normalize by hand diagonal (unitless per second)
+            norm_factor = hand_diag_px + eps
+            vx = vx_px / norm_factor
+            vy = vy_px / norm_factor
+
+            velocity = (float(vx), float(vy))
+            speed = float(np.hypot(vx, vy))
+
+    # Motion-aware scaling: compute sigmoid of speed and use it to increase
+    # the open_ratio when the hand is moving. Sigmoid in (0,1), factor = 1+sigmoid -> (1,2).
+    try:
+        # Numerical stable sigmoid using numpy
+        sig = 1.0 / (1.0 + float(np.exp(-motion_sigmoid_k * (speed - motion_speed_threshold))))
+    except Exception:
+        sig = 0.0
+
+    motion_factor = 1.0 + sig
+    effective_open_ratio = open_ratio * motion_factor
+
+    # detect which finger is extented (use provided hysteresis thresholds)
+    finger_extended = {
+        'thumb': is_finger_extended(norm, 'thumb', centroid, prev_metrics, diag_rel, handedness, effective_open_ratio, close_ratio),
+        'index': is_finger_extended(norm, 'index',  centroid, prev_metrics, diag_rel, handedness, effective_open_ratio, close_ratio),
+        'middle': is_finger_extended(norm, 'middle',  centroid, prev_metrics, diag_rel, handedness, effective_open_ratio, close_ratio),
+        'ring': is_finger_extended(norm, 'ring',  centroid, prev_metrics, diag_rel, handedness, effective_open_ratio, close_ratio),
+        'pinky': is_finger_extended(norm, 'pinky',  centroid, prev_metrics, diag_rel, handedness, effective_open_ratio, close_ratio),
+    }
     
     return HandMetrics(
         landmarks_norm= norm,
@@ -160,32 +210,58 @@ def compute_hand_metrics(
 def is_finger_extended(
     landmarks_norm: np.ndarray,
     finger_name: str,
-    handedness: str = 'Right'
+    palm_centroid: Tuple[float,float],
+    prev_metrics: Optional[HandMetrics] = None,
+    diag_rel: float = 0.0,
+    handedness: str = 'Right',
+    open_ratio: float = 1.20,
+    close_ratio: float = 1.10,
 ) -> bool:
-    
-    if finger_name == 'index':
-        return landmarks_norm[8][1] < landmarks_norm[6][1]
+    # Map tip/pip indices correctly per finger
+    tip_idx_map = {
+        'thumb': LANDMARK_NAMES['THUMB_TIP'],
+        'index': LANDMARK_NAMES['INDEX_TIP'],
+        'middle': LANDMARK_NAMES['MIDDLE_TIP'],
+        'ring': LANDMARK_NAMES['RING_TIP'],
+        'pinky': LANDMARK_NAMES['PINKY_TIP'],
+    }
 
-    elif finger_name == 'middle':
-        return landmarks_norm[12][1] < landmarks_norm[10][1]
+    pip_idx_map = {
+        # for thumb we'll use THUMB_MCP (2) as the proximal joint reference
+        'thumb': LANDMARK_NAMES['THUMB_MCP'],
+        'index': LANDMARK_NAMES['INDEX_PIP'],
+        'middle': LANDMARK_NAMES['MIDDLE_PIP'],
+        'ring': LANDMARK_NAMES['RING_PIP'],
+        'pinky': LANDMARK_NAMES['PINKY_PIP'],
+    }
 
-    elif finger_name == 'ring':
-        return landmarks_norm[16][1] < landmarks_norm[14][1]
+    # Defensive: ensure requested finger is known
+    if finger_name not in tip_idx_map or finger_name not in pip_idx_map:
+        return False
 
-    elif finger_name == 'pinky':
-        return landmarks_norm[20][1] < landmarks_norm[18][1]
+    tip_idx = tip_idx_map[finger_name]
+    pip_idx = pip_idx_map[finger_name]
 
-    elif finger_name == 'thumb':
-        # Thumb is trickier - it moves sideways not up/down
-        # Using x-coordinate comparison
-        # For right hand: thumb extended means tip (4) is LEFT of MCP (2) (x decreases)
-        # For left hand: thumb extended means tip (4) is RIGHT of MCP (2) (x increases)
-        if handedness.lower() == 'right':
-            return landmarks_norm[4][0] < landmarks_norm[2][0]
-        else:  # left hand
-            return landmarks_norm[4][0] > landmarks_norm[2][0]
+    tip_pt = landmarks_norm[tip_idx]
+    pip_pt = landmarks_norm[pip_idx]
 
-    return False
+    # distances to palm centroid (use points, not indices)
+    d_tip = euclidean(tip_pt, palm_centroid)
+    d_pip = euclidean(pip_pt, palm_centroid)
+
+    # eps to avoid dividing by zero
+    eps = 1e-6
+    ratio = d_tip / (d_pip + eps)
+
+    # hysteresis thresholds (tune via config)
+
+    prev_state = False
+    if prev_metrics is not None and getattr(prev_metrics, 'fingers_extended', None):
+        prev_state = bool(prev_metrics.fingers_extended.get(finger_name, False))
+
+    threshold = close_ratio if prev_state else open_ratio
+
+    return (ratio > threshold)
 
 
 # ============================================================================
@@ -461,6 +537,7 @@ class GestureManager:
     def __init__(self):
         # Initialize all detectors using values from config.json when available
         try:
+            print("loading configs")
             from config_manager import get_gesture_threshold
 
             pinch_thresh = get_gesture_threshold('pinch', 'threshold_rel', default=0.055)
@@ -477,14 +554,23 @@ class GestureManager:
             zoom_gap = get_gesture_threshold('zoom', 'finger_gap_threshold', default=0.06)
             zoom_hist = get_gesture_threshold('zoom', 'history_size', default=5)
 
+            # Finger extension hysteresis thresholds
+            open_ratio = get_gesture_threshold('finger_extension', 'open_ratio', default=1.20)
+            close_ratio = get_gesture_threshold('finger_extension', 'close_ratio', default=1.10)
+            # Motion parameters for velocity-based scaling
+            finger_motion_threshold = get_gesture_threshold('finger_extension', 'motion_speed_threshold', default=0.15)
+            finger_motion_sigmoid_k = get_gesture_threshold('finger_extension', 'motion_sigmoid_k', default=20.0)
+
             open_min = get_gesture_threshold('open_hand', 'min_fingers', default=4)
         except Exception:
+            print("Failed to load config file and so falling back to hadcoded value")
             # Fallback to hardcoded defaults if config access fails
             pinch_thresh, pinch_hold, pinch_cd = 0.055, 5, 0.6
             pointing_min_ext = 0.12
             swipe_thresh, swipe_cd, swipe_hist = 0.8, 0.5, 8
             zoom_scale, zoom_gap, zoom_hist = 0.15, 0.06, 5
             open_min = 4
+            open_ratio, close_ratio = 1.20, 1.10
 
         # Initialize detectors with resolved parameters
         self.pinch = PinchDetector(thresh_rel=pinch_thresh, hold_frames=pinch_hold, cooldown_s=pinch_cd)
@@ -492,6 +578,11 @@ class GestureManager:
         self.swipe = SwipeDetector(velocity_threshold=swipe_thresh, cooldown_s=swipe_cd, history_size=swipe_hist)
         self.zoom = ZoomDetector(scale_threshold=zoom_scale, history_size=zoom_hist, finger_gap_threshold=zoom_gap)
         self.open_hand = OpenHandDetector(min_fingers=open_min)
+        # Store finger-extension hysteresis for use during metric computation
+        self.finger_open_ratio = open_ratio
+        self.finger_close_ratio = close_ratio
+        self.finger_motion_threshold = finger_motion_threshold
+        self.finger_motion_sigmoid_k = finger_motion_sigmoid_k
         
         # State tracking
         self.history = {'left': deque(maxlen=16), 'right': deque(maxlen=16)}
@@ -524,7 +615,16 @@ class GestureManager:
         prev = self.history[hand_label][-1] if self.history[hand_label] else None
         
         # Compute current metrics with handedness
-        metrics = compute_hand_metrics(landmarks, img_shape, prev, handedness=hand_label)
+        metrics = compute_hand_metrics(
+            landmarks,
+            img_shape,
+            prev_metrics=prev,
+            handedness=hand_label,
+            open_ratio=self.finger_open_ratio,
+            close_ratio=self.finger_close_ratio,
+            motion_speed_threshold=getattr(self, 'finger_motion_threshold', 0.15),
+            motion_sigmoid_k=getattr(self, 'finger_motion_sigmoid_k', 20.0),
+        )
         self.history[hand_label].append(metrics)
         
         # Run all detectors
@@ -576,16 +676,17 @@ class GestureManager:
         # Require all five fingers to be extended for a swipe to be valid.
         # This prevents accidental swipes when the user has a closed or partially
         # open hand. Use strict all-open requirement per user request.
-        if swipe_result.detected:
-            finger_count = sum(metrics.fingers_extended.values())
-            all_open = (finger_count == 5)
-            if all_open:
-                results['swipe'] = swipe_result
         
         # Only check open_hand if no other higher-priority gesture detected
         if open_hand_result.detected:
-            
-            results['open_hand'] = open_hand_result
+
+            if swipe_result.detected:
+                finger_count = sum(metrics.fingers_extended.values())
+                all_open = (finger_count == 5)
+                if all_open:
+                    results['swipe'] = swipe_result
+            else:
+                results['open_hand'] = open_hand_result
 
         return results
 
