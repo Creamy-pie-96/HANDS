@@ -13,14 +13,14 @@
       "description": "Single finger pointing detection"
     },
     "swipe": {
-      "velocity_threshold": 0.8,
-      "cooldown_seconds": 0.5,
+      "velocity_threshold": 0.6,
+      "cooldown_seconds": 0.4,
       "history_size": 8,
       "description": "Fast directional hand movement"
     },
     "zoom": {
       "scale_threshold": 0.15,
-      "finger_gap_threshold": 0.06,
+      "finger_gap_threshold": 0.08,
       "history_size": 5,
       "description": "Three-finger pinch-to-zoom"
     },
@@ -63,11 +63,31 @@
     "show_gesture_name": true,
     "overlay_opacity": 0.7,
     "colors": {
-      "left_hand": [0, 255, 255],
-      "right_hand": [255, 128, 0],
-      "cursor_preview": [0, 255, 0],
-      "active_gesture": [255, 0, 255],
-      "background": [0, 0, 0]
+      "left_hand": [
+        0,
+        255,
+        255
+      ],
+      "right_hand": [
+        255,
+        128,
+        0
+      ],
+      "cursor_preview": [
+        0,
+        255,
+        0
+      ],
+      "active_gesture": [
+        255,
+        0,
+        255
+      ],
+      "background": [
+        0,
+        0,
+        0
+      ]
     },
     "description": "Visual overlay preferences"
   },

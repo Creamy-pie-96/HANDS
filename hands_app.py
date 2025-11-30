@@ -285,6 +285,17 @@ class HANDSApplication:
                     cv2.putText(frame_bgr, fps_text, (w - 150, 30),
                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2, cv2.LINE_AA)
                 
+                # Debug: Print detected gestures to terminal
+                if self.show_debug:
+                    for category, gestures in all_gestures.items():
+                        for gesture_name, result in gestures.items():
+                            meta_str = ""
+                            if 'zoom_type' in result.metadata:
+                                meta_str = f" ({result.metadata['zoom_type']})"
+                            elif 'direction' in result.metadata:
+                                meta_str = f" ({result.metadata['direction']})"
+                            print(f"[{category}] {gesture_name.upper()}{meta_str}")
+                
                 # Display frame
                 cv2.imshow("HANDS Control", frame_bgr)
                 

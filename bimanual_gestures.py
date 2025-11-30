@@ -149,9 +149,14 @@ class BimanualGestureDetector:
         """
         Pan/Scroll: Left hand hold still, right hand moves.
         The still hand acts as an anchor point.
+        IMPORTANT: Should NOT trigger if zoom gesture is active on either hand
         """
         # Safety check
         if state.left_metrics is None or state.right_metrics is None:
+            return GestureResult(detected=False, gesture_name='pan')
+        
+        # FIXED: Don't trigger pan if zoom is active on either hand
+        if state.left_gesture == 'zoom' or state.right_gesture == 'zoom':
             return GestureResult(detected=False, gesture_name='pan')
         
         if self._is_hand_still(state.left_metrics):

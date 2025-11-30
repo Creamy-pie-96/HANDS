@@ -102,11 +102,11 @@ class VisualFeedback:
             self._draw_gesture_overlays(frame, metrics, gestures, hand_label)
     
     def _draw_hand_skeleton(self, frame, metrics, color):
-        """Draw hand skeleton with glow effect."""
+        """Draw hand skeleton - OPTIMIZED for performance."""
         h, w = frame.shape[:2]
         landmarks = metrics.landmarks_norm
         
-        # MediaPipe connections
+        # MediaPipe connections - simplified  
         connections = [
             # Thumb
             (0, 1), (1, 2), (2, 3), (3, 4),
@@ -122,55 +122,41 @@ class VisualFeedback:
             (5, 9), (9, 13), (13, 17)
         ]
         
-        # Draw connections with glow
+        # Draw connections - SIMPLE, no glow effect for performance
         for start_idx, end_idx in connections:
             start = (int(landmarks[start_idx][0] * w), int(landmarks[start_idx][1] * h))
             end = (int(landmarks[end_idx][0] * w), int(landmarks[end_idx][1] * h))
-            
-            # Glow effect (thicker, semi-transparent line)
-            cv2.line(frame, start, end, color, 6, cv2.LINE_AA)
-            # Main line
-            cv2.line(frame, start, end, color, 2, cv2.LINE_AA)
+            # Just one line, no glow
+            cv2.line(frame, start, end, color, 2)
     
     def _draw_fingertips(self, frame, metrics, color):
-        """Draw fingertips with extension status."""
+        """Draw fingertips - OPTIMIZED."""
         h, w = frame.shape[:2]
         
         for finger_name, pos in metrics.tip_positions.items():
             px, py = int(pos[0] * w), int(pos[1] * h)
             is_extended = metrics.fingers_extended[finger_name]
             
-            # Draw ring around fingertip
+            # Simple circles - no fancy rendering for performance
             if is_extended:
-                # Extended: bright color with glow
-                cv2.circle(frame, (px, py), 12, color, 2, cv2.LINE_AA)
-                cv2.circle(frame, (px, py), 6, color, -1, cv2.LINE_AA)
+                cv2.circle(frame, (px, py), 6, color, -1)
             else:
-                # Curled: dimmed
                 dim_color = tuple(int(c * 0.4) for c in color)
-                cv2.circle(frame, (px, py), 8, dim_color, 2, cv2.LINE_AA)
+                cv2.circle(frame, (px, py), 4, dim_color, -1)
     
     def _draw_gesture_overlays(self, frame, metrics, gestures, hand_label):
-        """Draw gesture-specific visual feedback."""
+        """Draw gesture-specific visual feedback - OPTIMIZED."""
         h, w = frame.shape[:2]
         
-        # Pinch: Draw line between thumb and index
+        # Pinch: Simple line between thumb and index
         if 'pinch' in gestures:
             thumb_pos = metrics.tip_positions['thumb']
             index_pos = metrics.tip_positions['index']
             p1 = (int(thumb_pos[0] * w), int(thumb_pos[1] * h))
             p2 = (int(index_pos[0] * w), int(index_pos[1] * h))
-            
-            # Draw pulsing line
-            intensity = self._get_pulse_intensity('pinch')
-            line_color = self._blend_colors(self.colors.pinch, (255, 255, 255), intensity)
-            cv2.line(frame, p1, p2, line_color, 3, cv2.LINE_AA)
-            
-            # Draw circles at pinch points
-            cv2.circle(frame, p1, 8, line_color, -1, cv2.LINE_AA)
-            cv2.circle(frame, p2, 8, line_color, -1, cv2.LINE_AA)
+            cv2.line(frame, p1, p2, self.colors.pinch, 2)
         
-        # Zoom: Draw triangle between thumb, index, middle
+        # Zoom: Simple triangle NO animations for FPS
         if 'zoom' in gestures:
             gesture_data = gestures['zoom']
             zoom_type = gesture_data.metadata.get('zoom_type', 'in')
@@ -183,47 +169,18 @@ class VisualFeedback:
             p2 = np.array([int(index_pos[0] * w), int(index_pos[1] * h)])
             p3 = np.array([int(middle_pos[0] * w), int(middle_pos[1] * h)])
             
-            pts = np.array([p1, p2, p3], np.int32)
-            pts = pts.reshape((-1, 1, 2))
-            
-            # Pulsing triangle
-            intensity = self._get_pulse_intensity('zoom')
+            pts = np.array([p1, p2, p3], np.int32).reshape((-1, 1, 2))
             color = self.colors.zoom if zoom_type == 'in' else self.colors.warning
-            fill_color = tuple(int(c * 0.3) for c in color)
-            
-            cv2.fillPoly(frame, [pts], fill_color, cv2.LINE_AA)
-            cv2.polylines(frame, [pts], True, color, 2, cv2.LINE_AA)
-            
-            # Draw zoom direction arrow
-            center = (p1 + p2 + p3) // 3
-            arrow_scale = 40 if zoom_type == 'in' else 30
-            if zoom_type == 'in':
-                cv2.arrowedLine(frame, tuple(center), tuple(center - [0, arrow_scale]), 
-                              color, 3, cv2.LINE_AA, tipLength=0.4)
-            else:
-                cv2.arrowedLine(frame, tuple(center), tuple(center + [0, arrow_scale]), 
-                              color, 3, cv2.LINE_AA, tipLength=0.4)
+            cv2.polylines(frame, [pts], True, color, 2)
         
-        # Pointing: Draw pointer ray
+        # Pointing: Simple line
         if 'pointing' in gestures:
             index_pos = metrics.tip_positions['index']
             centroid = metrics.centroid
-            
             p1 = (int(centroid[0] * w), int(centroid[1] * h))
             p2 = (int(index_pos[0] * w), int(index_pos[1] * h))
-            
-            # Extend ray
-            direction = np.array([p2[0] - p1[0], p2[1] - p1[1]])
-            direction = direction / (np.linalg.norm(direction) + 1e-6)
-            p3 = (int(p2[0] + direction[0] * 100), int(p2[1] + direction[1] * 100))
-            
-            # Draw ray with gradient effect
-            intensity = self._get_pulse_intensity('pointing')
-            color = self._blend_colors(self.colors.pointing, (255, 255, 255), intensity)
-            
-            cv2.line(frame, p1, p2, color, 3, cv2.LINE_AA)
-            cv2.line(frame, p2, p3, tuple(int(c * 0.5) for c in color), 2, cv2.LINE_AA)
-            cv2.circle(frame, p2, 10, color, -1, cv2.LINE_AA)
+            cv2.line(frame, p1, p2, self.colors.pointing, 2)
+            cv2.circle(frame, p2, 6, self.colors.pointing, -1)
     
     def draw_cursor_preview(self, frame, norm_x, norm_y, active=True):
         """Draw cursor preview with trail effect."""

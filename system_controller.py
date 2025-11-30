@@ -148,11 +148,11 @@ class SystemController:
     
     def move_cursor(self, norm_x: float, norm_y: float, precision_mode: bool = False):
         """
-        Move cursor to normalized position with smoothing.
+        Move cursor to normalized position with smoothing and stabilization.
         
         Args:
-            norm_x: Target X position (0..1)
-            norm_y: Target Y position (0..1)
+            norm_x: Target X position (0..1) - normalized to camera frame
+            norm_y: Target Y position (0..1) - normalized to camera frame
             precision_mode: If True, apply extra damping for fine control
         """
         if self.paused:
@@ -162,10 +162,29 @@ class SystemController:
         smooth_x = self.cursor_filter_x.update(norm_x)
         smooth_y = self.cursor_filter_y.update(norm_y)
         
+        # MAGNETIC STABILIZATION: Create dead zones for easier control
+        # When cursor is near current position, require larger movement to break free
+        current_x, current_y = self.current_norm_pos
+        dx = smooth_x - current_x
+        dy = smooth_y - current_y
+        distance = np.hypot(dx, dy)
+        
+        # Dead zone: 2% threshold - small movements are ignored (reduces shake)
+        dead_zone = 0.02
+        if distance < dead_zone and not precision_mode:
+            # Too small - don't move (magnetic sticking)
+            return
+        
+        # Magnetic damping: Movement near current position is slower
+        if distance < 0.05:  # Within 5% of current position
+            # Apply extra damping (magnet effect)
+            magnetic_factor = 0.4  # Move 40% of the way
+            smooth_x = current_x + dx * magnetic_factor
+            smooth_y = current_y + dy * magnetic_factor
+        
         # Apply precision damping if needed
         if precision_mode:
             # Interpolate between current and target
-            current_x, current_y = self.current_norm_pos
             smooth_x = current_x + (smooth_x - current_x) * self.precision_damping
             smooth_y = current_y + (smooth_y - current_y) * self.precision_damping
         
@@ -173,6 +192,8 @@ class SystemController:
         self.current_norm_pos = (smooth_x, smooth_y)
         
         # Convert to screen coordinates
+        # FIXED: Map the entire camera view (0..1) to entire screen (0..screen_size)
+        # This ensures hand at edge of camera reaches edge of screen
         screen_x, screen_y = self.normalized_to_screen(smooth_x, smooth_y)
         
         # Move mouse
