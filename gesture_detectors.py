@@ -459,12 +459,39 @@ class GestureManager:
     Maintains per-hand state and history.
     """
     def __init__(self):
-        # Initialize all detectors
-        self.pinch = PinchDetector(thresh_rel=0.055, hold_frames=5, cooldown_s=0.6)
-        self.pointing = PointingDetector(min_extension_ratio=0.12)
-        self.swipe = SwipeDetector(velocity_threshold=0.8, cooldown_s=0.5)
-        self.zoom = ZoomDetector(scale_threshold=0.15, finger_gap_threshold=0.06)
-        self.open_hand = OpenHandDetector(min_fingers=4)
+        # Initialize all detectors using values from config.json when available
+        try:
+            from config_manager import get_gesture_threshold
+
+            pinch_thresh = get_gesture_threshold('pinch', 'threshold_rel', default=0.055)
+            pinch_hold = get_gesture_threshold('pinch', 'hold_frames', default=5)
+            pinch_cd = get_gesture_threshold('pinch', 'cooldown_seconds', default=0.6)
+
+            pointing_min_ext = get_gesture_threshold('pointing', 'min_extension_ratio', default=0.12)
+
+            swipe_thresh = get_gesture_threshold('swipe', 'velocity_threshold', default=0.8)
+            swipe_cd = get_gesture_threshold('swipe', 'cooldown_seconds', default=0.5)
+            swipe_hist = get_gesture_threshold('swipe', 'history_size', default=8)
+
+            zoom_scale = get_gesture_threshold('zoom', 'scale_threshold', default=0.15)
+            zoom_gap = get_gesture_threshold('zoom', 'finger_gap_threshold', default=0.06)
+            zoom_hist = get_gesture_threshold('zoom', 'history_size', default=5)
+
+            open_min = get_gesture_threshold('open_hand', 'min_fingers', default=4)
+        except Exception:
+            # Fallback to hardcoded defaults if config access fails
+            pinch_thresh, pinch_hold, pinch_cd = 0.055, 5, 0.6
+            pointing_min_ext = 0.12
+            swipe_thresh, swipe_cd, swipe_hist = 0.8, 0.5, 8
+            zoom_scale, zoom_gap, zoom_hist = 0.15, 0.06, 5
+            open_min = 4
+
+        # Initialize detectors with resolved parameters
+        self.pinch = PinchDetector(thresh_rel=pinch_thresh, hold_frames=pinch_hold, cooldown_s=pinch_cd)
+        self.pointing = PointingDetector(min_extension_ratio=pointing_min_ext)
+        self.swipe = SwipeDetector(velocity_threshold=swipe_thresh, cooldown_s=swipe_cd, history_size=swipe_hist)
+        self.zoom = ZoomDetector(scale_threshold=zoom_scale, history_size=zoom_hist, finger_gap_threshold=zoom_gap)
+        self.open_hand = OpenHandDetector(min_fingers=open_min)
         
         # State tracking
         self.history = {'left': deque(maxlen=16), 'right': deque(maxlen=16)}
@@ -512,11 +539,17 @@ class GestureManager:
         
         # Apply priority rules and conflict resolution:
         # PRIORITY ORDER (highest to lowest):
-        # 1. Pinch - highest priority (specific gesture)
-        # 2. Zoom - 3-finger gesture, exclusive
-        # 3. Pointing - single finger extended
-        # 4. Swipe - can coexist with static gestures
-        # 5. Open hand - LOWEST priority (fallback for all fingers extended)
+        # 1. Pinch
+        # 2. Zoom
+        # 3. Pointing
+        # 4. Swipe
+        # 5. Open hand
+        # Notes:
+        # - Pinch/Zoom/Pointing are treated as mutually exclusive (they short-circuit
+        #   and return immediately). They may include `swipe` alongside them when
+        #   appropriate (swipe coexists in those branches).
+        # - Swipe is now considered before Open hand so quick directional motions
+        #   won't be shadowed by an open-palm fallback.
         
         # Check high-priority gestures first
         if pinch_result.detected:
@@ -539,14 +572,21 @@ class GestureManager:
             if swipe_result.detected:
                 results['swipe'] = swipe_result
             return results
-        
-        # Only check open_hand if no other gesture detected
-        if open_hand_result.detected:
-            results['open_hand'] = open_hand_result
-        
+
+        # Require all five fingers to be extended for a swipe to be valid.
+        # This prevents accidental swipes when the user has a closed or partially
+        # open hand. Use strict all-open requirement per user request.
         if swipe_result.detected:
-            results['swipe'] = swipe_result
+            finger_count = sum(metrics.fingers_extended.values())
+            all_open = (finger_count == 5)
+            if all_open:
+                results['swipe'] = swipe_result
         
+        # Only check open_hand if no other higher-priority gesture detected
+        if open_hand_result.detected:
+            
+            results['open_hand'] = open_hand_result
+
         return results
 
 

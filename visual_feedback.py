@@ -96,6 +96,9 @@ class VisualFeedback:
         # Draw fingertips with status indicators
         if self.show_fingertips:
             self._draw_fingertips(frame, metrics, color)
+
+        # Draw velocity arrow and speed value for debugging (always visible)
+        self._draw_velocity_info(frame, metrics)
         
         # Draw gesture-specific overlays
         if gestures:
@@ -143,6 +146,53 @@ class VisualFeedback:
             else:
                 dim_color = tuple(int(c * 0.4) for c in color)
                 cv2.circle(frame, (px, py), 4, dim_color, -1)
+
+    def _draw_velocity_info(self, frame, metrics, swipe_threshold: float = 0.8):
+        """Draw a velocity arrow from centroid and show numeric speed.
+
+        - Arrow: from centroid in direction of velocity scaled for visibility.
+        - Numeric speed: shown next to arrow (normalized units/sec).
+        - Color: `swipe` color when speed >= `swipe_threshold`, dim otherwise.
+        """
+        h, w = frame.shape[:2]
+
+        vx, vy = metrics.velocity
+        speed = float(np.hypot(vx, vy))
+
+        # Pixel coordinates of centroid
+        cx, cy = metrics.centroid
+        start = (int(cx * w), int(cy * h))
+
+        # Scale velocity to pixels for arrow length. Use diag to keep consistent
+        diag = np.hypot(w, h)
+        # scale factor chosen so that 1.0 normalized/sec maps to ~0.25*diag pixels
+        scale = 0.25 * diag
+        end_x = int(start[0] + vx * scale)
+        end_y = int(start[1] + vy * scale)
+        end = (end_x, end_y)
+
+        # Choose color based on threshold
+        if speed >= swipe_threshold:
+            arrow_color = self.colors.swipe
+            text_color = self.colors.swipe
+            thickness = 3
+        else:
+            # Dimmed accent when below threshold
+            arrow_color = tuple(int(c * 0.4) for c in self.colors.accent)
+            text_color = self.colors.text_secondary
+            thickness = 2
+
+        # Draw arrow (clamped to frame bounds)
+        end_clamped = (max(0, min(w - 1, end[0])), max(0, min(h - 1, end[1])))
+        cv2.arrowedLine(frame, start, end_clamped, arrow_color, thickness, tipLength=0.25)
+
+        # Draw numeric speed next to the arrow tip
+        speed_text = f"{speed:.2f}"
+        text_pos = (end_clamped[0] + 8, end_clamped[1] - 8)
+        cv2.putText(frame, speed_text, text_pos, cv2.FONT_HERSHEY_SIMPLEX, 0.6, text_color, 2, cv2.LINE_AA)
+
+        # Also draw a small background circle at centroid for clarity
+        cv2.circle(frame, start, 6, arrow_color, -1)
     
     def _draw_gesture_overlays(self, frame, metrics, gestures, hand_label):
         """Draw gesture-specific visual feedback - OPTIMIZED."""

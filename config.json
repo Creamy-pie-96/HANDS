@@ -13,14 +13,14 @@
       "description": "Single finger pointing detection"
     },
     "swipe": {
-      "velocity_threshold": 0.6,
+      "velocity_threshold": 0.100,
       "cooldown_seconds": 0.4,
       "history_size": 8,
       "description": "Fast directional hand movement"
     },
     "zoom": {
       "scale_threshold": 0.15,
-      "finger_gap_threshold": 0.08,
+      "finger_gap_threshold": 0.04,
       "history_size": 5,
       "description": "Three-finger pinch-to-zoom"
     },
