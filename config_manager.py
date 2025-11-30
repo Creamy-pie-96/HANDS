@@ -24,18 +24,33 @@ class Config:
             cls._instance = super(Config, cls).__new__(cls)
         return cls._instance
     
+    def __new__(cls, *args, **kwargs):
+        # Allow passing through extra args (e.g., Config(path)) without
+        # breaking the singleton __new__ signature. This makes calls like
+        # `Config(args.config)` safe.
+        if cls._instance is None:
+            cls._instance = super(Config, cls).__new__(cls)
+        return cls._instance
+
     def __init__(self, config_path: Optional[str] = None):
         """
         Initialize configuration from JSON file.
-        
+
         Args:
-            config_path: Path to config.json. If None, looks in current directory.
+            config_path: Path to config.json. If provided, force reload from
+                         that path. If None, load from the default location
+                         only on first initialization.
         """
+        # If caller explicitly provided a path, honor it and reload.
+        if config_path is not None:
+            self._config_path = str(config_path)
+            self.reload()
+            return
+
+        # Otherwise load once using defaults (existing behavior)
         if not self._config_data:  # Only load once
-            if config_path is None:
-                # Look for config.json in the script's directory
-                config_path = Path(__file__).parent / "config.json"
-            
+            # Look for config.json in the script's directory
+            config_path = Path(__file__).parent / "config.json"
             self._config_path = str(config_path)
             self.reload()
     
