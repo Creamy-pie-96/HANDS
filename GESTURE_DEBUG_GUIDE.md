@@ -2,8 +2,7 @@
 
 ## Overview
 
-All gesture detectors now return full metadata consistently, enabling real-time parameter tuning and debugging. Each gesture has a keyboard toggle to display its live parameters on screen.
-
+HANDS(Hand Assisted Navigation and Device-control System) is a AI driven hand gesture based navigation and device control system
 ---
 
 ## Keyboard Controls
@@ -19,20 +18,18 @@ All gesture detectors now return full metadata consistently, enabling real-time 
 
 **Note**: Multiple gesture debugs can be active simultaneously.
 
----
+### General Keys
 
-## Relative Measurements
+These keys control the application itself and general displays.
 
-All measurements in HANDS are **relative** to ensure consistency regardless of hand distance from camera:
+| Key | Action                          |
+| --- | ------------------------------- |
+| `Q` | Quit application                |
+| `P` | Pause/Resume gesture control    |
+| `D` | Toggle debug info (terminal)    |
+| `F` | Toggle FPS display on-screen    |
+| `H` | Show this help (prints controls) |
 
-### Already Relative Measurements:
-
-1. **tip_distances**: Normalized (0-1) based on screen coordinates
-2. **velocity**: Normalized by hand diagonal (distance-independent)
-3. **diag_rel**: Hand size relative to image diagonal
-4. **finger extension**: Uses ratios (tip distance / PIP distance from palm)
-5. **centroid & bbox**: Normalized (0-1) coordinates
-6. **All thresholds**: Configured relative to hand size or normalized coordinates
 
 ---
 
@@ -50,21 +47,6 @@ All measurements in HANDS are **relative** to ensure consistency regardless of h
 - `VCon`: Velocity consistency score (0-1)
 - `Rsn`: Reason for non-detection
 
-**Metadata Keys:**
-
-```python
-{
-    'finger_gap': float,          # Index-middle distance
-    'spread': float,              # Thumb-fingers distance
-    'relative_change': float,     # % change from baseline
-    'inertia': float,             # Confidence (0-1)
-    'avg_velocity': float,        # Spread change velocity
-    'velocity_consistency': float, # Smoothness score (0-1)
-    'zoom_type': str,             # 'in' or 'out'
-    'reason': str                 # Why not detected (if applicable)
-}
-```
-
 **Tuning Guide:**
 
 - Low `inertia` → gesture building confidence
@@ -81,19 +63,6 @@ All measurements in HANDS are **relative** to ensure consistency regardless of h
 - `Thrs`: Configured threshold
 - `Hold`: Current hold count / required hold frames
 - `CDwn`: Cooldown time remaining (seconds)
-
-**Metadata Keys:**
-
-```python
-{
-    'dist_rel': float,            # Thumb-index distance (normalized)
-    'threshold': float,           # Detection threshold
-    'hold_count': int,            # Frames held so far
-    'hold_frames_needed': int,    # Required hold frames
-    'in_cooldown': bool,          # Currently in cooldown?
-    'cooldown_remaining': float   # Seconds until next detection
-}
-```
 
 **Tuning Guide:**
 
@@ -113,23 +82,6 @@ All measurements in HANDS are **relative** to ensure consistency regardless of h
 - `MaxS`: Maximum allowed speed
 - `Xtra`: Extra fingers extended / max allowed
 - `Rsn`: Reason for non-detection
-
-**Metadata Keys:**
-
-```python
-{
-    'tip_position': tuple,        # Index fingertip (x, y)
-    'direction': tuple,           # Point direction vector
-    'distance': float,            # Fingertip-to-palm distance
-    'min_extension_ratio': float, # Required distance threshold
-    'speed': float,               # Hand velocity magnitude
-    'max_speed': float,           # Speed threshold
-    'index_extended': bool,       # Index finger extended?
-    'extra_fingers_count': int,   # Other fingers extended
-    'max_extra_fingers': int,     # Tolerance for extra fingers
-    'reason': str                 # Why not detected (if applicable)
-}
-```
 
 **Tuning Guide:**
 
@@ -152,20 +104,6 @@ All measurements in HANDS are **relative** to ensure consistency regardless of h
 
 **Metadata Keys:**
 
-```python
-{
-    'direction': str,             # 'up', 'down', 'left', 'right'
-    'speed': float,               # Velocity magnitude
-    'velocity': tuple,            # (vx, vy) components
-    'velocity_threshold': float,  # Required speed
-    'history_size': int,          # Frames in history
-    'min_history': int,           # Minimum frames needed
-    'in_cooldown': bool,          # In cooldown?
-    'cooldown_remaining': float,  # Seconds remaining
-    'reason': str                 # Why not detected (if applicable)
-}
-```
-
 **Tuning Guide:**
 
 - `speed < velocity_threshold` → not fast enough
@@ -185,18 +123,6 @@ All measurements in HANDS are **relative** to ensure consistency regardless of h
 
 **Metadata Keys:**
 
-```python
-{
-    'finger_count': int,          # Total fingers extended
-    'min_fingers': int,           # Required minimum (4 or 5)
-    'thumb_index_dist': float,    # Distance between thumb & index
-    'pinch_threshold': float,     # Pinch exclusion threshold
-    'is_pinching': bool,          # Detected as pinch?
-    'fingers_extended': dict,     # Per-finger extension state
-    'reason': str                 # Why not detected (if applicable)
-}
-```
-
 **Tuning Guide:**
 
 - `finger_count < min_fingers` → not enough fingers
@@ -211,109 +137,9 @@ All measurements in HANDS are **relative** to ensure consistency regardless of h
 
 - `Vel`: Velocity vector (vx, vy)
 
-**Metadata Keys:**
-
-```python
-{
-    'velocity': tuple             # (vx, vy) thumb movement
-}
-```
-
 ---
 
-## Visual Feedback System
-
-### How It Works:
-
-1. All gesture detectors run every frame
-2. Results stored under `__<gesture>_meta` keys (e.g., `__zoom_meta`)
-3. When debug toggle is ON, metadata displayed near hand bounding box
-4. Color-coded: **Green** (detected), **Gray** (not detected)
-
-### Display Format:
-
-```
-GESTURE_NAME:
-  Param1:value
-  Param2:value
-  Param3:value
-  Rsn:reason_code
-```
-
-### Best Practices:
-
-- Enable one gesture debug at a time for clarity
-- Watch parameter values evolve in real-time
-- Use `Rsn` (reason) field to diagnose issues
-- Compare threshold values to current measurements
-
----
-
-## Common Tuning Scenarios
-
-### Zoom Too Sensitive:
-
-- Increase `inertia_threshold` in config
-- Increase `min_velocity` to ignore drift
-- Increase `scale_threshold` for bigger changes
-
-### Pinch Not Triggering:
-
-- Check `dist_rel` vs `threshold` when fingers close
-- Reduce `hold_frames` if timing out
-- Increase `threshold_rel` for more forgiving detection
-
-### Pointing Unstable:
-
-- Increase `min_extension_ratio` for stricter extension
-- Reduce `max_speed` if detecting during movement
-- Check `extra_fingers_count` tolerance
-
-### Swipe Missed:
-
-- Reduce `velocity_threshold` for slower swipes
-- Reduce `min_history` for faster response
-- Check `direction` matches intended swipe
-
----
-
-## Configuration Files
-
-All parameters configurable in `config.json`:
-
-```json
-{
-  "gesture_thresholds": {
-    "zoom": { ... },
-    "pinch": { ... },
-    "pointing": { ... },
-    "swipe": { ... },
-    "open_hand": { ... },
-    "thumbs": { ... }
-  }
-}
-```
-
-See `config_documentation.md` for parameter descriptions.
-
----
-
-## Implementation Notes
-
-### Relative Measurements Confirmed:
-
-✓ All spatial measurements use normalized (0-1) coordinates  
-✓ Velocity normalized by hand diagonal (not affected by distance)  
-✓ Finger extension uses ratios (not absolute distances)  
-✓ All thresholds configured relative to hand size  
-✓ No hardcoded pixel values anywhere
-
-### Metadata Consistency:
-
-✓ All detectors return metadata on every call  
-✓ Non-detection cases include `reason` field  
-✓ Threshold values included for comparison  
-✓ Real-time values always populated (no zeros)
+## How to tune
 
 ---
 
@@ -328,5 +154,5 @@ See `config_documentation.md` for parameter descriptions.
 
 ---
 
-_Last Updated: Current session_  
-_System: HANDS v2.0 with comprehensive metadata_
+_Last Updated: 02-12-2025 03:19 am_  
+_System: HANDS v1.0_
