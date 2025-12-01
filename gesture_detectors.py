@@ -259,24 +259,39 @@ class PinchDetector:
        
         dist_rel = metrics.tip_distances['index_thumb']
         now = time.time()
-        if now - self._last_time < self.cooldown_s:
-            return GestureResult(detected=False, gesture_name='pinch')
+        in_cooldown = now - self._last_time < self.cooldown_s
+        
+        # Always return full metadata for visual feedback
+        base_metadata = {
+            'dist_rel': dist_rel,
+            'threshold': self.thresh_rel,
+            'hold_count': self._count,
+            'hold_frames_needed': self.hold_frames,
+            'in_cooldown': in_cooldown,
+            'cooldown_remaining': max(0.0, self.cooldown_s - (now - self._last_time))
+        }
+        
+        if in_cooldown:
+            return GestureResult(detected=False, gesture_name='pinch', metadata=base_metadata)
 
         if dist_rel <= self.thresh_rel:
             self._count += 1
+            base_metadata['hold_count'] = self._count
             if self._count >= self.hold_frames:
                 self._last_time = now
                 self._count = 0
+                base_metadata['hold_count'] = 0
                 return GestureResult(
                     detected=True,
                     gesture_name='pinch',
                     confidence=1.0,
-                    metadata={'dist_rel': dist_rel}
+                    metadata=base_metadata
                 )
         else:
             self._count = 0
+            base_metadata['hold_count'] = 0
 
-        return GestureResult(detected=False, gesture_name='pinch')
+        return GestureResult(detected=False, gesture_name='pinch', metadata=base_metadata)
 
 
 class PointingDetector:
@@ -291,39 +306,51 @@ class PointingDetector:
         self.max_speed = float(max_speed)
 
     def detect(self, metrics: HandMetrics) -> GestureResult:
-        if not metrics.fingers_extended.get('index', False):
-            return GestureResult(detected=False, gesture_name='pointing')
-
-        other_fingers = ['middle', 'ring', 'pinky']
-        extended_count = sum(1 for f in other_fingers if metrics.fingers_extended.get(f, False))
-        # Use configured tolerance
-        if extended_count > self.max_extra_fingers:
-            return GestureResult(detected=False, gesture_name='pointing')
-
-        # index finger should be far from palm
         index_tip = metrics.tip_positions['index']
         centroid = metrics.centroid
         distance = euclidean(index_tip, centroid)
+        speed = float(np.hypot(metrics.velocity[0], metrics.velocity[1]))
+        direction = (index_tip[0] - centroid[0], index_tip[1] - centroid[1])
+        
+        index_extended = metrics.fingers_extended.get('index', False)
+        other_fingers = ['middle', 'ring', 'pinky']
+        extended_count = sum(1 for f in other_fingers if metrics.fingers_extended.get(f, False))
+        
+        # Always return full metadata for visual feedback
+        base_metadata = {
+            'tip_position': index_tip,
+            'direction': direction,
+            'distance': distance,
+            'min_extension_ratio': self.min_extension_ratio,
+            'speed': speed,
+            'max_speed': self.max_speed,
+            'index_extended': index_extended,
+            'extra_fingers_count': extended_count,
+            'max_extra_fingers': self.max_extra_fingers,
+            'reason': None
+        }
+        
+        if not index_extended:
+            base_metadata['reason'] = 'index_not_extended'
+            return GestureResult(detected=False, gesture_name='pointing', metadata=base_metadata)
+
+        if extended_count > self.max_extra_fingers:
+            base_metadata['reason'] = 'too_many_fingers'
+            return GestureResult(detected=False, gesture_name='pointing', metadata=base_metadata)
 
         if distance < self.min_extension_ratio:
-            return GestureResult(detected=False, gesture_name='pointing')
+            base_metadata['reason'] = 'too_close_to_palm'
+            return GestureResult(detected=False, gesture_name='pointing', metadata=base_metadata)
 
-        # Condition: Hand should be relatively stable (low velocity)
-        speed = float(np.hypot(metrics.velocity[0], metrics.velocity[1]))
         if speed > self.max_speed:
-            return GestureResult(detected=False, gesture_name='pointing')
-
-        direction = (index_tip[0] - centroid[0], index_tip[1] - centroid[1])
+            base_metadata['reason'] = 'moving_too_fast'
+            return GestureResult(detected=False, gesture_name='pointing', metadata=base_metadata)
 
         return GestureResult(
             detected=True,
             gesture_name='pointing',
             confidence=1.0,
-            metadata={
-                'tip_position': index_tip,
-                'direction': direction,
-                'distance': distance
-            }
+            metadata=base_metadata
         )
 
 class SwipeDetector:
@@ -347,29 +374,43 @@ class SwipeDetector:
     
     def detect(self, metrics: HandMetrics) -> GestureResult:
         self.history.append(metrics)
-
-        #Min frame the motion should be continuous so it does not catch sudden jigger motion as swipe
-        if len(self.history) < self.min_history:
-            return GestureResult(detected=False, gesture_name='swipe')
-
-        # Check cooldown
-        now = time.time()
-        if now - self.last_swipe_time < self.cooldown_s:
-            return GestureResult(detected=False, gesture_name='swipe')
-
-        # Compute velocity from current metrics (already has velocity!)
+        
         vx, vy = metrics.velocity
-        speed = np.hypot(vx, vy)
-
-        # Check if speed exceeds threshold
-        if speed < self.velocity_threshold:
-            return GestureResult(detected=False, gesture_name='swipe')
-
+        speed = float(np.hypot(vx, vy))
+        
         # Determine direction based on which component is larger
         if abs(vx) > abs(vy):
             direction = 'right' if vx > 0 else 'left'
         else:
             direction = 'down' if vy > 0 else 'up'
+        
+        now = time.time()
+        in_cooldown = now - self.last_swipe_time < self.cooldown_s
+        
+        # Always return full metadata for visual feedback
+        base_metadata = {
+            'direction': direction,
+            'speed': speed,
+            'velocity': (vx, vy),
+            'velocity_threshold': self.velocity_threshold,
+            'history_size': len(self.history),
+            'min_history': self.min_history,
+            'in_cooldown': in_cooldown,
+            'cooldown_remaining': max(0.0, self.cooldown_s - (now - self.last_swipe_time)),
+            'reason': None
+        }
+
+        if len(self.history) < self.min_history:
+            base_metadata['reason'] = 'insufficient_history'
+            return GestureResult(detected=False, gesture_name='swipe', metadata=base_metadata)
+
+        if in_cooldown:
+            base_metadata['reason'] = 'in_cooldown'
+            return GestureResult(detected=False, gesture_name='swipe', metadata=base_metadata)
+
+        if speed < self.velocity_threshold:
+            base_metadata['reason'] = 'speed_too_low'
+            return GestureResult(detected=False, gesture_name='swipe', metadata=base_metadata)
 
         # Update cooldown timer for next time
         self.last_swipe_time = now
@@ -378,11 +419,7 @@ class SwipeDetector:
             detected=True,
             gesture_name='swipe',
             confidence=1.0,
-            metadata={
-                'direction': direction,
-                'speed': speed,
-                'velocity': (vx, vy)
-            }
+            metadata=base_metadata
         )
 
 
@@ -428,14 +465,27 @@ class ZoomDetector:
         - Prevents confusion with pinch (which has thumb+index, not index+middle pair)
         """
         
-        # Check if index and middle are close together (paired)
+        # Compute basic distances up-front so we can always expose them
         index_middle_dist = metrics.tip_distances.get('index_middle', 0.0)
-        if index_middle_dist > self.finger_gap_threshold:
-            self.history.clear()
-            return GestureResult(detected=False, gesture_name='zoom')
-        
-        # Compute spread: distance between the paired fingers and thumb
         spread = metrics.tip_distances.get('index_thumb', 0.0)
+
+        # Check if index and middle are close together (paired)
+        if index_middle_dist > self.finger_gap_threshold:
+            # Clear history to reset trend analysis, but still return useful
+            # metadata so the UI can display current measurements while not
+            # actively detecting a zoom.
+            self.history.clear()
+            return GestureResult(
+                detected=False,
+                gesture_name='zoom',
+                confidence=self.inertia,
+                metadata={
+                    'finger_gap': index_middle_dist,
+                    'spread': spread,
+                    'inertia': self.inertia,
+                    'reason': 'pair_separation'
+                }
+            )
         
         # Add to history
         self.history.append(spread)
@@ -446,11 +496,20 @@ class ZoomDetector:
             # Decrease inertia when not enough history
             self.inertia = max(0.0, self.inertia - self.inertia_decrease)
             detected = self.inertia >= self.inertia_threshold
+            # Provide consistent metadata so UI can display live measurements
             return GestureResult(
                 detected=detected,
                 gesture_name='zoom',
                 confidence=self.inertia,
-                metadata={'inertia': self.inertia, 'reason': 'insufficient_history'}
+                metadata={
+                    'inertia': self.inertia,
+                    'reason': 'insufficient_history',
+                    'finger_gap': index_middle_dist,
+                    'spread': spread,
+                    'relative_change': 0.0,
+                    'avg_velocity': 0.0,
+                    'velocity_consistency': 1.0
+                }
             )
 
         # Determine trend window: use configured history but ensure at least 3
@@ -498,8 +557,11 @@ class ZoomDetector:
                 gesture_name='zoom',
                 confidence=self.inertia,
                 metadata={
-                    'inertia': self.inertia, 
+                    'inertia': self.inertia,
                     'reason': 'unstable_trend',
+                    'finger_gap': index_middle_dist,
+                    'spread': spread,
+                    'relative_change': 0.0,
                     'avg_velocity': avg_velocity,
                     'velocity_consistency': velocity_consistency
                 }
@@ -517,6 +579,9 @@ class ZoomDetector:
                 metadata={
                     'inertia': self.inertia,
                     'reason': 'velocity_out_of_range',
+                    'finger_gap': index_middle_dist,
+                    'spread': spread,
+                    'relative_change': 0.0,
                     'avg_velocity': avg_velocity,
                     'velocity_consistency': velocity_consistency
                 }
@@ -533,6 +598,9 @@ class ZoomDetector:
                 metadata={
                     'inertia': self.inertia,
                     'reason': 'velocity_inconsistent',
+                    'finger_gap': index_middle_dist,
+                    'spread': spread,
+                    'relative_change': 0.0,
                     'avg_velocity': avg_velocity,
                     'velocity_consistency': velocity_consistency
                 }
@@ -614,11 +682,22 @@ class OpenHandDetector:
         # Detect if at least min_fingers are extended AND not pinching
         detected = count >= self.min_fingers and not is_pinching
         
+        # Always return full metadata for visual feedback
+        base_metadata = {
+            'finger_count': count,
+            'min_fingers': self.min_fingers,
+            'thumb_index_dist': thumb_index_dist,
+            'pinch_threshold': self.pinch_threshold,
+            'is_pinching': is_pinching,
+            'fingers_extended': dict(metrics.fingers_extended),
+            'reason': None if detected else ('pinching' if is_pinching else 'not_enough_fingers')
+        }
+        
         return GestureResult(
             detected=detected,
             gesture_name='open_hand',
             confidence=1.0 if detected else 0.0,
-            metadata={'finger_count': count}
+            metadata=base_metadata
         )
 
 
@@ -804,6 +883,16 @@ class GestureManager:
         thumbs_result = self.thumbs.detect(metrics)
         open_hand_result = self.open_hand.detect(metrics)
         
+        # Always expose all detector results as metadata previews for visual feedback
+        # under reserved keys so visualizers can display tuning info even when gestures
+        # are not reported as active.
+        results['__pinch_meta'] = pinch_result
+        results['__pointing_meta'] = pointing_result
+        results['__swipe_meta'] = swipe_result
+        results['__zoom_meta'] = zoom_result
+        results['__thumbs_meta'] = thumbs_result
+        results['__open_hand_meta'] = open_hand_result
+
         # Priority rules and conflict resolution:
         # PRIORITY ORDER (highest to lowest):
         # 1. Zoom

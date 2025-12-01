@@ -56,6 +56,16 @@ class VisualFeedback:
         self.gesture_pulses = {}  # gesture_name -> (timestamp, intensity)
         self.particle_effects = []  # For click/action feedback
         
+        # Gesture debug toggles (keyboard: Z, P, I, S, O, T)
+        self.show_gesture_debug = {
+            'zoom': False,
+            'pinch': False,
+            'pointing': False,
+            'swipe': False,
+            'open_hand': False,
+            'thumbs': False
+        }
+        
         # Load config
         if config:
             from config_manager import get_visual_setting
@@ -231,6 +241,116 @@ class VisualFeedback:
             p2 = (int(index_pos[0] * w), int(index_pos[1] * h))
             cv2.line(frame, p1, p2, self.colors.pointing, 2)
             cv2.circle(frame, p2, 6, self.colors.pointing, -1)
+        
+        # Draw gesture debug overlays for all gestures based on toggle state
+        self._draw_gesture_debug_overlays(frame, metrics, gestures, hand_label)
+    
+    def _draw_gesture_debug_overlays(self, frame, metrics, gestures, hand_label):
+        """Draw debug metadata overlays for all gestures based on toggle state."""
+        h, w = frame.shape[:2]
+        bbox = metrics.bbox
+        bx = int(bbox[0] * w) + 8
+        by = int(bbox[1] * h) - 10
+        if by < 30:
+            by = int(bbox[3] * h) + 20
+        
+        # Draw each gesture's metadata if its toggle is on
+        meta_keys = ['__zoom_meta', '__pinch_meta', '__pointing_meta', '__swipe_meta', '__open_hand_meta', '__thumbs_meta']
+        gesture_names = ['zoom', 'pinch', 'pointing', 'swipe', 'open_hand', 'thumbs']
+        
+        for meta_key, gesture_name in zip(meta_keys, gesture_names):
+            if not self.show_gesture_debug.get(gesture_name, False):
+                continue
+            
+            if meta_key not in gestures:
+                continue
+            
+            result = gestures[meta_key]
+            if not result or not getattr(result, 'metadata', None):
+                continue
+            
+            meta = result.metadata
+            params = self._format_gesture_metadata(gesture_name, meta)
+            
+            if not params:
+                continue
+            
+            # Draw title
+            title_color = self.colors.active if result.detected else self.colors.text_secondary
+            cv2.putText(frame, f"{gesture_name.upper()}:", (bx, by), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.45, title_color, 1, cv2.LINE_AA)
+            by += 16
+            
+            # Draw each parameter
+            for param in params:
+                cv2.putText(frame, param, (bx, by), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.35, self.colors.text_secondary, 1, cv2.LINE_AA)
+                by += 13
+            
+            by += 5  # Extra spacing between gestures
+    
+    def _format_gesture_metadata(self, gesture_name, meta):
+        """Format gesture metadata into displayable strings."""
+        params = []
+        
+        if gesture_name == 'zoom':
+            params = [
+                f"Gap:{meta.get('finger_gap', 0):.3f}",
+                f"Spr:{meta.get('spread', 0):.3f}",
+                f"Chg:{meta.get('relative_change', 0):.2%}",
+                f"Inr:{meta.get('inertia', 0):.2f}",
+                f"Vel:{meta.get('avg_velocity', 0):.3f}",
+                f"VCon:{meta.get('velocity_consistency', 0):.2f}"
+            ]
+            if meta.get('reason'):
+                params.append(f"Rsn:{meta['reason'][:12]}")
+        
+        elif gesture_name == 'pinch':
+            params = [
+                f"Dist:{meta.get('dist_rel', 0):.3f}",
+                f"Thrs:{meta.get('threshold', 0):.3f}",
+                f"Hold:{meta.get('hold_count', 0)}/{meta.get('hold_frames_needed', 0)}",
+                f"CDwn:{meta.get('cooldown_remaining', 0):.1f}s"
+            ]
+        
+        elif gesture_name == 'pointing':
+            params = [
+                f"Dist:{meta.get('distance', 0):.3f}",
+                f"MinD:{meta.get('min_extension_ratio', 0):.3f}",
+                f"Spd:{meta.get('speed', 0):.3f}",
+                f"MaxS:{meta.get('max_speed', 0):.2f}",
+                f"Xtra:{meta.get('extra_fingers_count', 0)}/{meta.get('max_extra_fingers', 0)}"
+            ]
+            if meta.get('reason'):
+                params.append(f"Rsn:{meta['reason'][:12]}")
+        
+        elif gesture_name == 'swipe':
+            params = [
+                f"Dir:{meta.get('direction', 'none')[:4]}",
+                f"Spd:{meta.get('speed', 0):.3f}",
+                f"Thrs:{meta.get('velocity_threshold', 0):.2f}",
+                f"Hist:{meta.get('history_size', 0)}/{meta.get('min_history', 0)}",
+                f"CDwn:{meta.get('cooldown_remaining', 0):.1f}s"
+            ]
+            if meta.get('reason'):
+                params.append(f"Rsn:{meta['reason'][:12]}")
+        
+        elif gesture_name == 'open_hand':
+            params = [
+                f"Cnt:{meta.get('finger_count', 0)}/{meta.get('min_fingers', 0)}",
+                f"TIDist:{meta.get('thumb_index_dist', 0):.3f}",
+                f"Pinch:{meta.get('is_pinching', False)}"
+            ]
+            if meta.get('reason'):
+                params.append(f"Rsn:{meta['reason'][:12]}")
+        
+        elif gesture_name == 'thumbs':
+            vel = meta.get('velocity', (0, 0))
+            params = [
+                f"Vel:({vel[0]:.2f},{vel[1]:.2f})"
+            ]
+        
+        return params
     
     def draw_cursor_preview(self, frame, norm_x, norm_y, active=True):
         """Draw cursor preview with trail effect."""
@@ -300,6 +420,10 @@ class VisualFeedback:
                 continue
             
             for gesture_name, result in gestures.items():
+                # Skip metadata preview entries (they start with __)
+                if gesture_name.startswith('__'):
+                    continue
+                
                 if active_count >= 4:  # Limit display
                     break
                 
