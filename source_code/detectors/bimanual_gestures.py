@@ -17,8 +17,8 @@ from collections import deque
 from typing import Dict, Tuple, Optional
 from dataclasses import dataclass, field
 
-from gesture_detectors import HandMetrics, GestureResult, compute_hand_metrics
-from math_utils import euclidean
+from source_code.detectors.gesture_detectors import HandMetrics, GestureResult, compute_hand_metrics
+from source_code.utils.math_utils import euclidean
 
 
 @dataclass
@@ -397,7 +397,7 @@ class ComprehensiveGestureManager:
     
     def __init__(self):
         # Import here to avoid circular dependency
-        from gesture_detectors import GestureManager
+        from source_code.detectors.gesture_detectors import GestureManager
         
         self.single_hand_mgr = GestureManager()
         self.bimanual_detector = BimanualGestureDetector()

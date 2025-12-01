@@ -27,7 +27,7 @@ except ImportError:
     SCREENINFO_AVAILABLE = False
     print("⚠ screeninfo not available. Install with: pip install screeninfo")
 
-from math_utils import EWMA
+from source_code.utils.math_utils import EWMA
 
 
 @dataclass
@@ -73,7 +73,7 @@ class SystemController:
         
         # Load configuration
         if config:
-            from config_manager import get_system_control
+            from source_code.config.config_manager import get_system_control
             self.cursor_smoothing = get_system_control('cursor', 'smoothing_factor', 0.3)
             self.cursor_speed = get_system_control('cursor', 'speed_multiplier', 1.5)
             self.precision_damping = get_system_control('cursor', 'precision_damping', 0.3)

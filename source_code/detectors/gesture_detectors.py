@@ -6,7 +6,7 @@ from collections import deque
 from typing import Dict, Tuple, Optional, List
 from dataclasses import dataclass, field
 
-from math_utils import landmarks_to_array, euclidean, EWMA, ClickDetector
+from source_code.utils.math_utils import landmarks_to_array, euclidean, EWMA, ClickDetector
 
 
 # Data Structures
@@ -764,7 +764,7 @@ class GestureManager:
         # Initialize all detectors using values from config.json when available
         try:
             print("loading configs")
-            from config_manager import get_gesture_threshold
+            from source_code.config.config_manager import get_gesture_threshold
 
             pinch_thresh = get_gesture_threshold('pinch', 'threshold_rel', default=0.055)
             pinch_hold = get_gesture_threshold('pinch', 'hold_frames', default=5)

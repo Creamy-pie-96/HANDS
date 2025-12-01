@@ -16,10 +16,10 @@ import os
 import sys
 
 # HANDS modules
-from bimanual_gestures import ComprehensiveGestureManager
-from system_controller import SystemController
-from visual_feedback import VisualFeedback
-from config_manager import config
+from source_code.detectors.bimanual_gestures import ComprehensiveGestureManager
+from source_code.utils.system_controller import SystemController
+from source_code.utils.visual_feedback import VisualFeedback
+from source_code.config.config_manager import config
 
 # MediaPipe setup
 mp_hands = mp.solutions.hands
@@ -441,7 +441,7 @@ def main():
     
     # Load custom config if specified
     if args.config:
-        from config_manager import Config
+        from source_code.config.config_manager import Config
         Config(args.config)
     
     # Create and run application

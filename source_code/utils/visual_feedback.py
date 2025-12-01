@@ -68,7 +68,7 @@ class VisualFeedback:
         
         # Load config
         if config:
-            from config_manager import get_visual_setting
+            from source_code.config.config_manager import get_visual_setting
             self.enabled = get_visual_setting('enabled', True)
             self.show_skeleton = get_visual_setting('show_hand_skeleton', True)
             self.show_fingertips = get_visual_setting('show_fingertips', True)
