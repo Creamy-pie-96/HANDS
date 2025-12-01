@@ -311,5 +311,10 @@ python3 config_gui.py
 **This way you can fine-tune the app live while using it to match your preference and your own unique body language and speed**
 ---
 
+**Note: If you are new and have not installed necessery packages run the command:**
+```bash
+    install.sh
+```
+
 _Last Updated: 02-12-2025 03:19 am_  
 _System: HANDS v1.0_
