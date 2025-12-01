@@ -209,8 +209,11 @@ class HANDSApplication:
         
         self.print_controls()
         
+        window_width = config.get('display', 'window_width', default=1280)
+        window_height = config.get('display', 'window_height', default=720)
+        
         cv2.namedWindow("HANDS Control", cv2.WINDOW_NORMAL)
-        cv2.resizeWindow("HANDS Control", 1280, 720)
+        cv2.resizeWindow("HANDS Control", window_width, window_height)
         
         try:
             while self.running:
@@ -221,20 +224,20 @@ class HANDSApplication:
                     print("❌ Failed to read frame")
                     break
                 
-                # Flip for mirror effect
-                frame_bgr = cv2.flip(frame_bgr, 1)
+                flip_horizontal = config.get('display', 'flip_horizontal', default=True)
+                if flip_horizontal:
+                    frame_bgr = cv2.flip(frame_bgr, 1)
                 h, w = frame_bgr.shape[:2]
                 
-                # Compute FPS
-                if self.frame_count % 30 == 0:
+                fps_update_interval = config.get('display', 'fps_update_interval', default=30)
+                if self.frame_count % fps_update_interval == 0:
                     now = time.time()
-                    self.fps = 30.0 / (now - self.fps_time)
+                    self.fps = float(fps_update_interval) / (now - self.fps_time)
                     self.fps_time = now
                 
                     self.fps_time = now
                 
-                # Check for config updates (every 30 frames approx)
-                if self.frame_count % 30 == 0:
+                if self.frame_count % fps_update_interval == 0:
                     try:
                         current_mtime = os.path.getmtime(self.config_path)
                         if current_mtime != self.last_config_mtime:

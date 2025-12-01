@@ -1,3 +1,16 @@
+# My design philosophy
+**Gesture Detection Module for HANDS (Hand Assisted Navigation and Device System)**
+
+**This module provides modular gesture detectors that work with MediaPipe hand landmarks.**
+**All detectors operate on normalized coordinates (0..1) to be resolution-independent.**
+
+**Design principles:**
+- **Reuse existing utilities from math_utils.py (EWMA, euclidean, landmarks_to_array)**
+- **Keep detectors stateless where possible; use small state objects for temporal logic**
+- **Compute hand metrics once per frame and pass to all detectors**
+- **Operate in normalized space; convert to pixels only for visualization**
+
+
 # Previous extensions
 **1.  Thumbs up. Logic will be simple: if only thumb is extended and thumb tip.y is less than pinky MCP then it's thumbs up**
 **2.  Thumbs down. Logic will be simple: if only thumb is extended and thumb tip.y is greater than pinky MCP then it's thumbs down**

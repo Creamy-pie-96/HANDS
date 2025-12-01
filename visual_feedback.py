@@ -311,13 +311,39 @@ class VisualFeedback:
                 cv2.putText(frame, text, (40, y + 5), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, self.colors.text_primary, 1, cv2.LINE_AA)
                 
-                # Metadata hint
-                if 'zoom_type' in result.metadata:
+                # Metadata hint with detailed zoom info
+                if gesture_name == 'zoom' and result.metadata:
+                    # Show zoom type
+                    zoom_type = result.metadata.get('zoom_type', 'N/A')
+                    hint = f"({zoom_type})"
+                    cv2.putText(frame, hint, (180, y + 5), 
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.4, self.colors.text_secondary, 1, cv2.LINE_AA)
+                    y += 20
+                    
+                    # Show detailed zoom parameters
+                    params = [
+                        f"Gap: {result.metadata.get('finger_gap', 0):.3f}",
+                        f"Spread: {result.metadata.get('spread', 0):.3f}",
+                        f"Change: {result.metadata.get('relative_change', 0):.2%}",
+                        f"Inertia: {result.metadata.get('inertia', 0):.2f}",
+                        f"Vel: {result.metadata.get('avg_velocity', 0):.3f}",
+                        f"VelCons: {result.metadata.get('velocity_consistency', 0):.2f}"
+                    ]
+                    
+                    for param in params:
+                        cv2.putText(frame, param, (45, y), 
+                                   cv2.FONT_HERSHEY_SIMPLEX, 0.35, self.colors.text_secondary, 1, cv2.LINE_AA)
+                        y += 15
+                    
+                    y += 5  # Extra spacing after zoom details
+                elif 'zoom_type' in result.metadata:
                     hint = f"({result.metadata['zoom_type']})"
                     cv2.putText(frame, hint, (180, y + 5), 
                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, self.colors.text_secondary, 1, cv2.LINE_AA)
+                    y += 25
+                else:
+                    y += 25
                 
-                y += 25
                 active_count += 1
         
         # Show "No gestures" if nothing active

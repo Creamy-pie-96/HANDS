@@ -3,11 +3,12 @@ Configuration Management for HANDS System
 
 Loads and provides access to configuration from config.json.
 Allows runtime configuration of all gesture thresholds and system parameters.
+Supports both old format (direct values) and new format ([value, description]).
 """
 
 import json
 import os
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 from pathlib import Path
 
 
@@ -81,6 +82,7 @@ class Config:
     def get(self, *keys, default=None) -> Any:
         """
         Get configuration value using dot notation.
+        Handles both old format (direct values) and new format ([value, description]).
         
         Examples:
             config.get('camera', 'width')  # Returns 640
@@ -99,7 +101,36 @@ class Config:
                 current = current[key]
             else:
                 return default
+        
+        # Handle new [value, description] format
+        if isinstance(current, list) and len(current) >= 1:
+            return current[0]  # Return the value part
+        
         return current
+    
+    def get_with_description(self, *keys, default=None) -> Tuple[Any, str]:
+        """
+        Get configuration value AND description.
+        
+        Returns:
+            Tuple of (value, description) or (default, "")
+        """
+        current = self._config_data
+        for key in keys:
+            if isinstance(current, dict) and key in current:
+                current = current[key]
+            else:
+                return (default, "")
+        
+        # Handle new [value, description] format
+        if isinstance(current, list):
+            if len(current) >= 2:
+                return (current[0], current[1])
+            elif len(current) == 1:
+                return (current[0], "")
+        
+        # Old format or plain value
+        return (current, "")
     
     def set(self, *keys, value):
         """
@@ -136,16 +167,33 @@ class Config:
                 "swipe": {
                     "velocity_threshold": 0.8,
                     "cooldown_seconds": 0.5,
-                    "history_size": 8
+                    "history_size": 8,
+                    "min_history": 3
+                },
+                "finger_extension": {
+                    "open_ratio": 1.20,
+                    "close_ratio": 1.10,
+                    "motion_speed_threshold": 0.15,
+                    "motion_sigmoid_k": 20.0
                 },
                 "zoom": {
-                    "scale_threshold": 0.15,
-                    "finger_gap_threshold": 0.06,
-                    "history_size": 5
+                    "scale_threshold": 0.10,
+                    "finger_gap_threshold": 0.10,
+                    "history_size": 5,
+                    "inertia_increase": 0.4,
+                    "inertia_decrease": 0.1,
+                    "inertia_threshold": 0.4,
+                    "min_velocity": 0.05,
+                    "max_velocity": 2.0,
+                    "velocity_consistency_threshold": 0.7,
+                    "require_fingers_extended": False
                 },
                 "open_hand": {
                     "min_fingers": 4,
                     "pinch_exclusion_distance": 0.08
+                },
+                "thumbs": {
+                    "velocity_threshold": 0.2
                 }
             },
             "system_control": {
@@ -181,6 +229,12 @@ class Config:
                 "max_hands": 2,
                 "min_detection_confidence": 0.7,
                 "min_tracking_confidence": 0.3
+            },
+            "display": {
+                "window_width": 1280,
+                "window_height": 720,
+                "flip_horizontal": True,
+                "fps_update_interval": 30
             }
         }
     

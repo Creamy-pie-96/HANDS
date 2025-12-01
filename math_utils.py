@@ -86,6 +86,7 @@ class EWMA:
         return self.value
 
 
+# I will never ever use it! As EWMA is far superior. It's just here because I already had created it
 class MovingAverage:
     """Simple moving average buffer (keeps last N samples)."""
 

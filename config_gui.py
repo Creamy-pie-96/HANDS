@@ -59,42 +59,61 @@ class ConfigEditor(tk.Tk):
             messagebox.showerror("Error", f"Failed to load config: {e}")
 
     def build_ui(self, data, parent, path=""):
-        # Clear previous UI if at root
         if path == "":
             for widget in parent.winfo_children():
                 widget.destroy()
             self.entries = {}
             
         for key, value in data.items():
+            if key == "description":
+                continue
+                
             current_path = f"{path}.{key}" if path else key
             
             if isinstance(value, dict):
-                # Section header
                 frame = ttk.LabelFrame(parent, text=key, padding=5)
                 frame.pack(fill=tk.X, padx=5, pady=5, anchor="nw")
                 self.build_ui(value, frame, current_path)
             else:
-                # Value entry
+                # Handle [value, description] format
+                actual_value = value
+                description = ""
+                
+                if isinstance(value, list) and len(value) >= 1:
+                    actual_value = value[0]
+                    if len(value) >= 2:
+                        description = value[1]
+                
                 row = ttk.Frame(parent)
                 row.pack(fill=tk.X, pady=2)
                 
                 ttk.Label(row, text=key, width=25).pack(side=tk.LEFT)
                 
-                if isinstance(value, bool):
-                    var = tk.BooleanVar(value=value)
+                if isinstance(actual_value, bool):
+                    var = tk.BooleanVar(value=actual_value)
                     ttk.Checkbutton(row, variable=var).pack(side=tk.LEFT)
-                    self.entries[current_path] = (var, bool)
+                    self.entries[current_path] = (var, bool, description)
                 else:
-                    var = tk.StringVar(value=str(value))
-                    ttk.Entry(row, textvariable=var).pack(side=tk.LEFT, fill=tk.X, expand=True)
-                    # Infer type
-                    dtype = type(value)
-                    self.entries[current_path] = (var, dtype)
+                    var = tk.StringVar(value=str(actual_value))
+                    entry = ttk.Entry(row, textvariable=var)
+                    entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+                    dtype = type(actual_value)
+                    self.entries[current_path] = (var, dtype, description)
+                
+                # Show description as tooltip/label if available
+                if description:
+                    desc_label = ttk.Label(row, text="ℹ️", foreground="blue", cursor="hand2")
+                    desc_label.pack(side=tk.LEFT, padx=5)
+                    # Create tooltip
+                    self._create_tooltip(desc_label, description)
 
     def save_config(self):
         try:
             new_data = self.config_data.copy()
-            for path, (var, dtype) in self.entries.items():
+            for path, entry_tuple in self.entries.items():
+                var, dtype = entry_tuple[0], entry_tuple[1]
+                description = entry_tuple[2] if len(entry_tuple) > 2 else ""
+                
                 keys = path.split('.')
                 current = new_data
                 for key in keys[:-1]:
@@ -103,31 +122,66 @@ class ConfigEditor(tk.Tk):
                 val = var.get()
                 target_key = keys[-1]
                 
+                # Convert value to correct type
                 if dtype == bool:
-                    current[target_key] = bool(val)
+                    converted_val = bool(val)
                 elif dtype == int:
-                    current[target_key] = int(val)
+                    converted_val = int(val)
                 elif dtype == float:
-                    current[target_key] = float(val)
+                    converted_val = float(val)
                 elif dtype == list:
                      if isinstance(val, str) and val.strip().startswith('['):
                          try:
-                             current[target_key] = ast.literal_eval(val)
+                             converted_val = ast.literal_eval(val)
                          except:
-                             current[target_key] = val # Fallback
+                             converted_val = val # Fallback
                      else:
-                         current[target_key] = val
+                         converted_val = val
                 else:
-                    current[target_key] = val
+                    converted_val = val
+                
+                # Save in [value, description] format if description exists
+                if description:
+                    current[target_key] = [converted_val, description]
+                else:
+                    # Check if original was in [value, desc] format
+                    original = current.get(target_key)
+                    if isinstance(original, list) and len(original) >= 2:
+                        current[target_key] = [converted_val, original[1]]
+                    else:
+                        current[target_key] = converted_val
             
             with open(self.config_path, 'w') as f:
                 json.dump(new_data, f, indent=2)
             
             print("Config saved")
+            messagebox.showinfo("Success", "Configuration saved successfully!")
             
         except Exception as e:
             messagebox.showerror("Error", f"Failed to save config: {e}")
             print(e)
+    
+    def _create_tooltip(self, widget, text):
+        """Create a tooltip for a widget."""
+        def on_enter(event):
+            tooltip = tk.Toplevel()
+            tooltip.wm_overrideredirect(True)
+            tooltip.wm_geometry(f"+{event.x_root+10}+{event.y_root+10}")
+            
+            label = tk.Label(tooltip, text=text, background="lightyellow", 
+                           relief="solid", borderwidth=1, wraplength=300,
+                           justify="left", padx=5, pady=5)
+            label.pack()
+            
+            widget.tooltip = tooltip
+        
+        def on_leave(event):
+            if hasattr(widget, 'tooltip'):
+                widget.tooltip.destroy()
+                delattr(widget, 'tooltip')
+        
+        widget.bind("<Enter>", on_enter)
+        widget.bind("<Leave>", on_leave)
 
 if __name__ == "__main__":
     app = ConfigEditor()

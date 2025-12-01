@@ -1,15 +1,3 @@
-"""
-Gesture Detection Module for HANDS (Hand Assisted Navigation and Device System)
-
-This module provides modular gesture detectors that work with MediaPipe hand landmarks.
-All detectors operate on normalized coordinates (0..1) to be resolution-independent.
-
-Design principles:
-- Reuse existing utilities from math_utils.py (EWMA, euclidean, landmarks_to_array)
-- Keep detectors stateless where possible; use small state objects for temporal logic
-- Compute hand metrics once per frame and pass to all detectors
-- Operate in normalized space; convert to pixels only for visualization
-"""
 
 import numpy as np
 import time
@@ -30,24 +18,22 @@ class HandMetrics:
     All spatial values are in normalized coordinates (0..1) unless noted.
     """
     # Raw and derived landmark data
-    landmarks_norm: np.ndarray  # shape (21, 2) - all landmarks in normalized coords
-    timestamp: float            # time.time() when computed
+    landmarks_norm: np.ndarray  # shape (21, 2), all landmarks in normalized coords
+    timestamp: float            
     
     # Spatial metrics (normalized)
     centroid: Tuple[float, float]          # geometric center of hand
     bbox: Tuple[float, float, float, float]  # (xmin, ymin, xmax, ymax)
     
-    # Tip positions (normalized) - easier access than indexing landmarks_norm
-    tip_positions: Dict[str, Tuple[float, float]] = field(default_factory=dict)
+    # Tip positions (normalized). easier to access than indexing landmarks_norm
     # {'thumb': (x,y), 'index': (x,y), 'middle': (x,y), 'ring': (x,y), 'pinky': (x,y)}
+    tip_positions: Dict[str, Tuple[float, float]] = field(default_factory=dict)
     
-    # Distances between key points (normalized relative to image diagonal)
+    # Distances between key points (normalized)
     tip_distances: Dict[str, float] = field(default_factory=dict)
-    # {'index_thumb': dist, 'index_middle': dist, ...}
     
     # Finger extension state
     fingers_extended: Dict[str, bool] = field(default_factory=dict)
-    # {'thumb': True, 'index': False, ...}
     
     # Scale metrics
     diag_rel: float = 0.0  # hand bbox diagonal relative to image diagonal
@@ -88,11 +74,7 @@ def compute_hand_metrics(
     # Convert lnadmarks to numpy array
     norm = landmarks_to_array(landmarks.landmark)
 
-    # Compute a more stable palm-centered centroid using wrist + MCP joints
-    # (wrist, index_mcp, middle_mcp, ring_mcp, pinky_mcp). This is more
-    # resilient to finger pose and gives a better reference for extension
-    # and pointing calculations. If something goes wrong, fall back to the
-    # mean of all landmarks so we never raise an exception here.
+    # Compute stable palm-centered centroid using wrist + MCP joints
     try:
         mcp_indices = [LANDMARK_NAMES['WRIST'], LANDMARK_NAMES['INDEX_MCP'],
                        LANDMARK_NAMES['MIDDLE_MCP'], LANDMARK_NAMES['RING_MCP'],
@@ -139,19 +121,17 @@ def compute_hand_metrics(
     bbox_h_px = (ymax - ymin) * h
     hand_diag_px = float(np.hypot(bbox_w_px, bbox_h_px))
     img_diag_px = float(np.hypot(w, h))
-    # diag_rel: hand diagonal relative to image diagonal (unitless)
+    # diag_rel: hand diagonal relative to image diagonal
     eps = 1e-6
     diag_rel = hand_diag_px / (img_diag_px + eps)
 
-    # compute velocity early so we can apply motion-aware adjustments
-    # Normalize velocity by hand size (hand diagonal) so motion thresholds
-    # are independent of how close/far the hand is from the camera.
+    # Computed velocity is normalized so distance of hand from camera does not create issues
     velocity = (0.0, 0.0)
     speed = 0.0
     if prev_metrics is not None:
         dt = time.time() - prev_metrics.timestamp
         if dt > 0:
-            # centroid is normalized; convert to pixel coords
+            # convert to pixel coords
             cx_px, cy_px = centroid[0] * w, centroid[1] * h
             prev_cx_px, prev_cy_px = prev_metrics.centroid[0] * w, prev_metrics.centroid[1] * h
 
@@ -162,7 +142,7 @@ def compute_hand_metrics(
             vx_px = dx_px / dt
             vy_px = dy_px / dt
 
-            # normalize by hand diagonal (unitless per second)
+            # normalize by hand diagonal
             norm_factor = hand_diag_px + eps
             vx = vx_px / norm_factor
             vy = vy_px / norm_factor
@@ -172,8 +152,10 @@ def compute_hand_metrics(
 
     # Motion-aware scaling: compute sigmoid of speed and use it to increase
     # the open_ratio when the hand is moving. Sigmoid in (0,1), factor = 1+sigmoid -> (1,2).
+    # Using sigmoid cz velocity of hand can be any arbitary value and so we need to wrap all input 
+    # value of velocity between a range or value for predictable behaviour(1 to 2). So sigmoid(vel)+1 takes any arbitary
+    # value of velocity and wrap it between 0 and 1 and then add 1 to wrap between (1 to 2)
     try:
-        # Numerical stable sigmoid using numpy
         sig = 1.0 / (1.0 + float(np.exp(-motion_sigmoid_k * (speed - motion_speed_threshold))))
     except Exception:
         sig = 0.0
@@ -181,7 +163,7 @@ def compute_hand_metrics(
     motion_factor = 1.0 + sig
     effective_open_ratio = open_ratio * motion_factor
 
-    # detect which finger is extented (use provided hysteresis thresholds)
+    # tracks which finger is extented
     finger_extended = {
         'thumb': is_finger_extended(norm, 'thumb', centroid, prev_metrics, diag_rel, handedness, effective_open_ratio, close_ratio),
         'index': is_finger_extended(norm, 'index',  centroid, prev_metrics, diag_rel, handedness, effective_open_ratio, close_ratio),
@@ -235,7 +217,7 @@ def is_finger_extended(
         'pinky': LANDMARK_NAMES['PINKY_PIP'],
     }
 
-    # Defensive: ensure requested finger is known
+    # ensures requested finger is known
     if finger_name not in tip_idx_map or finger_name not in pip_idx_map:
         return False
 
@@ -245,7 +227,7 @@ def is_finger_extended(
     tip_pt = landmarks_norm[tip_idx]
     pip_pt = landmarks_norm[pip_idx]
 
-    # distances to palm centroid (use points, not indices)
+    # distances to palm centroid
     d_tip = euclidean(tip_pt, palm_centroid)
     d_pip = euclidean(pip_pt, palm_centroid)
 
@@ -253,7 +235,7 @@ def is_finger_extended(
     eps = 1e-6
     ratio = d_tip / (d_pip + eps)
 
-    # hysteresis thresholds (tune via config)
+    # hysteresis thresholds
 
     prev_state = False
     if prev_metrics is not None and getattr(prev_metrics, 'fingers_extended', None):
@@ -264,15 +246,8 @@ def is_finger_extended(
     return (ratio > threshold)
 
 
-# ============================================================================
-# STEP 3: Gesture Detectors (Build on HandMetrics)
-# ============================================================================
-
 class PinchDetector:
-    """
-    Detects thumb-index pinch gesture.
-    ALREADY IMPLEMENTED - you can move ClickDetector logic here and adapt it.
-    """
+
     def __init__(self, thresh_rel: float = 0.055, hold_frames: int = 5, cooldown_s: float = 0.6):
         self.thresh_rel = thresh_rel
         self.hold_frames = hold_frames
@@ -305,29 +280,37 @@ class PinchDetector:
 
 
 class PointingDetector:
-    def __init__(self, min_extension_ratio: float = 0.12):
-        self.min_extension_ratio = min_extension_ratio
-    
+    def __init__(
+            self, 
+            min_extension_ratio: float = 0.12, 
+            max_extra_fingers: int = 1, 
+            max_speed: float = 0.5
+        ):
+        self.min_extension_ratio = float(min_extension_ratio)
+        self.max_extra_fingers = int(max_extra_fingers)
+        self.max_speed = float(max_speed)
+
     def detect(self, metrics: HandMetrics) -> GestureResult:
-        if not metrics.fingers_extended['index']:
-            return GestureResult(detected=False,gesture_name='pointing')
-    
-        other_fingers = ['middle','ring','pinky']
-        extended_count = sum(metrics.fingers_extended[f] for f in other_fingers)
-        if extended_count > 1: # tolerance of 1(1 extra finger other than index can be opened)
+        if not metrics.fingers_extended.get('index', False):
             return GestureResult(detected=False, gesture_name='pointing')
-        
+
+        other_fingers = ['middle', 'ring', 'pinky']
+        extended_count = sum(1 for f in other_fingers if metrics.fingers_extended.get(f, False))
+        # Use configured tolerance
+        if extended_count > self.max_extra_fingers:
+            return GestureResult(detected=False, gesture_name='pointing')
+
         # index finger should be far from palm
         index_tip = metrics.tip_positions['index']
         centroid = metrics.centroid
         distance = euclidean(index_tip, centroid)
 
         if distance < self.min_extension_ratio:
-            return GestureResult(detected=False,gesture_name='pointing')
-        
-        # Condition 4: Hand should be relatively stable (low velocity)
-        speed = np.hypot(metrics.velocity[0], metrics.velocity[1])
-        if speed > 0.5:  # TODO: needs tweak threshold
+            return GestureResult(detected=False, gesture_name='pointing')
+
+        # Condition: Hand should be relatively stable (low velocity)
+        speed = float(np.hypot(metrics.velocity[0], metrics.velocity[1]))
+        if speed > self.max_speed:
             return GestureResult(detected=False, gesture_name='pointing')
 
         direction = (index_tip[0] - centroid[0], index_tip[1] - centroid[1])
@@ -352,18 +335,21 @@ class SwipeDetector:
         self,
         velocity_threshold: float = 0.8,  # relative to img_diag per second
         cooldown_s: float = 0.5,
-        history_size: int = 8
+        history_size: int = 8,
+        min_history: int = 3
     ):
         self.velocity_threshold = velocity_threshold
         self.cooldown_s = cooldown_s
         self.history = deque(maxlen=history_size)
+        # minimum number of frames required before attempting detection
+        self.min_history = int(min_history)
         self.last_swipe_time = -999.0
     
     def detect(self, metrics: HandMetrics) -> GestureResult:
         self.history.append(metrics)
 
-        # Need at least 3 frames to compute velocity reliably
-        if len(self.history) < 3:
+        #Min frame the motion should be continuous so it does not catch sudden jigger motion as swipe
+        if len(self.history) < self.min_history:
             return GestureResult(detected=False, gesture_name='swipe')
 
         # Check cooldown
@@ -385,7 +371,7 @@ class SwipeDetector:
         else:
             direction = 'down' if vy > 0 else 'up'
 
-        # Update cooldown timer
+        # Update cooldown timer for next time
         self.last_swipe_time = now
 
         return GestureResult(
@@ -404,91 +390,207 @@ class ZoomDetector:
     """
     Detects pinch-to-zoom gesture using 3 fingers (thumb, index, middle).
     Tracks spread change to determine zoom in/out.
+    Uses inertia for stable detection (reduces flicker).
+    Uses velocity-based detection to distinguish intentional zoom from drift.
     """
     def __init__(
         self,
         scale_threshold: float = 0.15,  # 15% change to trigger
         history_size: int = 5,
-        finger_gap_threshold: float = 0.19  # Max distance between index and middle
+        finger_gap_threshold: float = 0.19,  # Max distance between index and middle
+        inertia_increase: float = 0.3,  # How much to increase inertia per valid frame
+        inertia_decrease: float = 0.15,  # How much to decrease inertia per invalid frame
+        inertia_threshold: float = 0.5,  # Threshold above which zoom is detected
+        min_velocity: float = 0.05,  # Minimum spread change velocity (prevents drift)
+        max_velocity: float = 2.0,  # Maximum spread change velocity (prevents jumps)
+        velocity_consistency_threshold: float = 0.7,  # How consistent velocity direction must be (0-1)
+        require_fingers_extended: bool = False  # Whether to require finger extension detection
     ):
         self.scale_threshold = scale_threshold
         self.history = deque(maxlen=history_size)
         self.finger_gap_threshold = finger_gap_threshold
+        self.inertia_increase = inertia_increase
+        self.inertia_decrease = inertia_decrease
+        self.inertia_threshold = inertia_threshold
+        self.min_velocity = min_velocity
+        self.max_velocity = max_velocity
+        self.velocity_consistency_threshold = velocity_consistency_threshold
+        self.require_fingers_extended = require_fingers_extended
+        self.inertia = 0.0  # Current inertia level (0.0 to 1.0)
+        self.velocity_history = deque(maxlen=history_size)  # Track velocity for consistency check
     
     def detect(self, metrics: HandMetrics) -> GestureResult:
         """
-        Improved zoom detection with finger pairing:
+        Finger pairing:
         - Index and middle MUST be close together (like a pair)
         - Measures spread between (index+middle pair) and thumb
         - Tracks continuous direction (zoom in vs out)
         - Prevents confusion with pinch (which has thumb+index, not index+middle pair)
         """
-        # Check if thumb, index, and middle are all extended
-        required = ['thumb', 'index', 'middle']
-        if not all(metrics.fingers_extended[f] for f in required):
-            self.history.clear()  # Reset if gesture breaks
-            return GestureResult(detected=False, gesture_name='zoom')
         
-        # NEW: Check if index and middle are close together (paired)
+        # Check if index and middle are close together (paired)
         index_middle_dist = metrics.tip_distances.get('index_middle', 0.0)
         if index_middle_dist > self.finger_gap_threshold:
-            # Fingers too far apart - not a valid zoom gesture
             self.history.clear()
             return GestureResult(detected=False, gesture_name='zoom')
         
         # Compute spread: distance between the paired fingers and thumb
-        # Use thumb to index as primary measure (middle is close to index anyway)
-        thumb_to_pair = metrics.tip_distances.get('index_thumb', 0.0)
-        
-        # Spread is the distance from thumb to the paired fingers
-        spread = thumb_to_pair
+        spread = metrics.tip_distances.get('index_thumb', 0.0)
         
         # Add to history
         self.history.append(spread)
         
-        # Need at least 3 frames to detect continuous direction
-        if len(self.history) < 3:
-            return GestureResult(detected=False, gesture_name='zoom')
+        # Need at least the configured history window frames to detect continuous direction
+        history_needed = int(self.history.maxlen) if self.history.maxlen is not None else 3
+        if len(self.history) < history_needed:
+            # Decrease inertia when not enough history
+            self.inertia = max(0.0, self.inertia - self.inertia_decrease)
+            detected = self.inertia >= self.inertia_threshold
+            return GestureResult(
+                detected=detected,
+                gesture_name='zoom',
+                confidence=self.inertia,
+                metadata={'inertia': self.inertia, 'reason': 'insufficient_history'}
+            )
+
+        # Determine trend window: use configured history but ensure at least 3
+        # frames for a minimal trend calculation.
+        window = max(3, history_needed)
+        recent = list(self.history)[-window:]
         
-        # Check for continuous increasing or decreasing trend
-        recent = list(self.history)[-3:]  # Last 3 frames
+        # Compute differences across the recent window and check sign consistency.
+        # Using a small epsilon to ignore numerical noise.
+        eps = 1e-6
+        diffs: List[float] = []
+        for i in range(len(recent) - 1):
+            diffs.append(float(recent[i + 1] - recent[i]))
+
+        # Determine the trend and compute velocities
+        increasing = all(d > eps for d in diffs)
+        decreasing = all(d < -eps for d in diffs)
         
-        # Compute differences between consecutive frames
-        diff1 = recent[1] - recent[0]
-        diff2 = recent[2] - recent[1]
+        # Compute average velocity (spread change per frame)
+        avg_velocity = float(np.mean([abs(d) for d in diffs])) if diffs else 0.0
+        self.velocity_history.append(avg_velocity)
+
+        # Check velocity consistency: velocities should be within reasonable range
+        velocity_valid = self.min_velocity <= avg_velocity <= self.max_velocity
         
-        # Check if all differences have same sign (continuous direction)
-        increasing = diff1 > 0 and diff2 > 0
-        decreasing = diff1 < 0 and diff2 < 0
+        # Check velocity consistency over history (should be relatively stable)
+        if len(self.velocity_history) >= 3:
+            vel_list = list(self.velocity_history)
+            vel_std = float(np.std(vel_list))
+            vel_mean = float(np.mean(vel_list))
+            # Coefficient of variation (std/mean) should be reasonable
+            velocity_consistency = 1.0 - min(1.0, vel_std / (vel_mean + eps)) if vel_mean > eps else 0.0
+        else:
+            velocity_consistency = 1.0  # Assume consistent if not enough data
         
+        velocity_consistent = velocity_consistency >= self.velocity_consistency_threshold
+
+        # If the diffs do not all share the same sign it was not consistent to count as zoom
         if not (increasing or decreasing):
-            return GestureResult(detected=False, gesture_name='zoom')
+            # Decrease inertia when trend is unstable
+            self.inertia = max(0.0, self.inertia - self.inertia_decrease)
+            detected = self.inertia >= self.inertia_threshold
+            return GestureResult(
+                detected=detected,
+                gesture_name='zoom',
+                confidence=self.inertia,
+                metadata={
+                    'inertia': self.inertia, 
+                    'reason': 'unstable_trend',
+                    'avg_velocity': avg_velocity,
+                    'velocity_consistency': velocity_consistency
+                }
+            )
         
-        # Compute total change magnitude
-        total_change = recent[-1] - recent[0]
-        relative_change = abs(total_change) / (recent[0] + 1e-6)  # Avoid div by zero
+        # Check velocity-based conditions
+        if not velocity_valid:
+            # Velocity too low (drift) or too high (jump/noise)
+            self.inertia = max(0.0, self.inertia - self.inertia_decrease)
+            detected = self.inertia >= self.inertia_threshold
+            return GestureResult(
+                detected=detected,
+                gesture_name='zoom',
+                confidence=self.inertia,
+                metadata={
+                    'inertia': self.inertia,
+                    'reason': 'velocity_out_of_range',
+                    'avg_velocity': avg_velocity,
+                    'velocity_consistency': velocity_consistency
+                }
+            )
         
-        # Detect zoom based on continuous direction and threshold
+        if not velocity_consistent:
+            # Velocity fluctuating too much (not smooth zoom)
+            self.inertia = max(0.0, self.inertia - self.inertia_decrease)
+            detected = self.inertia >= self.inertia_threshold
+            return GestureResult(
+                detected=detected,
+                gesture_name='zoom',
+                confidence=self.inertia,
+                metadata={
+                    'inertia': self.inertia,
+                    'reason': 'velocity_inconsistent',
+                    'avg_velocity': avg_velocity,
+                    'velocity_consistency': velocity_consistency
+                }
+            )
+        
+        # Compute total change magnitude using an EWMA average across the
+        try:
+            ewma_alpha = 1.0 / float(len(recent)) if len(recent) > 0 else 1.0
+            ew = EWMA(alpha=ewma_alpha)
+            for v in recent:
+                ew.update([float(v)])
+            avg_spread = float(np.asarray(ew.value).flatten()[0])
+        except Exception:
+            # Fallback to first-element baseline if EWMA fails
+            avg_spread = float(recent[0]) if len(recent) > 0 else 0.0
+
+        # Compare last sample to the EWMA baseline
+        total_change = float(recent[-1]) - avg_spread
+        relative_change = abs(total_change) / (avg_spread + 1e-6)
+        
+        # Check if zoom conditions are met based on continuous direction, threshold, and velocity
+        zoom_conditions_met = False
+        zoom_type = None
+        
         if increasing and relative_change > self.scale_threshold:
             zoom_type = 'out'
-            detected = True
+            zoom_conditions_met = True
         elif decreasing and relative_change > self.scale_threshold:
             zoom_type = 'in'
-            detected = True
+            zoom_conditions_met = True
+        
+        # Update inertia based on whether zoom conditions are met
+        if zoom_conditions_met:
+            # Increase inertia when zoom is detected
+            self.inertia = min(1.0, self.inertia + self.inertia_increase)
         else:
-            detected = False
-            zoom_type = None
+            # Decrease inertia when zoom is not detected
+            self.inertia = max(0.0, self.inertia - self.inertia_decrease)
+        
+        # Only report as detected if inertia is above threshold
+        detected = self.inertia >= self.inertia_threshold
         
         return GestureResult(
             detected=detected,
             gesture_name='zoom',
-            confidence=1.0 if detected else 0.0,
+            confidence=self.inertia,
             metadata={
                 'zoom_type': zoom_type,
                 'relative_change': relative_change,
                 'spread': spread,
                 'finger_gap': index_middle_dist,
-                'trend': 'increasing' if increasing else 'decreasing' if decreasing else 'unstable'
+                'trend': 'increasing' if increasing else 'decreasing' if decreasing else 'unstable',
+                'inertia': self.inertia,
+                'zoom_conditions_met': zoom_conditions_met,
+                'avg_velocity': avg_velocity,
+                'velocity_consistency': velocity_consistency,
+                'velocity_valid': velocity_valid,
+                'velocity_consistent': velocity_consistent
             }
         )
 
@@ -496,23 +598,18 @@ class ZoomDetector:
 class OpenHandDetector:
     """
     Detects all 5 fingers extended (open palm).
-    Used for mode switching or special commands.
     """
-    def __init__(self, min_fingers: int = 4):
-        """Allow 4 or 5 fingers for tolerance."""
-        self.min_fingers = min_fingers
+    def __init__(self, min_fingers: int = 4, pinch_threshold: float = 0.08):
+        self.min_fingers = int(min_fingers)
+        self.pinch_threshold = float(pinch_threshold)
     
     def detect(self, metrics: HandMetrics) -> GestureResult:
-        """
-        Count extended fingers and check they're not pinching.
-        Prevents false detection when doing pinch gesture.
-        """
         # Count how many fingers are extended
         count = sum(metrics.fingers_extended.values())
         
         # Additional check: if thumb and index are too close, it's a pinch, not open hand
         thumb_index_dist = metrics.tip_distances.get('index_thumb', 0.0)
-        is_pinching = thumb_index_dist < 0.08  # If closer than this, it's a pinch
+        is_pinching = thumb_index_dist < float(self.pinch_threshold)
         
         # Detect if at least min_fingers are extended AND not pinching
         detected = count >= self.min_fingers and not is_pinching
@@ -579,11 +676,6 @@ class ThumbsDetector:
             metadata={'velocity': (vx, vy)}
         )
 
-
-# ============================================================================
-# STEP 8: Gesture Manager (Orchestrates all detectors)
-# ============================================================================
-
 class GestureManager:
     """
     Manages multiple gesture detectors and resolves conflicts.
@@ -600,14 +692,24 @@ class GestureManager:
             pinch_cd = get_gesture_threshold('pinch', 'cooldown_seconds', default=0.6)
 
             pointing_min_ext = get_gesture_threshold('pointing', 'min_extension_ratio', default=0.12)
+            pointing_max_extra = get_gesture_threshold('pointing', 'max_extra_fingers', default=1)
+            pointing_max_speed = get_gesture_threshold('pointing', 'max_speed', default=0.5)
 
             swipe_thresh = get_gesture_threshold('swipe', 'velocity_threshold', default=0.8)
             swipe_cd = get_gesture_threshold('swipe', 'cooldown_seconds', default=0.5)
             swipe_hist = get_gesture_threshold('swipe', 'history_size', default=8)
+            swipe_min_history = get_gesture_threshold('swipe', 'min_history', default=3)
 
             zoom_scale = get_gesture_threshold('zoom', 'scale_threshold', default=0.15)
             zoom_gap = get_gesture_threshold('zoom', 'finger_gap_threshold', default=0.06)
             zoom_hist = get_gesture_threshold('zoom', 'history_size', default=5)
+            zoom_inertia_inc = get_gesture_threshold('zoom', 'inertia_increase', default=0.3)
+            zoom_inertia_dec = get_gesture_threshold('zoom', 'inertia_decrease', default=0.15)
+            zoom_inertia_thresh = get_gesture_threshold('zoom', 'inertia_threshold', default=0.5)
+            zoom_min_vel = get_gesture_threshold('zoom', 'min_velocity', default=0.05)
+            zoom_max_vel = get_gesture_threshold('zoom', 'max_velocity', default=2.0)
+            zoom_vel_consistency = get_gesture_threshold('zoom', 'velocity_consistency_threshold', default=0.7)
+            zoom_require_ext = get_gesture_threshold('zoom', 'require_fingers_extended', default=False)
 
             # Finger extension hysteresis thresholds
             open_ratio = get_gesture_threshold('finger_extension', 'open_ratio', default=1.20)
@@ -617,6 +719,7 @@ class GestureManager:
             finger_motion_sigmoid_k = get_gesture_threshold('finger_extension', 'motion_sigmoid_k', default=20.0)
 
             open_min = get_gesture_threshold('open_hand', 'min_fingers', default=4)
+            open_pinch_exclusion = get_gesture_threshold('open_hand', 'pinch_exclusion_distance', default=0.08)
             
             thumbs_velocity_thresh = get_gesture_threshold('thumbs', 'velocity_threshold', default=0.2)
         except Exception:
@@ -624,18 +727,38 @@ class GestureManager:
             # Fallback to hardcoded defaults if config access fails
             pinch_thresh, pinch_hold, pinch_cd = 0.055, 5, 0.6
             pointing_min_ext = 0.12
+            pointing_max_extra = 1
+            pointing_max_speed = 0.5
             swipe_thresh, swipe_cd, swipe_hist = 0.8, 0.5, 8
+            swipe_min_history = 3
             zoom_scale, zoom_gap, zoom_hist = 0.15, 0.06, 5
+            zoom_inertia_inc, zoom_inertia_dec, zoom_inertia_thresh = 0.3, 0.15, 0.5
+            zoom_min_vel, zoom_max_vel, zoom_vel_consistency = 0.05, 2.0, 0.7
+            zoom_require_ext = False
             open_min = 4
+            open_pinch_exclusion = 0.08
             open_ratio, close_ratio = 1.20, 1.10
+            finger_motion_threshold = 0.15
+            finger_motion_sigmoid_k = 20.0
             thumbs_velocity_thresh = 0.2
 
         # Initialize detectors with resolved parameters
         self.pinch = PinchDetector(thresh_rel=pinch_thresh, hold_frames=pinch_hold, cooldown_s=pinch_cd)
-        self.pointing = PointingDetector(min_extension_ratio=pointing_min_ext)
-        self.swipe = SwipeDetector(velocity_threshold=swipe_thresh, cooldown_s=swipe_cd, history_size=swipe_hist)
-        self.zoom = ZoomDetector(scale_threshold=zoom_scale, history_size=zoom_hist, finger_gap_threshold=zoom_gap)
-        self.open_hand = OpenHandDetector(min_fingers=open_min)
+        self.pointing = PointingDetector(min_extension_ratio=pointing_min_ext, max_extra_fingers=pointing_max_extra, max_speed=pointing_max_speed)
+        self.swipe = SwipeDetector(velocity_threshold=swipe_thresh, cooldown_s=swipe_cd, history_size=swipe_hist, min_history=swipe_min_history)
+        self.zoom = ZoomDetector(
+            scale_threshold=zoom_scale, 
+            history_size=zoom_hist, 
+            finger_gap_threshold=zoom_gap, 
+            inertia_increase=zoom_inertia_inc, 
+            inertia_decrease=zoom_inertia_dec, 
+            inertia_threshold=zoom_inertia_thresh,
+            min_velocity=zoom_min_vel,
+            max_velocity=zoom_max_vel,
+            velocity_consistency_threshold=zoom_vel_consistency,
+            require_fingers_extended=zoom_require_ext
+        )
+        self.open_hand = OpenHandDetector(min_fingers=open_min, pinch_threshold=open_pinch_exclusion)
         self.thumbs = ThumbsDetector(velocity_threshold=thumbs_velocity_thresh)
         # Store finger-extension hysteresis for use during metric computation
         self.finger_open_ratio = open_ratio
@@ -653,23 +776,7 @@ class GestureManager:
         img_shape: Tuple[int, int, int],
         hand_label: str = 'right'
     ) -> Dict[str, GestureResult]:
-        """
-        Process one hand and return all detected gestures.
         
-        TODO (STEP 9 - INTEGRATION):
-        1. Compute hand metrics
-        2. Run all detectors
-        3. Apply priority rules (e.g., pinch overrides pointing)
-        4. Return dict of detected gestures
-        
-        Args:
-            landmarks: MediaPipe hand landmarks
-            img_shape: frame shape
-            hand_label: 'left' or 'right'
-            
-        Returns:
-            Dict mapping gesture names to GestureResult objects
-        """
         # Get previous metrics for velocity computation
         prev = self.history[hand_label][-1] if self.history[hand_label] else None
         
@@ -697,51 +804,41 @@ class GestureManager:
         thumbs_result = self.thumbs.detect(metrics)
         open_hand_result = self.open_hand.detect(metrics)
         
-        # Apply priority rules and conflict resolution:
+        # Priority rules and conflict resolution:
         # PRIORITY ORDER (highest to lowest):
-        # 1. Pinch
-        # 2. Zoom
+        # 1. Zoom
+        # 2. Pinch
         # 3. Pointing
-        # 4. Swipe
-        # 5. Open hand
-        # Notes:
-        # - Pinch/Zoom/Pointing are treated as mutually exclusive (they short-circuit
-        #   and return immediately). They may include `swipe` alongside them when
-        #   appropriate (swipe coexists in those branches).
-        # - Swipe is now considered before Open hand so quick directional motions
-        #   won't be shadowed by an open-palm fallback.
+        # 4. Thumbs
+        # 5. Swipe
+        # 6. Open hand
         
         # Check high-priority gestures first
-        if pinch_result.detected:
-            results['pinch'] = pinch_result
-            # Pinch blocks pointing and open_hand
-            if swipe_result.detected:
-                results['swipe'] = swipe_result
-            return results
         
         if zoom_result.detected:
             results['zoom'] = zoom_result
-            # Zoom blocks other gestures (needs 3 fingers)
-            if swipe_result.detected:
-                results['swipe'] = swipe_result
+            # if swipe_result.detected:
+            #     results['swipe'] = swipe_result
+            return results
+        
+        if pinch_result.detected:
+            results['pinch'] = pinch_result
+            # if swipe_result.detected:
+            #     results['swipe'] = swipe_result
             return results
         
         if pointing_result.detected:
             results['pointing'] = pointing_result
             # Pointing blocks open_hand (only 1 finger vs 5)
-            if swipe_result.detected:
-                results['swipe'] = swipe_result
+            # if swipe_result.detected:
+            #     results['swipe'] = swipe_result
             return results
             
         if thumbs_result.detected:
             results['thumbs'] = thumbs_result
-            if swipe_result.detected:
-                results['swipe'] = swipe_result
+            # if swipe_result.detected:
+            #     results['swipe'] = swipe_result
             return results
-
-        # Require all five fingers to be extended for a swipe to be valid.
-        # This prevents accidental swipes when the user has a closed or partially
-        # open hand. Use strict all-open requirement per user request.
         
         # Only check open_hand if no other higher-priority gesture detected
         if open_hand_result.detected:
