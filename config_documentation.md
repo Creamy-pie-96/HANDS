@@ -1,95 +1,135 @@
 # HANDS Configuration Documentation
 
-This document explains the configuration fields available in `config.json` for the HANDS system. You can tune these values using the `config_gui.py` application or by editing the file directly.
+This document describes the current `config.json` fields for the HANDS system and explains what each parameter controls and how changing values affects behavior. Use the interactive `Config Editor` (`config_gui.py`) or edit `config.json` directly.
+
+## Top-level structure
+
+- `gesture_thresholds`: per-gesture tuning parameters (pinch, pointing, swipe, zoom, open_hand, thumbs, finger_extension).
+- `system_control`: how detected gestures map to OS actions (cursor, click, scroll, zoom settings).
+- `visual_feedback`: on-screen visualization toggles and styling.
+- `camera`, `performance`, `display`: capture and runtime settings.
 
 ## Gesture Thresholds (`gesture_thresholds`)
 
-These settings control the sensitivity and detection logic for various gestures.
-
-### `thumbs` (New)
-Controls the detection of Thumbs Up/Down gestures and their movement.
-- **`velocity_threshold`**: (Default: 0.2) The vertical velocity required to trigger "Moving Up" or "Moving Down" variants. Higher values require faster movement.
-- **`description`**: Description of the gesture group.
+These control detection sensitivity and behavior for each gesture group. Values below show the current defaults from `config.json` and notes on impact.
 
 ### `pinch`
-Controls the Thumb-Index pinch gesture (used for clicking/dragging).
-- **`threshold_rel`**: (Default: 0.055) Maximum distance between thumb and index finger tips (relative to hand size) to register a pinch.
-- **`hold_frames`**: (Default: 5) Number of frames the pinch must be held to be confirmed.
-- **`cooldown_seconds`**: (Default: 0.6) Time before another pinch can be detected.
+
+- `threshold_rel`: 0.055 — Maximum normalized distance (tip-tip relative to hand size) for pinch detection.
+  - Increase: easier to trigger (fingers can be further apart).
+  - Decrease: requires closer contact.
+- `hold_frames`: 3 — Frames the pinch must be continuously held before it is confirmed.
+  - Increase: reduces accidental short pinches, slower response.
+  - Decrease: faster clicks, may flicker.
+- `cooldown_seconds`: 0.6 — Minimum time between pinch events.
+  - Increase: prevents rapid re-triggering.
+  - Decrease: allows faster repeated pinches.
 
 ### `pointing`
-Controls the single-finger pointing gesture (used for cursor movement).
-- **`min_extension_ratio`**: (Default: 0.12) Minimum extension of the index finger relative to the palm.
-- **`max_speed`**: (Default: 0.5) Maximum speed allowed for precise pointing.
-- **`max_extra_fingers`**: (Default: 1) How many other fingers can be slightly extended before pointing is invalidated.
+
+- `min_extension_ratio`: 0.12 — Minimum relative extension required for the index finger to count as pointing.
+  - Increase: requires more pronounced pointing.
+  - Decrease: allows subtler pointing.
+- `max_speed`: 0.5 — Max hand velocity for stable pointing.
+  - Increase: allows pointing while moving faster (less precise).
+  - Decrease: stricter, ignores pointing during motion.
+- `max_extra_fingers`: 1 — How many other fingers can be slightly extended while still counting as pointing.
+  - Increase: more tolerant of extra fingers.
+  - Decrease: stricter (only index or index+one).
 
 ### `swipe`
-Controls directional swipe gestures (used for scrolling/switching).
-- **`velocity_threshold`**: (Default: 0.8) Minimum velocity to register a swipe.
-- **`cooldown_seconds`**: (Default: 0.5) Time between swipes.
-- **`history_size`**: (Default: 8) Number of frames used to calculate velocity.
 
-### `zoom`
-Controls the 3-finger pinch-to-zoom gesture.
-- **`scale_threshold`**: (Default: 0.15) Minimum scale change to trigger zoom.
-- **`finger_gap_threshold`**: (Default: 0.06) Maximum gap between index and middle fingers (they should be together).
-- **`history_size`**: (Default: 5) Frames to track for smooth zooming.
-
-### `open_hand`
-Controls the open palm gesture.
-- **`min_fingers`**: (Default: 4) Minimum number of extended fingers.
-- **`pinch_exclusion_distance`**: (Default: 0.08) Minimum distance between thumb and index to ensure it's not a pinch.
+- `velocity_threshold`: 0.45 — Minimum normalized hand velocity to report a swipe.
+  - Increase: requires faster swipes, fewer false positives.
+  - Decrease: allows slower swipes.
+- `cooldown_seconds`: 0.4 — Minimum seconds between swipe detections.
+- `history_size`: 8 — Frames used to compute velocity for swipe.
+- `min_history`: 3 — Minimum frames required before attempting swipe detection.
+  - Longer history → smoother velocity estimate but slower detection.
 
 ### `finger_extension`
-Global settings for determining if a finger is extended.
-- **`open_ratio`**: (Default: 1.20) Ratio of tip-to-palm vs pip-to-palm distance to consider open.
-- **`close_ratio`**: (Default: 1.10) Ratio to consider closed (hysteresis).
-- **`motion_speed_threshold`**: (Default: 0.15) Speed threshold for dynamic adjustment.
-- **`motion_sigmoid_k`**: (Default: 20.0) Sigmoid steepness for motion adjustment.
+
+- `open_ratio`: 1.2 — Tip/PIP ratio threshold for a finger to be considered extended.
+- `close_ratio`: 1.1 — Lower hysteresis threshold to consider finger closed.
+- `motion_speed_threshold`: 0.2 — Hand speed above which extension logic is relaxed.
+- `motion_sigmoid_k`: 20.0 — Sharpness of the motion-based relaxation curve.
+  - Use these to make extension detection robust during hand motion (increase `motion_speed_threshold` to require faster motion before relaxing).
+
+### `zoom`
+
+- `scale_threshold`: 0.1 — Minimum relative spread change required to consider zooming.
+  - Increase: less sensitive to small spread changes.
+  - Decrease: more sensitive, may catch drift.
+- `finger_gap_threshold`: 0.1 — Max gap between index & middle tips for them to be considered a pair.
+- `history_size`: 5 — Frames used to analyze spread trend.
+- `inertia_increase`: 0.4 — How quickly zoom confidence builds per valid frame.
+- `inertia_decrease`: 0.1 — How quickly confidence decays when invalid.
+- `inertia_threshold`: 0.4 — Confidence threshold to report zoom detection.
+- `min_velocity`: 0.05 — Minimum spread velocity to be considered intentional.
+- `max_velocity`: 2.0 — Upper velocity bound to ignore spikes/noise.
+- `velocity_consistency_threshold`: 0.7 — How smooth/consistent velocity must be.
+- `require_fingers_extended`: false — If true, require all 3 fingers clearly extended for zoom.
+
+### `open_hand`
+
+- `min_fingers`: 4 — Minimum fingers extended to register an open hand.
+- `pinch_exclusion_distance`: 0.08 — Thumb-index proximity below this suppresses open-hand detection.
+
+### `thumbs`
+
+- `velocity_threshold`: 0.2 — Minimum thumb vertical velocity to detect thumbs moving variants (up/down moving gestures).
+  - Increase: require faster thumb motion to trigger moving variants.
+  - Decrease: detect gentler thumb motions (can increase false positives).
 
 ## System Control (`system_control`)
 
-Settings for how gestures translate to system actions.
+Controls how gestures map to system actions.
 
-### `cursor`
-- **`smoothing_factor`**: (Default: 0.3) Smoothing applied to cursor movement (0.0-1.0). Lower is smoother but more laggy.
-- **`speed_multiplier`**: (Default: 1.5) Multiplier for cursor speed.
-- **`bounds_padding`**: (Default: 10) Padding from screen edges.
-- **`precision_damping`**: (Default: 0.3) Speed reduction factor in precision mode.
+### `cursor` (defaults shown)
+
+- `smoothing_factor`: 0.3 — EWMA alpha for cursor smoothing (0-1). Lower = smoother but more lag.
+- `speed_multiplier`: 1.5 — Scales cursor displacement from hand motion.
+- `bounds_padding`: 10 — Pixels to avoid at screen edges.
+- `precision_damping`: 0.3 — Multiplier applied in precision cursor mode.
 
 ### `click`
-- **`double_click_timeout`**: (Default: 0.5) Max time between clicks for a double-click.
-- **`drag_hold_duration`**: (Default: 1.0) Time to hold pinch to initiate drag.
 
-### `scroll`
-- **`sensitivity`**: (Default: 30) Scroll speed multiplier.
-- **`horizontal_enabled`**: (Default: true) Enable horizontal scrolling.
-- **`vertical_enabled`**: (Default: true) Enable vertical scrolling.
+- `double_click_timeout`: 0.5 — Seconds allowed between pinches to register a double click.
+- `drag_hold_duration`: 1.0 — Seconds pinch must be held to start drag.
 
-### `zoom`
-- **`sensitivity`**: (Default: 5) Zoom speed multiplier.
-- **`use_system_zoom`**: (Default: true) Whether to use OS zoom shortcuts.
+### `scroll` and `zoom`
+
+- `scroll.sensitivity`: 30 — Scroll amount multiplier.
+- `zoom.sensitivity`: 5 — Zoom multiplier.
+- `zoom.use_system_zoom`: true — If enabled, performs system-level zoom shortcuts.
 
 ## Visual Feedback (`visual_feedback`)
 
-Settings for the on-screen overlay.
-- **`enabled`**: (Default: true) Master switch for visuals.
-- **`show_hand_skeleton`**: (Default: true) Draw hand lines.
-- **`show_fingertips`**: (Default: true) Draw dots on fingertips.
-- **`show_cursor_preview`**: (Default: true) Show where the cursor would be.
-- **`show_gesture_name`**: (Default: true) Display name of detected gesture.
-- **`overlay_opacity`**: (Default: 0.7) Opacity of the overlay window.
-- **`colors`**: RGB color definitions for various elements.
+- `enabled`: true — Master toggle for all overlays.
+- `show_hand_skeleton`: true — Draw hand skeleton lines.
+- `show_fingertips`: true — Draw fingertip markers.
+- `show_cursor_preview`: true — Show where cursor will move.
+- `show_gesture_name`: true — Display detected gesture name.
+- `overlay_opacity`: 0.7 — Overlay transparency (0-1).
+- `colors`: per-element BGR color arrays for left/right hands, cursor, active highlights, background.
 
-## Camera (`camera`)
-- **`index`**: (Default: 0) Camera device ID.
-- **`width`**: (Default: 640) Capture width.
-- **`height`**: (Default: 480) Capture height.
-- **`fps`**: (Default: 60) Target FPS.
+## Camera / Performance / Display
 
-## Performance (`performance`)
-- **`show_fps`**: (Default: true) Display FPS counter.
-- **`show_debug_info`**: (Default: false) Print debug info to terminal.
-- **`max_hands`**: (Default: 2) Maximum number of hands to track.
-- **`min_detection_confidence`**: (Default: 0.7) MediaPipe detection threshold.
-- **`min_tracking_confidence`**: (Default: 0.3) MediaPipe tracking threshold.
+- `camera.index`: 0 — Default camera device.
+- `camera.width` / `camera.height`: 640 / 480 — Capture resolution.
+- `camera.fps`: 60 — Requested FPS (actual may vary by camera/system).
+
+- `performance.show_fps`: true — Show FPS counter on-screen.
+- `performance.show_debug_info`: false — Print verbose detection info to terminal.
+- `performance.max_hands`: 2 — Max hands to detect.
+- `performance.min_detection_confidence`: 0.7 — MediaPipe detection threshold.
+- `performance.min_tracking_confidence`: 0.3 — MediaPipe tracking threshold.
+
+- `display.window_width` / `window_height`: 1280 / 720 — Default window size.
+- `display.flip_horizontal`: true — Mirror the video output.
+- `display.fps_update_interval`: 30 — Frames between FPS recalculation and config reload checks.
+
+## Using the Config Editor
+
+- Run `python3 config_gui.py` to open the interactive editor. The editor shows each field (value + description). Hover the ℹ️ icon to read the stored description, edit values, and press "Save & Apply" to write back to `config.json`.
+- The HANDS app watches `config.json` and auto-reloads settings (every `display.fps_update_interval` frames by default). If a change is not applied, restart the HANDS app.
