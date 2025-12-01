@@ -328,21 +328,48 @@ class HANDSApplication:
                 # Display frame
                 cv2.imshow("HANDS Control", frame_bgr)
                 
-                # Handle keyboard input
+                # Handle keyboard input (accept uppercase or lowercase)
                 key = cv2.waitKey(1) & 0xFF
-                if key == ord('q'):
-                    self.running = False
-                elif key == ord('p'):
-                    self.paused = not self.paused
-                    if self.system_ctrl:
-                        self.system_ctrl.toggle_pause()
-                    print(f"{'⏸ PAUSED' if self.paused else '▶ RESUMED'}")
-                elif key == ord('d'):
-                    self.show_debug = not self.show_debug
-                elif key == ord('f'):
-                    self.show_fps = not self.show_fps
-                elif key == ord('h'):
-                    self.print_controls()
+                # Only process if a key was pressed
+                if key != 255:
+                    # Normalize to lowercase character when possible
+                    try:
+                        k = chr(key).lower()
+                    except Exception:
+                        k = None
+
+                    if k == 'q':
+                        self.running = False
+                    elif k == 'p':
+                        self.paused = not self.paused
+                        if self.system_ctrl:
+                            self.system_ctrl.toggle_pause()
+                        print(f"{'⏸ PAUSED' if self.paused else '▶ RESUMED'}")
+                    elif k == 'd':
+                        self.show_debug = not self.show_debug
+                    elif k == 'f':
+                        self.show_fps = not self.show_fps
+                    elif k == 'h':
+                        self.print_controls()
+                    # Gesture debug toggles
+                    elif k == 'z':
+                        self.visual.show_gesture_debug['zoom'] = not self.visual.show_gesture_debug['zoom']
+                        print(f"Zoom debug: {'ON' if self.visual.show_gesture_debug['zoom'] else 'OFF'}")
+                    elif k == 'x':
+                        self.visual.show_gesture_debug['pinch'] = not self.visual.show_gesture_debug['pinch']
+                        print(f"Pinch debug: {'ON' if self.visual.show_gesture_debug['pinch'] else 'OFF'}")
+                    elif k == 'i':
+                        self.visual.show_gesture_debug['pointing'] = not self.visual.show_gesture_debug['pointing']
+                        print(f"Pointing debug: {'ON' if self.visual.show_gesture_debug['pointing'] else 'OFF'}")
+                    elif k == 's':
+                        self.visual.show_gesture_debug['swipe'] = not self.visual.show_gesture_debug['swipe']
+                        print(f"Swipe debug: {'ON' if self.visual.show_gesture_debug['swipe'] else 'OFF'}")
+                    elif k == 'o':
+                        self.visual.show_gesture_debug['open_hand'] = not self.visual.show_gesture_debug['open_hand']
+                        print(f"Open hand debug: {'ON' if self.visual.show_gesture_debug['open_hand'] else 'OFF'}")
+                    elif k == 't':
+                        self.visual.show_gesture_debug['thumbs'] = not self.visual.show_gesture_debug['thumbs']
+                        print(f"Thumbs debug: {'ON' if self.visual.show_gesture_debug['thumbs'] else 'OFF'}")
         
         finally:
             self.cleanup()
@@ -371,6 +398,13 @@ class HANDSApplication:
         print("  D - Toggle debug info")
         print("  F - Toggle FPS display")
         print("  H - Show this help")
+        print("\n  GESTURE DEBUG OVERLAYS:")
+        print("  Z - Toggle Zoom debug")
+        print("  X - Toggle Pinch debug")
+        print("  I - Toggle Pointing debug")
+        print("  S - Toggle Swipe debug")
+        print("  O - Toggle Open hand debug")
+        print("  T - Toggle Thumbs debug")
         print("\n" + "="*60)
         print("GESTURE CONTROLS")
         print("="*60)
