@@ -134,11 +134,10 @@ These keys control the application itself and general displays.
 
 ### Open the app
 
-- Activate your Python environment and run the app:
+- Run it and this will automatically Activate your Python environment and run the app:
 
 ```bash
-source .venv/bin/activate
-python3 hands_app.py
+./start_hands.sh
 ```
 
 - Ensure the camera window `HANDS Control` is focused. Use `H` to print keyboard help, and use `Z/X/I/S/O/T` to toggle per-gesture debug overlays. `D` toggles verbose terminal debug, `F` toggles the on-screen FPS counter. The app auto-reloads `config.json` when it changes (default every 30 frames).
@@ -147,7 +146,7 @@ python3 hands_app.py
 
 - Enable the overlay for the gesture you want to tune (e.g., press `Z` for Zoom). The overlay will show the live metrics the detector uses (and a short "reason" when detection fails).
 - Perform the gesture slowly and then with deliberate variations while watching the overlay values and the terminal (if `D` is on). Note which metadata fields are close to thresholds or oscillating.
-- Edit `config.json` using the included GUI (`python3 config_gui.py`) or a text editor. Save the file and the app will auto-reload the config (or restart the app if necessary).
+- Edit `config.json` using the included GUI (`./run_config.sh`) or a text editor. Save the file and the app will auto-reload the config (or restart the app if necessary).
 - Iterate: tweak one parameter at a time, test with a few repetitions, then revert if behaviour degrades.
 
 ### What fields you can tune (and how increasing/decreasing affects behavior)
@@ -281,18 +280,16 @@ Below are the main tunable fields found in `config.json` and what changing them 
 
 ## Quick Start
 
-1. Run the HANDS app (in your virtualenv if used):
+1. Go to app directory. Run the HANDS app :
 
 ```bash
-source .venv/bin/activate
-python3 hands_app.py
+./start_hands.sh
 ```
 
-2. Run the Config Editor GUI to edit parameters interactively (recommended):
+2. Goto to app directory. Run the Config Editor GUI to edit parameters interactively (recommended):
 
 ```bash
-source .venv/bin/activate
-python3 config_gui.py
+./run_config.sh
 ```
 
 3. Open the camera window and enable the per-gesture debug overlay(s) you want to inspect:
@@ -308,13 +305,13 @@ python3 config_gui.py
 
 5. The HANDS app auto-reloads the `config.json` (by default every 30 frames). If you don't see changes applied immediately, save and restart the HANDS app.
 
-**This way you can fine-tune the app live while using it to match your preference and your own unique body language and speed**
----
+## **This way you can fine-tune the app live while using it to match your preference and your own unique body language and speed**
 
 **Note: If you are new and have not installed necessery packages run the command:**
+
 ```bash
     install.sh
 ```
 
-_Last Updated: 02-12-2025 03:19 am_  
+_Last Updated: 02-12-2025 18:51_  
 _System: HANDS v1.0_
