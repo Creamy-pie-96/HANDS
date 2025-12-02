@@ -13,6 +13,40 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OUTPUT_SCRIPT="$SCRIPT_DIR/scripts/clone.sh"
 
+# By default we scan the script directory, but allow an optional scan directory
+# Usage: ./creator_of_clone.sh [--scan-dir /path/to/parent] or ./creator_of_clone.sh /path/to/parent
+SCAN_DIR="$SCRIPT_DIR"
+if [[ "$#" -ge 1 ]]; then
+    case "$1" in
+        --scan-dir)
+            if [[ -n "${2-}" && -d "$2" ]]; then
+                SCAN_DIR="$(cd "$2" && pwd)"
+                shift 2
+            else
+                echo "Usage: $0 [--scan-dir DIR]" >&2
+                exit 2
+            fi
+            ;;
+        -h|--help)
+            echo "Usage: $0 [--scan-dir DIR]" >&2
+            exit 0
+            ;;
+        *)
+            # treat first positional arg as scan directory if it exists
+            if [[ -d "$1" ]]; then
+                SCAN_DIR="$(cd "$1" && pwd)"
+                shift
+            else
+                echo "Unknown argument: $1" >&2
+                echo "Usage: $0 [--scan-dir DIR]" >&2
+                exit 2
+            fi
+            ;;
+    esac
+fi
+
+echo "Scanning root: $SCAN_DIR"
+
 # Files and directories to ignore
 IGNORE_PATTERNS=(
     ".venv"
@@ -156,15 +190,15 @@ FILE_COUNTER=0
 
 # Get list of files
 TEMP_LIST=$(mktemp)
-find "$SCRIPT_DIR" -type f | sort > "$TEMP_LIST"
+find "$SCAN_DIR" -type f | sort > "$TEMP_LIST"
 
 # Process each file
 while IFS= read -r file; do
     # Skip empty lines
     [[ -z "$file" ]] && continue
     
-    # Get relative path from script directory
-    rel_path="${file#$SCRIPT_DIR/}"
+    # Get relative path from scan directory
+    rel_path="${file#$SCAN_DIR/}"
     
     # Skip if should be ignored
     if should_ignore "$file"; then
@@ -188,6 +222,48 @@ done < "$TEMP_LIST"
 
 # Cleanup
 rm -f "$TEMP_LIST"
+
+# Generate hash file for verification
+HASH_FILE="$SCRIPT_DIR/scripts/clone_hashes.txt"
+echo "Generating SHA256 hashes for verification..."
+echo "# SHA256 hashes of original files" > "$HASH_FILE"
+echo "# Generated on $(date)" >> "$HASH_FILE"
+echo "# Format: <hash> <relative_path>" >> "$HASH_FILE"
+echo "" >> "$HASH_FILE"
+
+# Recalculate hashes for all files
+TEMP_LIST2=$(mktemp)
+find "$SCAN_DIR" -type f | sort > "$TEMP_LIST2"
+
+HASH_COUNTER=0
+while IFS= read -r file; do
+    [[ -z "$file" ]] && continue
+    
+    rel_path="${file#$SCAN_DIR/}"
+    
+    if should_ignore "$file"; then
+        continue
+    fi
+
+    # Skip hashing the generated clone/hashes and the obfuscated verifier
+    # (we still include these files in the clone, but their hashes should
+    # not be recorded here to avoid self-referential or changing-hash issues)
+    if [[ "$rel_path" == "scripts/clone_hashes.txt" ]] || \
+       [[ "$rel_path" == "scripts/verify_clone.py" ]]; then
+        continue
+    fi
+    
+    ((HASH_COUNTER++))
+    # Calculate SHA256 hash
+    file_hash=$(sha256sum "$file" | cut -d' ' -f1)
+    echo "$file_hash  $rel_path" >> "$HASH_FILE"
+    
+done < "$TEMP_LIST2"
+
+rm -f "$TEMP_LIST2"
+
+echo "✓ Generated hashes for $HASH_COUNTER files: $HASH_FILE"
+echo ""
 
 # Add footer to clone.sh
 cat >> "$OUTPUT_SCRIPT" << 'CLONE_FOOTER'
