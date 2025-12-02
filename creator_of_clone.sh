@@ -90,6 +90,19 @@ should_ignore() {
     local path="$1"
     local basename=$(basename "$path")
     
+    # Get relative path from scan directory
+    local rel_path="${path#$SCAN_DIR/}"
+    
+    # Exclude files directly in the root (no subdirectory)
+    if [[ "$rel_path" != */* ]]; then
+        return 0  # Should ignore (root-level file)
+    fi
+    
+    # Exclude anything in #dev directory
+    if [[ "$path" == *"/#dev/"* ]] || [[ "$path" == *"/#dev" ]] || [[ "$rel_path" == "#dev/"* ]] || [[ "$rel_path" == "#dev" ]]; then
+        return 0  # Should ignore (#dev directory)
+    fi
+    
     for pattern in "${IGNORE_PATTERNS[@]}"; do
         # Check if it's a direct match or glob match
         if [[ "$basename" == "$pattern" ]] || [[ "$basename" == $pattern ]]; then

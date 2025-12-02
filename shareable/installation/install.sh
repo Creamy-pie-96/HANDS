@@ -145,3 +145,14 @@ if [[ -d "$Working_dir" ]]; then
     fi
   fi
 fi
+
+rm -rf "$PROJECT_ROOT/automate_test.sh"
+
+chmod +x "$PROJECT_ROOT/app/start_hands.sh"
+chmod +x "$PROJECT_ROOT/app/run_config.sh"
+
+echo "===================================================================="
+echo "Go to app directory and run run_config.sh and start_hands.sh."
+echo "Look in Read me directory for more detailed guide"
+echo "Happy Tracking!"
+echo "===================================================================="

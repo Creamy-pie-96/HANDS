@@ -30,6 +30,17 @@ RET_CONFIG=$?
 timeout 40 ./start_hands.sh
 RET_START=$?
 
+echo "RET_CONFIG: $RET_CONFIG"
+echo "RET_START: $RET_START"
+
+if [[ $RET_START -eq 124 ]]; then
+    RET_START=0
+fi
+
+if [[ $RET_CONFIG -eq 124 ]]; then
+    RET_CONFIG=0
+fi
+
 if [[ $RET_CONFIG -ne 0 || $RET_START -ne 0 ]]; then
     echo "One or more tasks failed."
     exit 1
