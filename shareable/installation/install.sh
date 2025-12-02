@@ -10,6 +10,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
+# Requirements file lives next to this script (SCRIPT_DIR), but the venv/project
+# root remains `PROJECT_ROOT`. Use REQ_FILE when installing or snapshotting.
+REQ_FILE="$SCRIPT_DIR/requirements.txt"
+
 cd "$PROJECT_ROOT"
 
 echo "Project root: $PROJECT_ROOT"
@@ -61,15 +65,15 @@ source .venv/bin/activate
 echo "Upgrading pip/setuptools/wheel..."
 python -m pip install --upgrade pip setuptools wheel >/dev/null
 
-if [[ -f "requirements.txt" ]]; then
-  echo "Installing requirements from requirements.txt..."
+if [[ -f "$REQ_FILE" ]]; then
+  echo "Installing requirements from $REQ_FILE..."
   # Use the activated venv's python executable to install packages to the venv
-  python -m pip install -r requirements.txt || {
-    echo "ERROR: Failed to install requirements from requirements.txt" >&2
+  python -m pip install -r "$REQ_FILE" || {
+    echo "ERROR: Failed to install requirements from $REQ_FILE" >&2
     exit 1
   }
 else
-  echo "No requirements.txt found in project root."
+  echo "No requirements.txt found at $REQ_FILE."
   echo "If you want to capture the packages currently installed in this venv, rerun this script with --snapshot after installing them manually."
 fi
 
@@ -79,9 +83,9 @@ pip list --format=columns
 
 if [[ "$SNAPSHOT" -eq 1 ]]; then
   echo
-  echo "Saving current packages to requirements.txt (overwrite)..."
-  pip freeze > requirements.txt
-  echo "Saved: requirements.txt"
+  echo "Saving current packages to $REQ_FILE (overwrite)..."
+  pip freeze > "$REQ_FILE"
+  echo "Saved: $REQ_FILE"
 fi
 
 echo

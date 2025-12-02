@@ -12,17 +12,33 @@ fi
 scripts/obfuscate_workspace.sh . --output "$dir_name"
 
 mkdir -p "$another_dir"
-
 cp -r "$dir_name" "$another_dir/"
 
-cd "$another_dir/$dir_name/installation" || exit 1
+cd "$another_dir/$dir_name" || exit 1
 
+installation/install.sh
+echo "$PWD"
 
-./install.sh
+cd app || exit 1
+
+chmod +x run_config.sh
+chmod +x start_hands.sh
+
+timeout 30 ./run_config.sh
+RET_CONFIG=$?
+
+timeout 40 ./start_hands.sh
+RET_START=$?
+
+if [[ $RET_CONFIG -ne 0 || $RET_START -ne 0 ]]; then
+    echo "One or more tasks failed."
+    exit 1
+fi
 
 echo "Do you want to delete the dir? Y/N"
 read ans
 
 if [[ "$ans" == "Y" || "$ans" == "y" ]]; then
+    cd ../.. || exit 1
     rm -rf "$another_dir"
 fi
