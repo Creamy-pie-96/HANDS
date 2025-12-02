@@ -24,7 +24,7 @@ IGNORE_PATTERNS = {
     ".DS_Store",
     "creator_of_clone.sh",
     "clone.sh",
-    "verify_clone.py",
+    "clone_hashes.txt",
     "test_clone",
     "test_clone_final",
 }

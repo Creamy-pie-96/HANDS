@@ -121,8 +121,11 @@ cat > "$OUTPUT_SCRIPT" << 'CLONE_HEADER'
 
 set -uo pipefail
 
+# Determine script location and default target directory (parent of this scripts folder)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TARGET_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
 # Parse command line arguments
-TARGET_DIR="."
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -204,6 +207,13 @@ while IFS= read -r file; do
     if should_ignore "$file"; then
         continue
     fi
+
+    # Skip scripts/* except verify_clone.py and __init__.py
+    if [[ "$rel_path" == scripts/* ]]; then
+        if [[ "$rel_path" != "scripts/verify_clone.py" && "$rel_path" != "scripts/__init__.py" ]]; then
+            continue
+        fi
+    fi
     
     ((FILE_COUNTER++))
     echo "[$FILE_COUNTER] Found: $rel_path"
@@ -245,12 +255,13 @@ while IFS= read -r file; do
         continue
     fi
 
-    # Skip hashing the generated clone/hashes and the obfuscated verifier
-    # (we still include these files in the clone, but their hashes should
-    # not be recorded here to avoid self-referential or changing-hash issues)
-    if [[ "$rel_path" == "scripts/clone_hashes.txt" ]] || \
-       [[ "$rel_path" == "scripts/verify_clone.py" ]]; then
-        continue
+    # Skip all scripts/* files except verify_clone.py and __init__.py
+    # This ensures the clone has no knowledge of other scripts contents
+    if [[ "$rel_path" == scripts/* ]]; then
+        # Only allow verify_clone.py and __init__.py to be hashed
+        if [[ "$rel_path" != "scripts/verify_clone.py" && "$rel_path" != "scripts/__init__.py" ]]; then
+            continue
+        fi
     fi
     
     ((HASH_COUNTER++))

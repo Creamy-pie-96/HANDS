@@ -16,7 +16,7 @@ set -uo pipefail
 
 # Default values
 SOURCE_DIR=""
-OUTPUT_DIR="encrypted"
+OUTPUT_DIR="Hands_shareable"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Patterns to ignore (similar to creator_of_clone.sh)
@@ -428,3 +428,92 @@ echo "  Total files:             $((PY_COUNT + OTHER_COUNT))"
 echo ""
 echo "Output location: $OUTPUT_DIR"
 echo ""
+
+# -------------------------------------------------------------------------
+# Post-processing: create a shareable package and clean up
+# Steps:
+# 1) Change into the output directory and run its bundled creator_of_clone.sh
+#    (if present) to generate scripts/clone.sh and scripts/clone_hashes.txt.
+# 2) Create a `hands_shareable` directory next to the output directory.
+# 3) Move the `scripts/` directory, `install.sh` and `requirements.txt` from
+#    the output directory into `hands_shareable`.
+# 4) Remove the original output directory and its contents.
+# -------------------------------------------------------------------------
+
+echo "-- Preparing shareable package..."
+
+if [[ -d "$OUTPUT_DIR" ]]; then
+    # Run creator_of_clone.sh inside the output directory if available
+    if [[ -x "$OUTPUT_DIR/creator_of_clone.sh" ]]; then
+        echo "Running creator_of_clone.sh inside $OUTPUT_DIR to generate clone script and hashes..."
+        (cd "$OUTPUT_DIR" && ./creator_of_clone.sh .) || echo "Warning: creator_of_clone.sh returned non-zero" >&2
+    else
+        echo "Note: no creator_of_clone.sh found inside $OUTPUT_DIR (skipping generation)"
+    fi
+
+    # Prepare shareable directory next to OUTPUT_DIR
+    PARENT_DIR=$(dirname "$OUTPUT_DIR")
+    SHARE_DIR="$PARENT_DIR/hands_shareable"
+
+    if [[ -d "$SHARE_DIR" ]]; then
+        BACKUP_NAME="$SHARE_DIR.$(date +%s).bak"
+        echo "Existing hands_shareable found — moving it to $BACKUP_NAME"
+        mv "$SHARE_DIR" "$BACKUP_NAME"
+    fi
+
+    echo "Creating shareable directory: $SHARE_DIR"
+    mkdir -p "$SHARE_DIR"
+
+    # Move only clone.sh and clone_hashes.txt from scripts directory
+    if [[ -d "$OUTPUT_DIR/scripts" ]]; then
+        echo "Preparing to move clone.sh and clone_hashes.txt to $SHARE_DIR/scripts/..."
+        mkdir -p "$SHARE_DIR/scripts"
+        
+        # Move only clone.sh and clone_hashes.txt
+        if [[ -f "$OUTPUT_DIR/scripts/clone.sh" ]]; then
+            echo "Moving scripts/clone.sh -> $SHARE_DIR/scripts/"
+            mv "$OUTPUT_DIR/scripts/clone.sh" "$SHARE_DIR/scripts/"
+        fi
+        if [[ -f "$OUTPUT_DIR/scripts/clone_hashes.txt" ]]; then
+            echo "Moving scripts/clone_hashes.txt -> $SHARE_DIR/scripts/"
+            mv "$OUTPUT_DIR/scripts/clone_hashes.txt" "$SHARE_DIR/scripts/"
+        fi
+        
+        echo "Note: verify_clone.py, __init__.py, obfuscate_workspace.sh, and README.md remain in $OUTPUT_DIR/scripts/"
+    else
+        echo "Warning: $OUTPUT_DIR/scripts not found — nothing to move" >&2
+    fi
+
+    # Move install.sh and requirements.txt if present
+    if [[ -f "$OUTPUT_DIR/install.sh" ]]; then
+        echo "Moving install.sh to $SHARE_DIR/installation/"
+        mkdir -p "$SHARE_DIR/installation"
+        mv "$OUTPUT_DIR/install.sh" "$SHARE_DIR/installation/"
+    else
+        echo "Note: $OUTPUT_DIR/install.sh not present" >&2
+    fi
+
+    if [[ -f "$OUTPUT_DIR/requirements.txt" ]]; then
+        echo "Moving requirements.txt to $SHARE_DIR/installation/"
+        mv "$OUTPUT_DIR/requirements.txt" "$SHARE_DIR/installation/"
+    else
+        echo "Note: $OUTPUT_DIR/requirements.txt not present" >&2
+    fi
+
+    # NOTE: Do NOT move creator_of_clone.sh — it remains in the output directory per request
+
+    # Remove the (now mostly empty) original output directory
+    echo "Removing original output directory: $OUTPUT_DIR"
+    rm -rf "$OUTPUT_DIR"
+
+    # Rename the temporary shareable directory to the original output directory name
+    if [[ -d "$SHARE_DIR" ]]; then
+        echo "Renaming $SHARE_DIR -> $OUTPUT_DIR"
+        mv "$SHARE_DIR" "$OUTPUT_DIR"
+        echo "Shareable package ready at: $OUTPUT_DIR/installation"
+    else
+        echo "ERROR: Expected shareable directory $SHARE_DIR not found after cleanup" >&2
+    fi
+else
+    echo "ERROR: Output directory $OUTPUT_DIR does not exist — cannot prepare shareable package" >&2
+fi
