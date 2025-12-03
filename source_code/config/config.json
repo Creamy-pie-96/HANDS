@@ -94,7 +94,7 @@
         "EWMA smoothing factor for spread change rate (0-1, higher=more responsive, lower=smoother)"
       ],
       "velocity_threshold": [
-        0.0001,
+        0.04,
         "Minimum EWMA-smoothed spread change velocity to gain confidence (normalized units/frame)"
       ],
       "confidence_ramp_up": [
@@ -204,7 +204,7 @@
     },
     "zoom": {
       "sensitivity": [
-        5,
+        1.9,
         "System zoom sensitivity multiplier"
       ],
       "use_system_zoom": [

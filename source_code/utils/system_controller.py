@@ -117,6 +117,8 @@ class SystemController:
         
         # Current cursor position (normalized)
         self.current_norm_pos = (0.5, 0.5)
+        # Last time a zoom keypress was issued (rate-limiting)
+        self._last_zoom_time = 0.0
     def _get_screen_bounds(self) -> ScreenBounds:
         """Get screen dimensions."""
         if SCREENINFO_AVAILABLE:
@@ -278,10 +280,24 @@ class SystemController:
         """
         if self.paused:
             return
-        
+
+        # Rate-limit zoom keypresses to avoid extremely fast repeated zooms
+        # The configured `zoom_sensitivity` scales the repeat rate: higher sensitivity -> more frequent
+        # Default behavior: one zoom keypress every 0.5s when sensitivity==1
         try:
+            now = time.time()
+            sensitivity = float(getattr(self, 'zoom_sensitivity', 1.0) or 1.0)
+            base_delay = 0.5
+            # Allow fractional sensitivity values <1.0 to reduce zoom frequency (larger delay).
+            # Clamp sensitivity to a small positive floor to avoid division by zero.
+            min_delay = base_delay / max(0.05, sensitivity)
+
+            if now - self._last_zoom_time < min_delay:
+                return
+
             with self.keyboard.pressed(Key.ctrl):
                 if zoom_in:
+                    # Press Ctrl + + (Shift + =)
                     self.keyboard.press(Key.shift)
                     self.keyboard.press('=')  # Shift+= is +
                     self.keyboard.release('=')
@@ -289,6 +305,8 @@ class SystemController:
                 else:
                     self.keyboard.press('-')
                     self.keyboard.release('-')
+
+            self._last_zoom_time = now
         except Exception as e:
             print(f"⚠ Error zooming: {e}")
     
