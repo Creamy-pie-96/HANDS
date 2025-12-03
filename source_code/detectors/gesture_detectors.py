@@ -152,9 +152,9 @@ def compute_hand_metrics(
         sig = 1.0 / (1.0 + float(np.exp(-motion_sigmoid_k * (speed - motion_speed_threshold))))
     except Exception:
         sig = 0.0
-
-    motion_factor = 1.0 + sig
-    effective_open_ratio = open_ratio * motion_factor
+    MAX_PENALTY_ABS = (float)(1.5 - open_ratio) # As human finger can have max ratio of 1.5
+    motion_penalty_abs =  sig * MAX_PENALTY_ABS
+    effective_open_ratio = open_ratio + motion_penalty_abs
 
     finger_extended = {
         'thumb': is_finger_extended(norm, 'thumb', centroid, prev_metrics, diag_rel, handedness, effective_open_ratio, close_ratio),

@@ -46,7 +46,7 @@
         "Minimum vertical velocity to trigger swipe detection (normalized units/frame)"
       ],
       "confidence_ramp_up": [
-        0.8,
+        0.75,
         "Confidence increase per frame when movement detected (0-1, higher=faster trigger)"
       ],
       "confidence_decay": [
@@ -76,11 +76,11 @@
         "Ratio threshold to detect finger as closed (hysteresis prevents flickering)"
       ],
       "motion_speed_threshold": [
-        0.2,
+        0.6,
         "Hand speed above which extension thresholds are relaxed for moving hands"
       ],
       "motion_sigmoid_k": [
-        20.0,
+        10.0,
         "Steepness of sigmoid curve for motion-based threshold scaling"
       ]
     },
