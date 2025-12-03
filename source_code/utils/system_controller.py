@@ -130,11 +130,6 @@ class SystemController:
         
         print(f"⚠ Using default screen resolution {self.fallback_width}x{self.fallback_height}")
         return ScreenBounds(width=self.fallback_width, height=self.fallback_height, padding=self.screen_bounds_padding)
-                print(f"⚠ Error getting screen info: {e}")
-        
-        # Fallback to common resolution
-        print("⚠ Using default screen resolution 1920x1080")
-        return ScreenBounds(width=1920, height=1080)
     
     def toggle_pause(self):
         """Toggle pause state."""
