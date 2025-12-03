@@ -91,6 +91,12 @@ Controls how gestures map to system actions.
 - `speed_multiplier`: 1.5 — Scales cursor displacement from hand motion.
 - `bounds_padding`: 10 — Pixels to avoid at screen edges.
 - `precision_damping`: 0.3 — Multiplier applied in precision cursor mode.
+- `screen_bounds_padding`: 10 — Distance from screen edges where cursor movement is clamped (pixels).
+  - Increase: larger safety zone preventing cursor from reaching edges.
+  - Decrease: cursor can move closer to screen boundaries.
+- `fallback_screen_width`: 1920 — Screen width used when detection fails (pixels).
+- `fallback_screen_height`: 1080 — Screen height used when detection fails (pixels).
+  - Set these to match your typical screen resolution if automatic detection is unreliable.
 
 ### `click`
 
@@ -113,6 +119,59 @@ Controls how gestures map to system actions.
 - `overlay_opacity`: 0.7 — Overlay transparency (0-1).
 - `colors`: per-element BGR color arrays for left/right hands, cursor, active highlights, background.
 
+### `visual_feedback.debug_panel` (Position/Layout of main debug overlay)
+
+- `start_y_offset`: 8 — Initial Y offset from top of screen for debug panel placement (pixels).
+  - Increase: panel appears lower on screen.
+  - Decrease: panel starts higher.
+- `scan_step_horizontal`: -30 — Horizontal step size when scanning for unoccupied space (pixels).
+  - Negative values scan right-to-left; larger magnitude = faster scanning but coarser.
+- `scan_step_vertical`: 20 — Vertical step size when scanning for placement (pixels).
+  - Increase: faster vertical scanning but may skip tight gaps.
+
+### `visual_feedback.gesture_panel` (Per-gesture metadata overlays)
+
+- `max_height`: 200 — Maximum panel height before content is clipped (pixels).
+- `panel_y`: 10 — Starting Y position from top of screen (pixels).
+- `panel_left_x`: 10 — X position from left screen edge (pixels).
+- `panel_width`: 300 — Width of gesture info panel (pixels).
+- `overlay_alpha`: 0.7 — Background transparency (0-1). Higher = more opaque/visible.
+- `frame_blend_alpha`: 0.3 — Transparency when blending panel onto video frame (0-1).
+- `title_y_offset`: 20 — Y offset for title text from panel top (pixels).
+- `title_x`: 20 — X position of title text within panel (pixels).
+- `separator_y_offset`: 25 — Y position of title separator line from panel top (pixels).
+- `separator_start_x`: 10 — Starting X position of separator line (pixels).
+- `separator_end_x`: 290 — Ending X position of separator line (pixels).
+- `indicator_start_y`: 40 — Y position where gesture indicators begin (pixels from panel top).
+- `indicator_x`: 25 — X position of gesture indicator symbols (pixels).
+- `name_x`: 45 — X position of gesture name text (pixels).
+- `hint_x`: 180 — X position for gesture hint/help text (pixels).
+- `line_spacing`: 20 — Vertical spacing between gesture lines (pixels).
+  - Increase: more readable but takes more screen space.
+  - Decrease: compact layout.
+- `param_indent_x`: 45 — X indent for parameter detail lines (pixels).
+- `param_line_spacing`: 15 — Vertical spacing between parameter lines (pixels).
+- `spacing_with_hint`: 25 — Extra Y spacing when hint text is present (pixels).
+- `spacing_no_hint`: 25 — Y spacing when no hint is shown (pixels).
+- `no_gesture_x`: 40 — X position for "No gestures detected" message (pixels).
+
+### `visual_feedback.cursor_preview` (Cursor visualization)
+
+- `trail_fade_time`: 0.5 — Duration for cursor trail to fade out (seconds).
+  - Increase: trail persists longer (shows movement path).
+  - Decrease: trail fades quickly.
+- `circle_radius`: 15 — Radius of cursor preview circle (pixels).
+  - Increase: larger, more visible cursor indicator.
+  - Decrease: smaller, subtler cursor.
+- `crosshair_length`: 20 — Length of crosshair arms from center (pixels).
+- `crosshair_gap`: 8 — Gap between center and start of crosshair (pixels).
+
+### `visual_feedback.animation`
+
+- `pulse_frequency`: 2.0 — Frequency of pulsing effect for active gestures (Hz).
+  - Increase: faster pulsing (more attention-grabbing).
+  - Decrease: slower, gentler pulse effect.
+
 ## Camera / Performance / Display
 
 - `camera.index`: 0 — Default camera device.
@@ -124,6 +183,13 @@ Controls how gestures map to system actions.
 - `performance.max_hands`: 2 — Max hands to detect.
 - `performance.min_detection_confidence`: 0.7 — MediaPipe detection threshold.
 - `performance.min_tracking_confidence`: 0.3 — MediaPipe tracking threshold.
+- `performance.gesture_history_maxlen`: 16 — Maximum frames stored in gesture history buffer per hand.
+  - Increase: more memory used, longer history for trend analysis.
+  - Decrease: less memory, shorter history window.
+- `performance.bimanual_history_maxlen`: 10 — Maximum frames stored in two-hand gesture history buffer.
+
+  - Increase: smoother two-hand gesture detection, uses more memory.
+  - Decrease: faster response, less stable detection.
 
 - `display.window_width` / `window_height`: 1280 / 720 — Default window size.
 - `display.flip_horizontal`: true — Mirror the video output.

@@ -39,10 +39,32 @@ class BimanualGestureDetector:
     Detects complex two-hand gestures based on single-hand gesture combinations.
     """
     
-    def __init__(self):
-        self.history = deque(maxlen=10)
-        self.current_mode = None  # Active bimanual mode
-        self.anchor_point = None  # Anchor for pan/rotate
+    def __init__(self, config=None):
+        if config:
+            history_maxlen = config.get('performance', 'bimanual_history_maxlen', default=10)
+        else:
+            history_maxlen = 10
+        
+        self.history = deque(maxlen=history_maxlen)
+        self.current_mode = None
+        self.anchor_point = None
+        
+        if config:
+            from source_code.config.config_manager import get_bimanual_setting
+            self.hand_still_threshold = get_bimanual_setting('hand_still_threshold', 0.3)
+            self.pan_velocity_threshold = get_bimanual_setting('pan_velocity_threshold', 0.4)
+            self.draw_velocity_threshold = get_bimanual_setting('draw_velocity_threshold', 0.2)
+            self.precision_damping = get_bimanual_setting('precision_damping_factor', 0.3)
+            self.distance_change_threshold = get_bimanual_setting('two_hand_distance_threshold', 0.1)
+            self.warp_min_distance = get_bimanual_setting('warp_min_distance', 0.3)
+        else:
+            # Defaults
+            self.hand_still_threshold = 0.3
+            self.pan_velocity_threshold = 0.4
+            self.draw_velocity_threshold = 0.2
+            self.precision_damping = 0.3
+            self.distance_change_threshold = 0.1
+            self.warp_min_distance = 0.3
         
     def detect(
         self,
@@ -140,8 +162,10 @@ class BimanualGestureDetector:
                 return g
         return 'none'
     
-    def _is_hand_still(self, metrics: HandMetrics, threshold: float = 0.3) -> bool:
+    def _is_hand_still(self, metrics: HandMetrics, threshold: Optional[float] = None) -> bool:
         """Check if hand is relatively still (low velocity)."""
+        if threshold is None:
+            threshold = self.hand_still_threshold
         vel_mag = np.hypot(*metrics.velocity)
         return vel_mag < threshold
     
@@ -161,7 +185,7 @@ class BimanualGestureDetector:
         
         if self._is_hand_still(state.left_metrics):
             right_vel = np.hypot(*state.right_metrics.velocity)
-            if right_vel > 0.4:  # Right hand moving
+            if right_vel > self.pan_velocity_threshold:
                 # Set anchor if not set
                 if self.current_mode != 'pan' or self.anchor_point is None:
                     self.anchor_point = state.left_metrics.centroid
@@ -260,7 +284,7 @@ class BimanualGestureDetector:
                 dist_end = recent[-1].inter_hand_distance
                 change = (dist_end - dist_start) / (dist_start + 1e-6)
                 
-                if abs(change) > 0.1:  # 10% change threshold
+                if abs(change) > self.distance_change_threshold:
                     resize_type = 'expand' if change > 0 else 'contract'
                     return GestureResult(
                         detected=True,
@@ -291,7 +315,7 @@ class BimanualGestureDetector:
                 confidence=1.0,
                 metadata={
                     'cursor_pos': state.right_metrics.tip_positions['index'],
-                    'damping_factor': 0.3  # Reduce speed by 70%
+                    'damping_factor': self.precision_damping
                 }
             )
         
@@ -308,7 +332,7 @@ class BimanualGestureDetector:
         
         if state.left_gesture == 'pinch' and state.right_gesture == 'pointing':
             right_vel = np.hypot(*state.right_metrics.velocity)
-            if right_vel > 0.2:  # Moving
+            if right_vel > self.draw_velocity_threshold:
                 return GestureResult(
                     detected=True,
                     gesture_name='draw_mode',
@@ -376,7 +400,7 @@ class BimanualGestureDetector:
         
         if state.left_gesture == 'pointing' and state.right_gesture == 'pointing':
             # Check hands are far apart (pointing at different locations)
-            if state.inter_hand_distance > 0.3:  # Hands far apart
+            if state.inter_hand_distance > self.warp_min_distance:
                 return GestureResult(
                     detected=True,
                     gesture_name='warp',
@@ -395,12 +419,12 @@ class ComprehensiveGestureManager:
     Extended gesture manager that handles both single-hand and two-hand gestures.
     """
     
-    def __init__(self):
+    def __init__(self, config=None):
         # Import here to avoid circular dependency
         from source_code.detectors.gesture_detectors import GestureManager
         
         self.single_hand_mgr = GestureManager()
-        self.bimanual_detector = BimanualGestureDetector()
+        self.bimanual_detector = BimanualGestureDetector(config)
         
     def process_hands(
         self,

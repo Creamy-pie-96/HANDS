@@ -162,7 +162,8 @@ class Config:
                 "pointing": {
                     "min_extension_ratio": 0.12,
                     "max_speed": 0.5,
-                    "max_extra_fingers": 1
+                    "max_extra_fingers": 1,
+                    "ewma_alpha": 0.4
                 },
                 "swipe": {
                     "ewma_alpha": 0.3,
@@ -203,7 +204,13 @@ class Config:
                     "smoothing_factor": 0.3,
                     "speed_multiplier": 1.5,
                     "bounds_padding": 10,
-                    "precision_damping": 0.3
+                    "precision_damping": 0.3,
+                    "dead_zone": 0.02,
+                    "magnetic_radius": 0.05,
+                    "magnetic_factor": 0.4,
+                    "screen_bounds_padding": 10,
+                    "fallback_screen_width": 1920,
+                    "fallback_screen_height": 1080
                 },
                 "click": {
                     "double_click_timeout": 0.5,
@@ -219,6 +226,72 @@ class Config:
                     "use_system_zoom": True
                 }
             },
+            "bimanual_gestures": {
+                "hand_still_threshold": 0.3,
+                "pan_velocity_threshold": 0.4,
+                "draw_velocity_threshold": 0.2,
+                "precision_damping_factor": 0.3,
+                "two_hand_distance_threshold": 0.1,
+                "warp_min_distance": 0.3
+            },
+            "visual_feedback": {
+                "enabled": True,
+                "show_hand_skeleton": True,
+                "show_fingertips": True,
+                "show_cursor_preview": True,
+                "show_gesture_name": True,
+                "overlay_opacity": 0.7,
+                "velocity_arrow_scale": 0.25,
+                "velocity_threshold_highlight": 0.8,
+                "fingertip_dim_factor": 0.4,
+                "debug_panel": {
+                    "margin": 12,
+                    "spacing": 8,
+                    "base_width": 240,
+                    "line_height": 16,
+                    "title_height": 20,
+                    "background_alpha": 0.45,
+                    "spacing_buffer": 4,
+                    "start_y_offset": 8,
+                    "scan_step_horizontal": 30,
+                    "scan_step_vertical": 20
+                },
+                "gesture_panel": {
+                    "max_height": 200,
+                    "panel_y": 10,
+                    "panel_left_x": 10,
+                    "panel_width": 300,
+                    "overlay_alpha": 0.7,
+                    "frame_blend": 0.3,
+                    "title_y_offset": 30,
+                    "title_x": 20,
+                    "separator_y_offset": 30,
+                    "separator_left_x": 20,
+                    "separator_right_x": 290,
+                    "separator_bottom_spacing": 20,
+                    "max_gestures_display": 4,
+                    "gesture_indicator_x": 25,
+                    "gesture_indicator_radius": 5,
+                    "gesture_name_x": 40,
+                    "gesture_name_y_adjust": 5,
+                    "hint_x": 180,
+                    "line_spacing": 20,
+                    "param_indent_x": 45,
+                    "param_line_spacing": 15,
+                    "spacing_with_hint": 25,
+                    "spacing_no_hint": 25,
+                    "no_gesture_x": 40
+                },
+                "cursor_preview": {
+                    "trail_fade_time": 0.5,
+                    "circle_radius": 15,
+                    "crosshair_length": 20,
+                    "crosshair_gap": 8
+                },
+                "animation": {
+                    "pulse_frequency": 2.0
+                }
+            },
             "camera": {
                 "index": 0,
                 "width": 640,
@@ -230,7 +303,9 @@ class Config:
                 "show_debug_info": False,
                 "max_hands": 2,
                 "min_detection_confidence": 0.7,
-                "min_tracking_confidence": 0.3
+                "min_tracking_confidence": 0.3,
+                "gesture_history_maxlen": 16,
+                "bimanual_history_maxlen": 10
             },
             "display": {
                 "window_width": 1280,
@@ -264,6 +339,11 @@ def get_system_control(category: str, param_name: str, default=None):
 def get_visual_setting(param_name: str, default=None):
     """Get a visual feedback setting."""
     return config.get('visual_feedback', param_name, default=default)
+
+
+def get_bimanual_setting(param_name: str, default=None):
+    """Get a bimanual gesture parameter."""
+    return config.get('bimanual_gestures', param_name, default=default)
 
 
 if __name__ == "__main__":

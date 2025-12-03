@@ -248,6 +248,11 @@ Below are the main tunable fields found in `config.json` and what changing them 
   - Decrease → slower, finer-grained movement.
 - `precision_damping`: Applied when in precision mode (two-hand precision cursor).
   - Decrease → finer control (multiply movement by a smaller factor).
+- `screen_bounds_padding`: Distance (in pixels) from screen edges where cursor movement stops.
+  - Increase → larger safety zone (cursor stops further from edge).
+  - Decrease → cursor can get closer to edges.
+- `fallback_screen_width` / `fallback_screen_height`: Resolution used when actual screen dimensions cannot be detected.
+  - Set to your typical screen resolution (e.g., 1920x1080) if detection fails.
 
 **system_control.click**
 
@@ -271,10 +276,68 @@ Below are the main tunable fields found in `config.json` and what changing them 
   - Decrease → overlays fainter.
 - `show_hand_skeleton`, `show_fingertips`, `show_cursor_preview`, `show_gesture_name`: Toggle debug visuals on/off.
 
+**visual_feedback.debug_panel** (Position/Layout of the main debug overlay)
+
+- `start_y_offset`: Initial Y position offset from screen top for debug panel placement (pixels).
+  - Increase → panel starts lower on the screen.
+  - Decrease → panel starts higher.
+- `scan_step_horizontal` / `scan_step_vertical`: Step size when scanning for an unoccupied screen region for the panel.
+  - Increase → faster scanning but may miss tight spaces.
+  - Decrease → finer scanning, finds smaller gaps.
+
+**visual_feedback.gesture_panel** (Position/Styling of per-gesture metadata overlays)
+
+- `max_height`: Maximum panel height before scrolling/clipping (pixels).
+- `panel_y`: Starting Y position for gesture panel (pixels from top).
+- `panel_left_x`: X position from screen left edge (pixels).
+- `panel_width`: Width of the gesture info panel (pixels).
+- `overlay_alpha`: Transparency of overlay background (0-1).
+  - Increase → more opaque (easier to read, more intrusive).
+  - Decrease → more transparent (subtle but harder to read).
+- `frame_blend_alpha`: Transparency when blending panel onto the video frame (0-1).
+- `title_y_offset`: Y offset from panel top for the title text (pixels).
+- `title_x`: X position of the title text within panel (pixels).
+- `separator_y_offset` / `separator_start_x` / `separator_end_x`: Position and length of the line separating title from content.
+- `indicator_start_y`: Y position where gesture indicators begin (pixels from panel top).
+- `indicator_x`: X position of the gesture indicator symbols (pixels).
+- `name_x`: X position of gesture name text (pixels).
+- `hint_x`: X position of gesture hint/help text (pixels).
+- `line_spacing`: Vertical spacing between gesture lines (pixels).
+  - Increase → more space between gestures (easier to read but takes more screen space).
+  - Decrease → tighter layout.
+- `param_indent_x`: X indent for parameter detail lines (pixels).
+- `param_line_spacing`: Vertical spacing between parameter detail lines (pixels).
+- `spacing_with_hint`: Extra Y spacing when a hint line is present (pixels).
+- `spacing_no_hint`: Y spacing when no hint is shown (pixels).
+- `no_gesture_x`: X position for "No gestures detected" message (pixels).
+
+**visual_feedback.cursor_preview** (Cursor visualization)
+
+- `trail_fade_time`: How long cursor trail takes to fade out (seconds).
+  - Increase → trail persists longer (more visible path).
+  - Decrease → trail fades quickly (cleaner display).
+- `circle_radius`: Radius of the circle drawn around cursor position (pixels).
+  - Increase → larger cursor indicator.
+  - Decrease → smaller, subtler cursor.
+- `crosshair_length`: Length of crosshair arms from center (pixels).
+- `crosshair_gap`: Gap between center and start of crosshair arms (pixels).
+
+**visual_feedback.animation**
+
+- `pulse_frequency`: Frequency of pulsing animation for active gestures (Hz).
+  - Increase → faster pulsing (more attention-grabbing).
+  - Decrease → slower, gentler pulsing.
+
 **camera / performance / display**
 
 - `fps`: Requested camera FPS — higher FPS gives finer temporal resolution but may lower frame quality or increase CPU usage.
 - `min_detection_confidence` / `min_tracking_confidence`: MediaPipe thresholds; increasing them reduces false detections but may drop hands intermittently.
+- `gesture_history_maxlen`: Maximum number of frames stored in gesture history buffer (per hand).
+  - Increase → more memory used but allows longer-term gesture trend analysis.
+  - Decrease → less memory, shorter history for gesture detection.
+- `bimanual_history_maxlen`: Maximum number of frames stored in two-hand gesture history buffer.
+  - Increase → better smoothing for two-hand gestures but uses more memory.
+  - Decrease → faster response but less stable two-hand detection.
 
 ---
 

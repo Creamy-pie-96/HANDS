@@ -295,17 +295,24 @@ class PointingDetector:
             self, 
             min_extension_ratio: float = 0.12, 
             max_extra_fingers: int = 1, 
-            max_speed: float = 0.5
+            max_speed: float = 0.5,
+            ewma_alpha: float = 0.4
         ):
         self.min_extension_ratio = float(min_extension_ratio)
         self.max_extra_fingers = int(max_extra_fingers)
         self.max_speed = float(max_speed)
+        self.ewma_alpha = ewma_alpha
+        self.ewma_speed = EWMA(alpha=ewma_alpha)
 
     def detect(self, metrics: HandMetrics) -> GestureResult:
         index_tip = metrics.tip_positions['index']
         centroid = metrics.centroid
         distance = euclidean(index_tip, centroid)
-        speed = float(np.hypot(metrics.velocity[0], metrics.velocity[1]))
+        
+        raw_speed = float(np.hypot(metrics.velocity[0], metrics.velocity[1]))
+        smoothed_speed_arr = self.ewma_speed.update([raw_speed])
+        speed = float(smoothed_speed_arr[0])
+        
         direction = (index_tip[0] - centroid[0], index_tip[1] - centroid[1])
         
         index_extended = metrics.fingers_extended.get('index', False)
@@ -318,8 +325,10 @@ class PointingDetector:
             'direction': direction,
             'distance': distance,
             'min_extension_ratio': self.min_extension_ratio,
-            'speed': speed,
+            'raw_speed': raw_speed,
+            'ewma_speed': speed,
             'max_speed': self.max_speed,
+            'ewma_alpha': self.ewma_alpha,
             'index_extended': index_extended,
             'extra_fingers_count': extended_count,
             'max_extra_fingers': self.max_extra_fingers,
@@ -722,6 +731,7 @@ class GestureManager:
             pointing_min_ext = get_gesture_threshold('pointing', 'min_extension_ratio', default=0.12)
             pointing_max_extra = get_gesture_threshold('pointing', 'max_extra_fingers', default=1)
             pointing_max_speed = get_gesture_threshold('pointing', 'max_speed', default=0.5)
+            pointing_ewma_alpha = get_gesture_threshold('pointing', 'ewma_alpha', default=0.4)
 
             swipe_ewma_alpha = get_gesture_threshold('swipe', 'ewma_alpha', default=0.3)
             swipe_vel_thresh_x = get_gesture_threshold('swipe', 'velocity_threshold_x', default=0.4)
@@ -760,6 +770,7 @@ class GestureManager:
             pointing_min_ext = 0.12
             pointing_max_extra = 1
             pointing_max_speed = 0.5
+            pointing_ewma_alpha = 0.4
             swipe_ewma_alpha = 0.3
             swipe_vel_thresh_x = 0.4
             swipe_vel_thresh_y = 0.4
@@ -786,7 +797,12 @@ class GestureManager:
 
         # Initialize detectors with resolved parameters
         self.pinch = PinchDetector(thresh_rel=pinch_thresh, hold_frames=pinch_hold, cooldown_s=pinch_cd)
-        self.pointing = PointingDetector(min_extension_ratio=pointing_min_ext, max_extra_fingers=pointing_max_extra, max_speed=pointing_max_speed)
+        self.pointing = PointingDetector(
+            min_extension_ratio=pointing_min_ext,
+            max_extra_fingers=pointing_max_extra,
+            max_speed=pointing_max_speed,
+            ewma_alpha=pointing_ewma_alpha
+        )
         self.swipe = SwipeDetector(
             ewma_alpha=swipe_ewma_alpha,
             velocity_threshold_x=swipe_vel_thresh_x,
@@ -816,7 +832,8 @@ class GestureManager:
         self.finger_motion_sigmoid_k = finger_motion_sigmoid_k
         
         # State tracking
-        self.history = {'left': deque(maxlen=16), 'right': deque(maxlen=16)}
+        history_maxlen = get_gesture_threshold('performance', 'gesture_history_maxlen', default=16) if 'get_gesture_threshold' in dir() else 16
+        self.history = {'left': deque(maxlen=history_maxlen), 'right': deque(maxlen=history_maxlen)}
         self.current_gesture = {'left': None, 'right': None}
     
     def process_hand(

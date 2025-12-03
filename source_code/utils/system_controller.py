@@ -35,7 +35,7 @@ class ScreenBounds:
     """Screen dimensions and boundaries."""
     width: int
     height: int
-    padding: int = 10  # Pixels to keep cursor away from edges
+    padding: int
     
     def contains(self, x: int, y: int) -> bool:
         """Check if point is within bounds."""
@@ -68,28 +68,39 @@ class SystemController:
         self.mouse = MouseController()
         self.keyboard = KeyboardController()
         
-        # Get screen dimensions
-        self.screen = self._get_screen_bounds()
-        
         # Load configuration
         if config:
             from source_code.config.config_manager import get_system_control
             self.cursor_smoothing = get_system_control('cursor', 'smoothing_factor', 0.3)
             self.cursor_speed = get_system_control('cursor', 'speed_multiplier', 1.5)
             self.precision_damping = get_system_control('cursor', 'precision_damping', 0.3)
+            self.dead_zone = get_system_control('cursor', 'dead_zone', 0.02)
+            self.magnetic_radius = get_system_control('cursor', 'magnetic_radius', 0.05)
+            self.magnetic_factor = get_system_control('cursor', 'magnetic_factor', 0.4)
+            self.screen_bounds_padding = get_system_control('cursor', 'screen_bounds_padding', 10)
+            self.fallback_width = get_system_control('cursor', 'fallback_screen_width', 1920)
+            self.fallback_height = get_system_control('cursor', 'fallback_screen_height', 1080)
             self.scroll_sensitivity = get_system_control('scroll', 'sensitivity', 30)
             self.zoom_sensitivity = get_system_control('zoom', 'sensitivity', 5)
             self.double_click_timeout = get_system_control('click', 'double_click_timeout', 0.5)
             self.drag_hold_duration = get_system_control('click', 'drag_hold_duration', 1.0)
         else:
-            # Default values
             self.cursor_smoothing = 0.3
             self.cursor_speed = 1.5
             self.precision_damping = 0.3
+            self.dead_zone = 0.02
+            self.magnetic_radius = 0.05
+            self.magnetic_factor = 0.4
+            self.screen_bounds_padding = 10
+            self.fallback_width = 1920
+            self.fallback_height = 1080
             self.scroll_sensitivity = 30
             self.zoom_sensitivity = 5
             self.double_click_timeout = 0.5
             self.drag_hold_duration = 1.0
+        
+        # Get screen dimensions
+        self.screen = self._get_screen_bounds()
         
         # Cursor smoothing filter
         self.cursor_filter_x = EWMA(alpha=self.cursor_smoothing)
@@ -106,11 +117,6 @@ class SystemController:
         
         # Current cursor position (normalized)
         self.current_norm_pos = (0.5, 0.5)
-        
-        print(f"✓ System Controller initialized")
-        print(f"  Screen: {self.screen.width}x{self.screen.height}")
-        print(f"  Cursor smoothing: {self.cursor_smoothing}")
-    
     def _get_screen_bounds(self) -> ScreenBounds:
         """Get screen dimensions."""
         if SCREENINFO_AVAILABLE:
@@ -118,8 +124,12 @@ class SystemController:
                 monitors = screeninfo.get_monitors()
                 if monitors:
                     primary = monitors[0]
-                    return ScreenBounds(width=primary.width, height=primary.height)
+                    return ScreenBounds(width=primary.width, height=primary.height, padding=self.screen_bounds_padding)
             except Exception as e:
+                print(f"⚠ Error getting screen info: {e}")
+        
+        print(f"⚠ Using default screen resolution {self.fallback_width}x{self.fallback_height}")
+        return ScreenBounds(width=self.fallback_width, height=self.fallback_height, padding=self.screen_bounds_padding)
                 print(f"⚠ Error getting screen info: {e}")
         
         # Fallback to common resolution
@@ -169,18 +179,16 @@ class SystemController:
         dy = smooth_y - current_y
         distance = np.hypot(dx, dy)
         
-        # Dead zone: 2% threshold - small movements are ignored (reduces shake)
-        dead_zone = 0.02
-        if distance < dead_zone and not precision_mode:
+        # Dead zone threshold - small movements are ignored (reduces shake)
+        if distance < self.dead_zone and not precision_mode:
             # Too small - don't move (magnetic sticking)
             return
         
         # Magnetic damping: Movement near current position is slower
-        if distance < 0.05:  # Within 5% of current position
+        if distance < self.magnetic_radius:
             # Apply extra damping (magnet effect)
-            magnetic_factor = 0.4  # Move 40% of the way
-            smooth_x = current_x + dx * magnetic_factor
-            smooth_y = current_y + dy * magnetic_factor
+            smooth_x = current_x + dx * self.magnetic_factor
+            smooth_y = current_y + dy * self.magnetic_factor
         
         # Apply precision damping if needed
         if precision_mode:

@@ -79,6 +79,53 @@ class VisualFeedback:
             self.show_cursor = get_visual_setting('show_cursor_preview', True)
             self.show_gesture_name = get_visual_setting('show_gesture_name', True)
             self.opacity = get_visual_setting('overlay_opacity', 0.7)
+            self.velocity_arrow_scale = get_visual_setting('velocity_arrow_scale', 0.25)
+            self.velocity_threshold_highlight = get_visual_setting('velocity_threshold_highlight', 0.8)
+            self.fingertip_dim_factor = get_visual_setting('fingertip_dim_factor', 0.4)
+            
+            # Debug panel settings  
+            self.debug_margin = config.get('visual_feedback', 'debug_panel', 'margin', default=12)
+            self.debug_spacing = config.get('visual_feedback', 'debug_panel', 'spacing', default=8)
+            self.debug_base_width = config.get('visual_feedback', 'debug_panel', 'base_width', default=240)
+            self.debug_line_height = config.get('visual_feedback', 'debug_panel', 'line_height', default=16)
+            self.debug_title_height = config.get('visual_feedback', 'debug_panel', 'title_height', default=20)
+            self.debug_bg_alpha = config.get('visual_feedback', 'debug_panel', 'background_alpha', default=0.45)
+            self.debug_spacing_buffer = config.get('visual_feedback', 'debug_panel', 'spacing_buffer', default=4)
+            self.debug_start_y_offset = config.get('visual_feedback', 'debug_panel', 'start_y_offset', default=8)
+            self.debug_scan_h = config.get('visual_feedback', 'debug_panel', 'scan_step_horizontal', default=30)
+            self.debug_scan_v = config.get('visual_feedback', 'debug_panel', 'scan_step_vertical', default=20)
+            
+            self.panel_max_height = config.get('visual_feedback', 'gesture_panel', 'max_height', default=200)
+            self.panel_y = config.get('visual_feedback', 'gesture_panel', 'panel_y', default=10)
+            self.panel_left_x = config.get('visual_feedback', 'gesture_panel', 'panel_left_x', default=10)
+            self.panel_width = config.get('visual_feedback', 'gesture_panel', 'panel_width', default=300)
+            self.panel_overlay_alpha = config.get('visual_feedback', 'gesture_panel', 'overlay_alpha', default=0.7)
+            self.panel_frame_blend = config.get('visual_feedback', 'gesture_panel', 'frame_blend', default=0.3)
+            self.panel_title_y_offset = config.get('visual_feedback', 'gesture_panel', 'title_y_offset', default=30)
+            self.panel_title_x = config.get('visual_feedback', 'gesture_panel', 'title_x', default=20)
+            self.panel_sep_y_offset = config.get('visual_feedback', 'gesture_panel', 'separator_y_offset', default=30)
+            self.panel_sep_left_x = config.get('visual_feedback', 'gesture_panel', 'separator_left_x', default=20)
+            self.panel_sep_right_x = config.get('visual_feedback', 'gesture_panel', 'separator_right_x', default=290)
+            self.panel_sep_bottom = config.get('visual_feedback', 'gesture_panel', 'separator_bottom_spacing', default=20)
+            self.panel_max_gestures = config.get('visual_feedback', 'gesture_panel', 'max_gestures_display', default=4)
+            self.panel_indicator_x = config.get('visual_feedback', 'gesture_panel', 'gesture_indicator_x', default=25)
+            self.panel_indicator_r = config.get('visual_feedback', 'gesture_panel', 'gesture_indicator_radius', default=5)
+            self.panel_name_x = config.get('visual_feedback', 'gesture_panel', 'gesture_name_x', default=40)
+            self.panel_name_y_adj = config.get('visual_feedback', 'gesture_panel', 'gesture_name_y_adjust', default=5)
+            self.panel_hint_x = config.get('visual_feedback', 'gesture_panel', 'hint_x', default=180)
+            self.panel_line_spacing = config.get('visual_feedback', 'gesture_panel', 'line_spacing', default=20)
+            self.panel_param_indent = config.get('visual_feedback', 'gesture_panel', 'param_indent_x', default=45)
+            self.panel_param_spacing = config.get('visual_feedback', 'gesture_panel', 'param_line_spacing', default=15)
+            self.panel_spacing_hint = config.get('visual_feedback', 'gesture_panel', 'spacing_with_hint', default=25)
+            self.panel_spacing_no_hint = config.get('visual_feedback', 'gesture_panel', 'spacing_no_hint', default=25)
+            self.panel_no_gesture_x = config.get('visual_feedback', 'gesture_panel', 'no_gesture_x', default=40)
+            
+            self.cursor_trail_fade = config.get('visual_feedback', 'cursor_preview', 'trail_fade_time', default=0.5)
+            self.cursor_circle_r = config.get('visual_feedback', 'cursor_preview', 'circle_radius', default=15)
+            self.cursor_cross_len = config.get('visual_feedback', 'cursor_preview', 'crosshair_length', default=20)
+            self.cursor_cross_gap = config.get('visual_feedback', 'cursor_preview', 'crosshair_gap', default=8)
+            
+            self.pulse_freq = config.get('visual_feedback', 'animation', 'pulse_frequency', default=2.0)
         else:
             self.enabled = True
             self.show_skeleton = True
@@ -86,6 +133,51 @@ class VisualFeedback:
             self.show_cursor = True
             self.show_gesture_name = True
             self.opacity = 0.7
+            self.velocity_arrow_scale = 0.25
+            self.velocity_threshold_highlight = 0.8
+            self.fingertip_dim_factor = 0.4
+            self.debug_margin = 12
+            self.debug_spacing = 8
+            self.debug_base_width = 240
+            self.debug_line_height = 16
+            self.debug_title_height = 20
+            self.debug_bg_alpha = 0.45
+            self.debug_spacing_buffer = 4
+            self.debug_start_y_offset = 8
+            self.debug_scan_h = 30
+            self.debug_scan_v = 20
+            
+            self.panel_max_height = 200
+            self.panel_y = 10
+            self.panel_left_x = 10
+            self.panel_width = 300
+            self.panel_overlay_alpha = 0.7
+            self.panel_frame_blend = 0.3
+            self.panel_title_y_offset = 30
+            self.panel_title_x = 20
+            self.panel_sep_y_offset = 30
+            self.panel_sep_left_x = 20
+            self.panel_sep_right_x = 290
+            self.panel_sep_bottom = 20
+            self.panel_max_gestures = 4
+            self.panel_indicator_x = 25
+            self.panel_indicator_r = 5
+            self.panel_name_x = 40
+            self.panel_name_y_adj = 5
+            self.panel_hint_x = 180
+            self.panel_line_spacing = 20
+            self.panel_param_indent = 45
+            self.panel_param_spacing = 15
+            self.panel_spacing_hint = 25
+            self.panel_spacing_no_hint = 25
+            self.panel_no_gesture_x = 40
+            
+            self.cursor_trail_fade = 0.5
+            self.cursor_circle_r = 15
+            self.cursor_cross_len = 20
+            self.cursor_cross_gap = 8
+            
+            self.pulse_freq = 2.0
     
     def draw_hand_overlay(self, frame, metrics, hand_label='right', gestures=None):
         """
@@ -161,12 +253,12 @@ class VisualFeedback:
                 dim_color = tuple(int(c * 0.4) for c in color)
                 cv2.circle(frame, (px, py), 4, dim_color, -1)
 
-    def _draw_velocity_info(self, frame, metrics, swipe_threshold: float = 0.8):
+    def _draw_velocity_info(self, frame, metrics):
         """Draw a velocity arrow from centroid and show numeric speed.
 
         - Arrow: from centroid in direction of velocity scaled for visibility.
         - Numeric speed: shown next to arrow (normalized units/sec).
-        - Color: `swipe` color when speed >= `swipe_threshold`, dim otherwise.
+        - Color: `swipe` color when speed >= threshold, dim otherwise.
         """
         h, w = frame.shape[:2]
 
@@ -179,20 +271,20 @@ class VisualFeedback:
 
         # Scale velocity to pixels for arrow length. Use diag to keep consistent
         diag = np.hypot(w, h)
-        # scale factor chosen so that 1.0 normalized/sec maps to ~0.25*diag pixels
-        scale = 0.25 * diag
+        # scale factor chosen so that 1.0 normalized/sec maps to arrow_scale*diag pixels
+        scale = self.velocity_arrow_scale * diag
         end_x = int(start[0] + vx * scale)
         end_y = int(start[1] + vy * scale)
         end = (end_x, end_y)
 
         # Choose color based on threshold
-        if speed >= swipe_threshold:
+        if speed >= self.velocity_threshold_highlight:
             arrow_color = self.colors.swipe
             text_color = self.colors.swipe
             thickness = 3
         else:
             # Dimmed accent when below threshold
-            arrow_color = tuple(int(c * 0.4) for c in self.colors.accent)
+            arrow_color = tuple(int(c * self.fingertip_dim_factor) for c in self.colors.accent)
             text_color = self.colors.text_secondary
             thickness = 2
 
@@ -314,7 +406,7 @@ class VisualFeedback:
             # Draw dynamic translucent background
             overlay = frame.copy()
             cv2.rectangle(overlay, bg_tl, bg_br, self.colors.background, -1)
-            cv2.addWeighted(overlay, 0.45, frame, 0.55, 0, frame)
+            cv2.addWeighted(overlay, self.debug_bg_alpha, frame, 1.0 - self.debug_bg_alpha, 0, frame)
         
         # Draw each panel at its cached position
         for panel_info in active_panels:
@@ -340,11 +432,11 @@ class VisualFeedback:
     
     def _calculate_debug_panel_layout(self, active_panels, frame_w, frame_h):
         """Calculate optimal positions for debug panels using intelligent layout."""
-        margin = 12
-        spacing = 8
-        base_width = 240
-        line_height = 16
-        title_height = 20
+        margin = self.debug_margin
+        spacing = self.debug_spacing
+        base_width = self.debug_base_width
+        line_height = self.debug_line_height
+        title_height = self.debug_title_height
         
         # Calculate dimensions for each panel
         for panel in active_panels:
@@ -353,7 +445,7 @@ class VisualFeedback:
         
         # Start from top-right
         start_x = frame_w - base_width - margin
-        start_y = margin + 8
+        start_y = margin + self.debug_start_y_offset
         
         # Available area (top-right quadrant preference)
         occupied_regions = []
@@ -463,13 +555,12 @@ class VisualFeedback:
         if x + width > frame_w - margin or y + height > frame_h - margin:
             return False
         
-        # Check overlap with occupied regions (add small spacing buffer)
-        spacing_buffer = 4
+        # Check overlap with occupied regions (add spacing buffer from config)
         for region in occupied:
             if self._rectangles_overlap(
                 x, y, width, height,
                 region['x'], region['y'], region['width'], region['height'],
-                buffer=spacing_buffer
+                buffer=self.debug_spacing_buffer
             ):
                 return False
         
@@ -510,11 +601,13 @@ class VisualFeedback:
             ]
         
         elif gesture_name == 'pointing':
+            ewma_spd = meta.get('ewma_speed', meta.get('speed', 0))
             params = [
                 f"Dist:{meta.get('distance', 0):.3f}",
                 f"MinD:{meta.get('min_extension_ratio', 0):.3f}",
-                f"Spd:{meta.get('speed', 0):.3f}",
+                f"Spd:{ewma_spd:.3f}",
                 f"MaxS:{meta.get('max_speed', 0):.2f}",
+                f"Alpha:{meta.get('ewma_alpha', 0.4):.2f}",
                 f"Xtra:{meta.get('extra_fingers_count', 0)}/{meta.get('max_extra_fingers', 0)}"
             ]
             if meta.get('reason'):
@@ -559,26 +652,26 @@ class VisualFeedback:
         self.cursor_trail.append((px, py, time.time()))
         # Keep trail length limited
         self.cursor_trail = [(x, y, t) for x, y, t in self.cursor_trail 
-                            if time.time() - t < 0.5]
+                            if time.time() - t < self.cursor_trail_fade]
         
         # Draw trail
         for i, (tx, ty, t) in enumerate(self.cursor_trail):
             age = time.time() - t
-            alpha = 1.0 - (age / 0.5)
+            alpha = 1.0 - (age / self.cursor_trail_fade)
             radius = int(3 + 2 * alpha)
             color = tuple(int(c * alpha * 0.5) for c in self.colors.cursor_trail)
             cv2.circle(frame, (tx, ty), radius, color, -1, cv2.LINE_AA)
         
         # Draw current cursor
         color = self.colors.cursor_preview if active else self.colors.inactive
-        cv2.circle(frame, (px, py), 15, color, 2, cv2.LINE_AA)
+        cv2.circle(frame, (px, py), self.cursor_circle_r, color, 2, cv2.LINE_AA)
         cv2.circle(frame, (px, py), 5, color, -1, cv2.LINE_AA)
         
         # Draw crosshair
-        cv2.line(frame, (px - 20, py), (px - 8, py), color, 2, cv2.LINE_AA)
-        cv2.line(frame, (px + 8, py), (px + 20, py), color, 2, cv2.LINE_AA)
-        cv2.line(frame, (px, py - 20), (px, py - 8), color, 2, cv2.LINE_AA)
-        cv2.line(frame, (px, py + 8), (px, py + 20), color, 2, cv2.LINE_AA)
+        cv2.line(frame, (px - self.cursor_cross_len, py), (px - self.cursor_cross_gap, py), color, 2, cv2.LINE_AA)
+        cv2.line(frame, (px + self.cursor_cross_gap, py), (px + self.cursor_cross_len, py), color, 2, cv2.LINE_AA)
+        cv2.line(frame, (px, py - self.cursor_cross_len), (px, py - self.cursor_cross_gap), color, 2, cv2.LINE_AA)
+        cv2.line(frame, (px, py + self.cursor_cross_gap), (px, py + self.cursor_cross_len), color, 2, cv2.LINE_AA)
     
     def draw_gesture_panel(self, frame, all_gestures, status_text=""):
         """Draw modern gesture status panel."""
@@ -586,27 +679,27 @@ class VisualFeedback:
             return
         
         h, w = frame.shape[:2]
-        panel_height = min(200, h // 3)
-        panel_y = 10
+        panel_height = min(self.panel_max_height, h // 3)
+        panel_y = self.panel_y
         
         # Semi-transparent dark background
         overlay = frame.copy()
-        cv2.rectangle(overlay, (10, panel_y), (300, panel_y + panel_height), 
+        cv2.rectangle(overlay, (self.panel_left_x, panel_y), (self.panel_width, panel_y + panel_height), 
                      self.colors.background, -1, cv2.LINE_AA)
-        cv2.addWeighted(overlay, 0.7, frame, 0.3, 0, frame)
+        cv2.addWeighted(overlay, self.panel_overlay_alpha, frame, self.panel_frame_blend, 0, frame)
         
         # Border
-        cv2.rectangle(frame, (10, panel_y), (300, panel_y + panel_height), 
+        cv2.rectangle(frame, (self.panel_left_x, panel_y), (self.panel_width, panel_y + panel_height), 
                      self.colors.accent, 2, cv2.LINE_AA)
         
         # Title
-        y = panel_y + 30
-        cv2.putText(frame, "HANDS Control", (20, y), 
+        y = panel_y + self.panel_title_y_offset
+        cv2.putText(frame, "HANDS Control", (self.panel_title_x, y), 
                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, self.colors.accent, 2, cv2.LINE_AA)
         
-        y += 30
-        cv2.line(frame, (20, y), (290, y), self.colors.accent, 1, cv2.LINE_AA)
-        y += 20
+        y += self.panel_sep_y_offset
+        cv2.line(frame, (self.panel_sep_left_x, y), (self.panel_sep_right_x, y), self.colors.accent, 1, cv2.LINE_AA)
+        y += self.panel_sep_bottom
         
         # Active gestures
         active_count = 0
@@ -619,27 +712,25 @@ class VisualFeedback:
                 if gesture_name.startswith('__'):
                     continue
                 
-                if active_count >= 4:  # Limit display
+                if active_count >= self.panel_max_gestures:
                     break
                 
                 # Gesture icon and name
                 color = self._get_gesture_color(gesture_name)
-                cv2.circle(frame, (25, y), 5, color, -1, cv2.LINE_AA)
+                cv2.circle(frame, (self.panel_indicator_x, y), self.panel_indicator_r, color, -1, cv2.LINE_AA)
                 
                 text = f"{gesture_name.upper()}"
-                cv2.putText(frame, text, (40, y + 5), 
+                cv2.putText(frame, text, (self.panel_name_x, y + self.panel_name_y_adj), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, self.colors.text_primary, 1, cv2.LINE_AA)
                 
                 # Metadata hint with detailed zoom info
                 if gesture_name == 'zoom' and result.metadata:
-                    # Show zoom type
                     zoom_type = result.metadata.get('zoom_type', 'N/A')
                     hint = f"({zoom_type})"
-                    cv2.putText(frame, hint, (180, y + 5), 
+                    cv2.putText(frame, hint, (self.panel_hint_x, y + self.panel_name_y_adj), 
                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, self.colors.text_secondary, 1, cv2.LINE_AA)
-                    y += 20
+                    y += self.panel_line_spacing
                     
-                    # Show detailed zoom parameters (fields provided by ZoomDetector)
                     params = [
                         f"Gap: {result.metadata.get('finger_gap', 0):.3f}",
                         f"Spread: {result.metadata.get('spread', 0):.3f}",
@@ -650,24 +741,19 @@ class VisualFeedback:
                     ]
 
                     for param in params:
-                        cv2.putText(frame, param, (45, y), 
+                        cv2.putText(frame, param, (self.panel_param_indent, y), 
                                    cv2.FONT_HERSHEY_SIMPLEX, 0.35, self.colors.text_secondary, 1, cv2.LINE_AA)
-                        y += 15
+                        y += self.panel_param_spacing
                     
-                    y += 5  # Extra spacing after zoom details
-                elif 'zoom_type' in result.metadata:
-                    hint = f"({result.metadata['zoom_type']})"
-                    cv2.putText(frame, hint, (180, y + 5), 
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.4, self.colors.text_secondary, 1, cv2.LINE_AA)
-                    y += 25
+                    y += self.panel_spacing_hint
                 else:
-                    y += 25
+                    y += self.panel_spacing_no_hint
                 
                 active_count += 1
         
         # Show "No gestures" if nothing active
         if active_count == 0:
-            cv2.putText(frame, "No active gestures", (40, y), 
+            cv2.putText(frame, "No active gestures", (self.panel_no_gesture_x, y), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, self.colors.inactive, 1, cv2.LINE_AA)
         
         # Status text

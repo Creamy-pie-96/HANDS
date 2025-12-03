@@ -82,7 +82,7 @@ class HANDSApplication:
         print(f"✓ MediaPipe Hands initialized (max_hands={max_hands})")
         
         # Initialize gesture manager
-        self.gesture_mgr = ComprehensiveGestureManager()
+        self.gesture_mgr = ComprehensiveGestureManager(config)
         print(f"✓ Gesture manager initialized")
         
         # Initialize system controller
