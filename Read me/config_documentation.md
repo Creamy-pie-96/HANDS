@@ -80,6 +80,16 @@ These control detection sensitivity and behavior for each gesture group. Values 
 - `velocity_threshold`: 0.2 — Minimum thumb vertical velocity to detect thumbs moving variants (up/down moving gestures).
   - Increase: require faster thumb motion to trigger moving variants.
   - Decrease: detect gentler thumb motions (can increase false positives).
+- `ewma_alpha`: 0.3 — EWMA smoothing factor for velocity (0-1).
+  - Increase: more responsive but noisier.
+  - Decrease: smoother but more latency.
+- `hold_frames`: 5 — Frames to wait before confirming static thumbs_up/thumbs_down.
+  - Purpose: gives time to detect if user intends to move thumb (e.g., thumbs_up_moving_up).
+  - Increase: more time to detect movement intent, reduces false positives for static gestures.
+  - Decrease: faster static gesture confirmation.
+- `confidence_ramp_up`: 0.3 — Confidence increase per frame when consistent movement detected.
+- `confidence_decay`: 0.2 — Confidence decrease per frame when movement stops/changes.
+- `confidence_threshold`: 0.6 — Minimum confidence to report moving thumbs gesture.
 
 ## System Control (`system_control`)
 
@@ -106,8 +116,16 @@ Controls how gestures map to system actions.
 ### `scroll` and `zoom`
 
 - `scroll.sensitivity`: 30 — Scroll amount multiplier.
-- `zoom.sensitivity`: 5 — Zoom multiplier.
-- `zoom.use_system_zoom`: true — If enabled, performs system-level zoom shortcuts.
+- `scroll.speed_neutral`: 1.0 — Neutral gesture velocity where no speed modulation is applied.
+- `scroll.speed_factor`: 0.2 — Max influence of velocity on scroll rate (0.2 = ±20% adjustment).
+  - The effective sensitivity is modulated by gesture velocity using:
+    $S_{\text{eff}} = \text{sensitivity} \times [1.0 + \text{speed\_factor} \times (V_{\text{norm}} - \text{speed\_neutral})]$
+  - Faster gestures → higher effective sensitivity → shorter delay between actions.
+  - Slower gestures → lower effective sensitivity → longer delay.
+- `zoom.sensitivity`: 5 — Zoom multiplier (controls delay between zoom keypresses).
+- `zoom.speed_neutral`: 1.0 — Neutral gesture velocity where no speed modulation is applied.
+- `zoom.speed_factor`: 0.2 — Max influence of velocity on zoom rate (0.2 = ±20% adjustment).
+- `zoom.use_system_zoom`: true — If enabled, performs system-level zoom shortcuts (Ctrl+Plus/Minus).
 
 ## Visual Feedback (`visual_feedback`)
 

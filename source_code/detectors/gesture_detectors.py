@@ -670,17 +670,59 @@ class OpenHandDetector:
 class ThumbsDetector:
     """
     Detects Thumbs Up/Down and their movements.
+    Uses EWMA for velocity smoothing (like SwipeDetector) so movement must be continuous.
+    Waits hold_frames before confirming static thumbs_up/thumbs_down to allow time
+    to detect if user intends to move (reduces false positives).
     """
-    def __init__(self, velocity_threshold: float = 0.2):
+    def __init__(
+        self,
+        velocity_threshold: float = 0.2,
+        ewma_alpha: float = 0.3,
+        hold_frames: int = 5,
+        confidence_ramp_up: float = 0.3,
+        confidence_decay: float = 0.2,
+        confidence_threshold: float = 0.6
+    ):
         self.velocity_threshold = velocity_threshold
+        self.ewma_alpha = ewma_alpha
+        self.hold_frames = hold_frames
+        self.confidence_ramp_up = confidence_ramp_up
+        self.confidence_decay = confidence_decay
+        self.confidence_threshold = confidence_threshold
+        
+        # EWMA for velocity smoothing
+        self.ewma_velocity = EWMA(alpha=ewma_alpha)
+        # Confidence for movement detection (like SwipeDetector)
+        self.move_confidence = 0.0
+        self.current_move_direction: Optional[str] = None  # 'up' or 'down'
+        # Hold counter for static gesture confirmation
+        self._static_hold_count = 0
+        self._last_static_gesture: Optional[str] = None  # 'thumbs_up' or 'thumbs_down'
 
     def detect(self, metrics: HandMetrics) -> GestureResult:
         extended = metrics.fingers_extended
         # Check if only thumb is extended
         only_thumb = extended['thumb'] and not any([extended['index'], extended['middle'], extended['ring'], extended['pinky']])
         
+        base_metadata = {
+            'only_thumb': only_thumb,
+            'velocity': metrics.velocity,
+            'ewma_velocity_y': 0.0,
+            'move_confidence': self.move_confidence,
+            'static_hold_count': self._static_hold_count,
+            'hold_frames_needed': self.hold_frames,
+            'reason': None
+        }
+        
         if not only_thumb:
-            return GestureResult(detected=False, gesture_name='none')
+            # Reset state when thumb not isolated
+            self._static_hold_count = 0
+            self._last_static_gesture = None
+            self.move_confidence = max(0.0, self.move_confidence - self.confidence_decay)
+            if self.move_confidence == 0.0:
+                self.current_move_direction = None
+            base_metadata['reason'] = 'thumb_not_isolated'
+            return GestureResult(detected=False, gesture_name='none', metadata=base_metadata)
             
         thumb_tip_y = metrics.landmarks_norm[4][1]
         pinky_mcp_y = metrics.landmarks_norm[17][1]
@@ -688,36 +730,93 @@ class ThumbsDetector:
         is_thumbs_up = thumb_tip_y < pinky_mcp_y
         is_thumbs_down = thumb_tip_y > pinky_mcp_y
         
-        vx, vy = metrics.velocity
+        # Get current static gesture type
+        current_static = 'thumbs_up' if is_thumbs_up else ('thumbs_down' if is_thumbs_down else None)
         
-        velocity_up = vy < -self.velocity_threshold
-        velocity_down = vy > self.velocity_threshold
+        # Smooth velocity with EWMA
+        vx, vy = metrics.velocity
+        smoothed = self.ewma_velocity.update([vy])
+        ewma_vy = float(smoothed[0])
+        base_metadata['ewma_velocity_y'] = ewma_vy
+        
+        # Detect movement direction
+        velocity_up = ewma_vy < -self.velocity_threshold
+        velocity_down = ewma_vy > self.velocity_threshold
+        detected_move_direction = None
+        if velocity_up:
+            detected_move_direction = 'up'
+        elif velocity_down:
+            detected_move_direction = 'down'
+        
+        # Update movement confidence (like SwipeDetector)
+        if detected_move_direction is not None:
+            if self.current_move_direction is None:
+                self.current_move_direction = detected_move_direction
+                self.move_confidence = min(1.0, self.move_confidence + self.confidence_ramp_up)
+            elif self.current_move_direction == detected_move_direction:
+                self.move_confidence = min(1.0, self.move_confidence + self.confidence_ramp_up)
+            else:
+                # Direction changed
+                self.move_confidence = max(0.0, self.move_confidence - self.confidence_decay)
+                if self.move_confidence == 0.0:
+                    self.current_move_direction = detected_move_direction
+                    self.move_confidence = min(1.0, self.confidence_ramp_up)
+        else:
+            # No significant movement
+            self.move_confidence = max(0.0, self.move_confidence - self.confidence_decay)
+            if self.move_confidence == 0.0:
+                self.current_move_direction = None
+        
+        base_metadata['move_confidence'] = self.move_confidence
+        base_metadata['current_move_direction'] = self.current_move_direction
+        
+        # Check if movement is confirmed
+        movement_confirmed = self.move_confidence >= self.confidence_threshold
         
         gesture_name = 'none'
         detected = False
         
-        if is_thumbs_up:
-            detected = True
-            if velocity_up:
-                gesture_name = 'thumbs_up_moving_up'
-            elif velocity_down:
-                gesture_name = 'thumbs_up_moving_down'
+        if is_thumbs_up or is_thumbs_down:
+            base_gesture = 'thumbs_up' if is_thumbs_up else 'thumbs_down'
+            
+            if movement_confirmed and self.current_move_direction:
+                # Moving gesture confirmed via EWMA confidence
+                gesture_name = f'{base_gesture}_moving_{self.current_move_direction}'
+                detected = True
+                # Reset static hold since we have movement
+                self._static_hold_count = 0
+                self._last_static_gesture = None
+                base_metadata['reason'] = 'movement_confirmed'
             else:
-                gesture_name = 'thumbs_up'
-        elif is_thumbs_down:
-            detected = True
-            if velocity_up:
-                gesture_name = 'thumbs_down_moving_up'
-            elif velocity_down:
-                gesture_name = 'thumbs_down_moving_down'
-            else:
-                gesture_name = 'thumbs_down'
+                # No confirmed movement - check static gesture with hold_frames
+                if self._last_static_gesture == current_static:
+                    self._static_hold_count += 1
+                else:
+                    # Changed static gesture or just started
+                    self._last_static_gesture = current_static
+                    self._static_hold_count = 1
+                
+                base_metadata['static_hold_count'] = self._static_hold_count
+                
+                if self._static_hold_count >= self.hold_frames:
+                    # Static gesture confirmed after hold_frames
+                    gesture_name = base_gesture
+                    detected = True
+                    base_metadata['reason'] = 'static_confirmed'
+                else:
+                    # Still waiting for hold_frames
+                    base_metadata['reason'] = 'waiting_for_hold'
+                    # Don't report as detected yet - could be user wants to move
+        else:
+            self._static_hold_count = 0
+            self._last_static_gesture = None
+            base_metadata['reason'] = 'no_thumbs_pose'
                 
         return GestureResult(
             detected=detected,
             gesture_name=gesture_name,
-            confidence=1.0 if detected else 0.0,
-            metadata={'velocity': (vx, vy)}
+            confidence=self.move_confidence if movement_confirmed else (1.0 if detected else 0.0),
+            metadata=base_metadata
         )
 
 class GestureManager:
@@ -770,6 +869,11 @@ class GestureManager:
             open_pinch_exclusion = get_gesture_threshold('open_hand', 'pinch_exclusion_distance', default=0.08)
             
             thumbs_velocity_thresh = get_gesture_threshold('thumbs', 'velocity_threshold', default=0.2)
+            thumbs_ewma_alpha = get_gesture_threshold('thumbs', 'ewma_alpha', default=0.3)
+            thumbs_hold_frames = get_gesture_threshold('thumbs', 'hold_frames', default=5)
+            thumbs_conf_ramp = get_gesture_threshold('thumbs', 'confidence_ramp_up', default=0.3)
+            thumbs_conf_decay = get_gesture_threshold('thumbs', 'confidence_decay', default=0.2)
+            thumbs_conf_thresh = get_gesture_threshold('thumbs', 'confidence_threshold', default=0.6)
         except Exception:
             print("Failed to load config file and so falling back to hadcoded value")
             # Fallback to hardcoded defaults if config access fails
@@ -801,6 +905,11 @@ class GestureManager:
             finger_motion_threshold = 0.15
             finger_motion_sigmoid_k = 20.0
             thumbs_velocity_thresh = 0.2
+            thumbs_ewma_alpha = 0.3
+            thumbs_hold_frames = 5
+            thumbs_conf_ramp = 0.3
+            thumbs_conf_decay = 0.2
+            thumbs_conf_thresh = 0.6
 
         # Initialize detectors with resolved parameters
         self.pinch = PinchDetector(thresh_rel=pinch_thresh, hold_frames=pinch_hold, cooldown_s=pinch_cd)
@@ -831,7 +940,14 @@ class GestureManager:
             require_fingers_extended=zoom_require_ext
         )
         self.open_hand = OpenHandDetector(min_fingers=open_min, pinch_threshold=open_pinch_exclusion)
-        self.thumbs = ThumbsDetector(velocity_threshold=thumbs_velocity_thresh)
+        self.thumbs = ThumbsDetector(
+            velocity_threshold=thumbs_velocity_thresh,
+            ewma_alpha=thumbs_ewma_alpha,
+            hold_frames=thumbs_hold_frames,
+            confidence_ramp_up=thumbs_conf_ramp,
+            confidence_decay=thumbs_conf_decay,
+            confidence_threshold=thumbs_conf_thresh
+        )
         # Store finger-extension hysteresis for use during metric computation
         self.finger_open_ratio = open_ratio
         self.finger_close_ratio = close_ratio

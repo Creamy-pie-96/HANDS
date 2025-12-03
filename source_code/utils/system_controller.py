@@ -81,7 +81,11 @@ class SystemController:
             self.fallback_width = get_system_control('cursor', 'fallback_screen_width', 1920)
             self.fallback_height = get_system_control('cursor', 'fallback_screen_height', 1080)
             self.scroll_sensitivity = get_system_control('scroll', 'sensitivity', 30)
+            self.scroll_speed_neutral = get_system_control('scroll', 'speed_neutral', 1.0)
+            self.scroll_speed_factor = get_system_control('scroll', 'speed_factor', 0.2)
             self.zoom_sensitivity = get_system_control('zoom', 'sensitivity', 5)
+            self.zoom_speed_neutral = get_system_control('zoom', 'speed_neutral', 1.0)
+            self.zoom_speed_factor = get_system_control('zoom', 'speed_factor', 0.2)
             self.double_click_timeout = get_system_control('click', 'double_click_timeout', 0.5)
             self.drag_hold_duration = get_system_control('click', 'drag_hold_duration', 1.0)
         else:
@@ -95,7 +99,11 @@ class SystemController:
             self.fallback_width = 1920
             self.fallback_height = 1080
             self.scroll_sensitivity = 30
+            self.scroll_speed_neutral = 1.0
+            self.scroll_speed_factor = 0.2
             self.zoom_sensitivity = 5
+            self.zoom_speed_neutral = 1.0
+            self.zoom_speed_factor = 0.2
             self.double_click_timeout = 0.5
             self.drag_hold_duration = 1.0
         
@@ -119,6 +127,10 @@ class SystemController:
         self.current_norm_pos = (0.5, 0.5)
         # Last time a zoom keypress was issued (rate-limiting)
         self._last_zoom_time = 0.0
+        # Last time a scroll action was issued (rate-limiting)
+        self._last_scroll_time = 0.0
+        # Current gesture velocity for velocity-modulated delays (set by caller)
+        self._current_gesture_velocity = 0.0
     def _get_screen_bounds(self) -> ScreenBounds:
         """Get screen dimensions."""
         if SCREENINFO_AVAILABLE:
@@ -254,43 +266,76 @@ class SystemController:
         except Exception as e:
             print(f"⚠ Error stopping drag: {e}")
     
-    def scroll(self, dx: int = 0, dy: int = 0):
+    def scroll(self, dx: int = 0, dy: int = 0, velocity_norm: float = 1.0):
         """
-        Perform scroll action.
+        Perform scroll action with velocity-modulated rate-limiting.
         
         Args:
             dx: Horizontal scroll amount
             dy: Vertical scroll amount (positive = down, negative = up)
+            velocity_norm: Normalized gesture velocity for modulating scroll rate
         """
         if self.paused:
             return
         
         try:
-            if dx != 0 or dy != 0:
-                self.mouse.scroll(dx, dy)
+            if dx == 0 and dy == 0:
+                return
+            
+            now = time.time()
+            
+            # Velocity modulation formula:
+            # M = 1.0 + V_factor * (V_norm - V_neutral)
+            # M_clamped = clamp(M, 1 - V_factor, 1 + V_factor)
+            # S_eff = sensitivity * M_clamped
+            # min_delay = 0.5 / max(0.05, S_eff)
+            v_factor = float(getattr(self, 'scroll_speed_factor', 0.2))
+            v_neutral = float(getattr(self, 'scroll_speed_neutral', 1.0))
+            sensitivity = float(getattr(self, 'scroll_sensitivity', 30.0) or 30.0)
+            
+            m = 1.0 + v_factor * (velocity_norm - v_neutral)
+            m_clamped = max(1.0 - v_factor, min(1.0 + v_factor, m))
+            s_eff = sensitivity * m_clamped
+            
+            base_delay = 0.5
+            min_delay = base_delay / max(0.05, s_eff)
+            
+            if now - self._last_scroll_time < min_delay:
+                return
+            
+            self.mouse.scroll(dx, dy)
+            self._last_scroll_time = now
         except Exception as e:
             print(f"⚠ Error scrolling: {e}")
     
-    def zoom(self, zoom_in: bool = True):
+    def zoom(self, zoom_in: bool = True, velocity_norm: float = 1.0):
         """
-        Perform system zoom (Ctrl + +/-).
+        Perform system zoom (Ctrl + +/-) with velocity-modulated rate-limiting.
         
         Args:
             zoom_in: If True, zoom in. If False, zoom out.
+            velocity_norm: Normalized gesture velocity for modulating zoom rate.
         """
         if self.paused:
             return
 
-        # Rate-limit zoom keypresses to avoid extremely fast repeated zooms
-        # The configured `zoom_sensitivity` scales the repeat rate: higher sensitivity -> more frequent
-        # Default behavior: one zoom keypress every 0.5s when sensitivity==1
+        # Velocity modulation formula:
+        # M = 1.0 + V_factor * (V_norm - V_neutral)
+        # M_clamped = clamp(M, 1 - V_factor, 1 + V_factor)
+        # S_eff = sensitivity * M_clamped
+        # min_delay = 0.5 / max(0.05, S_eff)
         try:
             now = time.time()
+            v_factor = float(getattr(self, 'zoom_speed_factor', 0.2))
+            v_neutral = float(getattr(self, 'zoom_speed_neutral', 1.0))
             sensitivity = float(getattr(self, 'zoom_sensitivity', 1.0) or 1.0)
+            
+            m = 1.0 + v_factor * (velocity_norm - v_neutral)
+            m_clamped = max(1.0 - v_factor, min(1.0 + v_factor, m))
+            s_eff = sensitivity * m_clamped
+            
             base_delay = 0.5
-            # Allow fractional sensitivity values <1.0 to reduce zoom frequency (larger delay).
-            # Clamp sensitivity to a small positive floor to avoid division by zero.
-            min_delay = base_delay / max(0.05, sensitivity)
+            min_delay = base_delay / max(0.05, s_eff)
 
             if now - self._last_zoom_time < min_delay:
                 return

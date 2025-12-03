@@ -15,6 +15,8 @@ import time
 import os
 import sys
 import urllib.request
+import threading
+import queue
 from pathlib import Path
 
 # HANDS modules
@@ -70,7 +72,7 @@ class TasksLandmarksWrapper:
 class HANDSApplication:
     """Main HANDS application controller."""
     
-    def __init__(self, camera_idx=0, enable_system_control=True):
+    def __init__(self, camera_idx=0, enable_system_control=True, status_queue=None):
         """
         Initialize HANDS application.
         
@@ -217,6 +219,13 @@ class HANDSApplication:
         # Current cursor position (from pointing gesture)
         self.cursor_pos = None
         
+        # Quit gesture state
+        self.quit_gesture_start_time = 0
+        self.quit_hold_duration = 3.0  # Seconds to hold gesture to quit
+        
+        # Status Queue for GUI
+        self.status_queue = status_queue
+        
         print("\n✓ HANDS application ready!\n")
     
     def process_gestures(self, all_gestures):
@@ -253,7 +262,10 @@ class HANDSApplication:
             # Convert to scroll
             scroll_x = int(velocity[0] * self.system_ctrl.scroll_sensitivity)
             scroll_y = int(velocity[1] * self.system_ctrl.scroll_sensitivity)
-            self.system_ctrl.scroll(scroll_x, -scroll_y)  # Invert Y for natural scrolling
+            # Compute velocity magnitude for modulation
+            # import numpy as np  # Removed redundant local import
+            velocity_norm = float(np.hypot(velocity[0], velocity[1]))
+            self.system_ctrl.scroll(scroll_x, -scroll_y, velocity_norm=velocity_norm)  # Invert Y for natural scrolling
             return
         
         # SINGLE HAND GESTURES
@@ -276,23 +288,28 @@ class HANDSApplication:
         if 'zoom' in right_gestures:
             data = right_gestures['zoom'].metadata
             direction = data.get('direction')
+            # Get EWMA velocity for modulation
+            ewma_vel = abs(data.get('ewma_velocity', 0.0))
             if direction == 'in':
-                self.system_ctrl.zoom(zoom_in=True)
+                self.system_ctrl.zoom(zoom_in=True, velocity_norm=ewma_vel)
             elif direction == 'out':
-                self.system_ctrl.zoom(zoom_in=False)
+                self.system_ctrl.zoom(zoom_in=False, velocity_norm=ewma_vel)
         
         # Swipe: Scroll or workspace switch
         if 'swipe' in right_gestures:
             data = right_gestures['swipe'].metadata
             direction = data.get('direction')
+            # Get EWMA velocity for modulation
+            ewma_velocity = data.get('ewma_velocity', (0.0, 0.0))
+            velocity_norm = float(np.hypot(ewma_velocity[0], ewma_velocity[1]))
             
             if direction in ['up', 'down']:
                 # Scroll
                 scroll_amount = self.system_ctrl.scroll_sensitivity
                 if direction == 'up':
-                    self.system_ctrl.scroll(0, scroll_amount)
+                    self.system_ctrl.scroll(0, scroll_amount, velocity_norm=velocity_norm)
                 else:
-                    self.system_ctrl.scroll(0, -scroll_amount)
+                    self.system_ctrl.scroll(0, -scroll_amount, velocity_norm=velocity_norm)
             elif direction in ['left', 'right']:
                 # Workspace switch
                 self.system_ctrl.workspace_switch(direction)
@@ -311,8 +328,19 @@ class HANDSApplication:
         window_width = config.get('display', 'window_width', default=1280)
         window_height = config.get('display', 'window_height', default=720)
         
-        cv2.namedWindow("HANDS Control", cv2.WINDOW_NORMAL)
-        cv2.resizeWindow("HANDS Control", window_width, window_height)
+        visual_mode = config.get('display', 'visual_mode', default='full')
+        show_camera = visual_mode in ['full', 'debug']
+        
+        if show_camera:
+            try:
+                cv2.namedWindow("HANDS Control", cv2.WINDOW_NORMAL)
+                cv2.resizeWindow("HANDS Control", window_width, window_height)
+            except cv2.error as e:
+                print(f"⚠ OpenCV GUI not available (headless mode): {e}")
+                print("  Switching to 'minimal' visual mode (Status Indicator only)")
+                show_camera = False
+                # Force visual mode update in config if possible, or just ignore
+                visual_mode = 'minimal'
         
         try:
             while self.running:
@@ -447,14 +475,97 @@ class HANDSApplication:
                                 meta_str = f" ({result.metadata['direction']})"
                             print(f"[{category}] {gesture_name.upper()}{meta_str}")
                 
-                # Resize frame to match display window size
-                display_frame = cv2.resize(frame_bgr, (window_width, window_height), interpolation=cv2.INTER_LINEAR)
-                
-                # Display frame
-                cv2.imshow("HANDS Control", display_frame)
-                
-                # Handle keyboard input (accept uppercase or lowercase)
-                key = cv2.waitKey(1) & 0xFF
+                # Update Status Indicator
+                if self.status_queue:
+                    state = 'yellow'  # Default: AI working, no hand
+                    text = ""
+                    
+                    if not self.enable_system_control:
+                        state = 'red'
+                        text = "DRY"
+                    
+                    if self.paused:
+                        state = 'red'
+                        text = "⏸"
+                    elif left_landmarks or right_landmarks:
+                        state = 'blue'  # Hand detected (User preference: Blue instead of Green)
+                        
+                        # Check for active gestures to update text/icon
+                        # Priority: Bimanual > Right > Left
+                        gest_text = ""
+                        
+                        # Helper to map gesture to emoji/text
+                        def get_gesture_icon(g_name):
+                            icons = {
+                                'pointing': '👆',
+                                'pinch': '🤏',
+                                'zoom': '🤌',
+                                'swipe': '👋',
+                                'open_hand': '✋',
+                                'thumbs_up': '👍',
+                                'thumbs_down': '👎',
+                                'precision_cursor': '🎯',
+                                'pan': '↔️'
+                            }
+                            return icons.get(g_name, g_name[:2].upper())
+
+                        # Check Bimanual
+                        bi_gests = all_gestures.get('bimanual', {})
+                        if bi_gests:
+                            g_name = next(iter(bi_gests))
+                            gest_text = get_gesture_icon(g_name)
+                            # state = 'blue' # Already blue
+                        else:
+                            # Check Right
+                            r_gests = all_gestures.get('right', {})
+                            if r_gests:
+                                g_name = next(iter(r_gests))
+                                gest_text = get_gesture_icon(g_name)
+                            else:
+                                # Check Left
+                                l_gests = all_gestures.get('left', {})
+                                if l_gests:
+                                    g_name = next(iter(l_gests))
+                                    gest_text = get_gesture_icon(g_name)
+                        
+                        if gest_text:
+                            text = gest_text
+                            
+                        # Quit Gesture Logic (Thumbs Down held)
+                        is_thumbs_down = 'thumbs_down' in all_gestures.get('right', {}) or \
+                                         'thumbs_down' in all_gestures.get('left', {})
+                        
+                        if is_thumbs_down:
+                            if self.quit_gesture_start_time == 0:
+                                self.quit_gesture_start_time = time.time()
+                            
+                            elapsed = time.time() - self.quit_gesture_start_time
+                            if elapsed > self.quit_hold_duration:
+                                print("\n🛑 Quit gesture detected! Exiting...")
+                                self.running = False
+                            else:
+                                # Show countdown or visual feedback for quitting
+                                remaining = int(self.quit_hold_duration - elapsed + 0.9)
+                                text = f"🚪 {remaining}"
+                                state = 'red'
+                        else:
+                            self.quit_gesture_start_time = 0
+
+                    self.status_queue.put((state, text))
+
+                if show_camera:
+                    # Resize frame to match display window size
+                    display_frame = cv2.resize(frame_bgr, (window_width, window_height), interpolation=cv2.INTER_LINEAR)
+                    
+                    # Display frame
+                    cv2.imshow("HANDS Control", display_frame)
+                    
+                    # Handle keyboard input (accept uppercase or lowercase)
+                    key = cv2.waitKey(1) & 0xFF
+                else:
+                    # No window, just sleep briefly to avoid busy loop
+                    time.sleep(0.01)
+                    key = 255  # No key pressed
                 # Only process if a key was pressed
                 if key != 255:
                     # Normalize to lowercase character when possible
@@ -512,7 +623,10 @@ class HANDSApplication:
         if self.hands:
             self.hands.close()
         
-        cv2.destroyAllWindows()
+        try:
+            cv2.destroyAllWindows()
+        except Exception:
+            pass
         
         print("✓ HANDS application stopped\n")
     
@@ -573,12 +687,36 @@ def main():
         Config(args.config)
     
     # Create and run application
+    # Check visual mode and status indicator setting
+    visual_mode = config.get('display', 'visual_mode', default='full')
+    status_enabled = config.get('display', 'status_indicator', 'enabled', default=True)
+    
+    status_queue = None
+    if status_enabled:
+        status_queue = queue.Queue()
+    
+    # Create application
     try:
         app = HANDSApplication(
             camera_idx=args.camera,
-            enable_system_control=not args.dry_run
+            enable_system_control=not args.dry_run,
+            status_queue=status_queue
         )
-        app.run()
+        
+        if status_enabled:
+            # Run App logic in a separate thread
+            # This allows the main thread to run the PyQt GUI (required for some OS/frameworks)
+            app_thread = threading.Thread(target=app.run)
+            app_thread.daemon = True
+            app_thread.start()
+            
+            # Run GUI in main thread
+            from source_code.gui.status_indicator import run_gui
+            run_gui(config, status_queue)
+        else:
+            # Run App in main thread (standard mode)
+            app.run()
+            
     except KeyboardInterrupt:
         print("\n⚠ Interrupted by user")
     except Exception as e:

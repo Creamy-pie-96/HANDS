@@ -132,6 +132,26 @@
       "velocity_threshold": [
         0.2,
         "Minimum thumb velocity to detect thumbs-up/down movement"
+      ],
+      "ewma_alpha": [
+        0.3,
+        "EWMA smoothing factor for velocity (0-1, higher=more responsive)"
+      ],
+      "hold_frames": [
+        5,
+        "Frames to wait before confirming static thumbs_up/thumbs_down (allows time to detect movement intent)"
+      ],
+      "confidence_ramp_up": [
+        0.3,
+        "Confidence increase per frame when consistent movement detected"
+      ],
+      "confidence_decay": [
+        0.2,
+        "Confidence decrease per frame when movement stops/changes"
+      ],
+      "confidence_threshold": [
+        0.6,
+        "Minimum confidence to report moving thumbs gesture"
       ]
     }
   },
@@ -193,6 +213,14 @@
         30,
         "Scroll amount multiplier (higher=faster scrolling)"
       ],
+      "speed_neutral": [
+        1.0,
+        "Neutral gesture velocity where no speed modulation is applied"
+      ],
+      "speed_factor": [
+        0.2,
+        "Max influence of velocity on scroll rate (0.2 = \u00b120% adjustment)"
+      ],
       "horizontal_enabled": [
         true,
         "Whether horizontal scrolling is enabled"
@@ -206,6 +234,14 @@
       "sensitivity": [
         1.9,
         "System zoom sensitivity multiplier"
+      ],
+      "speed_neutral": [
+        1.0,
+        "Neutral gesture velocity where no speed modulation is applied"
+      ],
+      "speed_factor": [
+        0.2,
+        "Max influence of velocity on zoom rate (0.2 = \u00b120% adjustment)"
       ],
       "use_system_zoom": [
         true,
@@ -551,6 +587,36 @@
     "fps_update_interval": [
       30,
       "Update FPS calculation every N frames"
-    ]
+    ],
+    "visual_mode": [
+      "full",
+      "Visual feedback mode: 'full' (OpenCV window + Status), 'minimal' (Status only), 'debug' (Full + Console)"
+    ],
+    "status_indicator": {
+      "enabled": [
+        true,
+        "Enable the always-on-top status indicator"
+      ],
+      "size": [
+        64,
+        "Size of the status indicator in pixels"
+      ],
+      "opacity": [
+        0.8,
+        "Opacity of the status indicator (0.0 - 1.0)"
+      ],
+      "position": [
+        "top-right",
+        "Position on screen: 'top-right', 'top-left', 'bottom-right', 'bottom-left'"
+      ],
+      "margin_x": [
+        20,
+        "Horizontal margin from screen edge"
+      ],
+      "margin_y": [
+        20,
+        "Vertical margin from screen edge"
+      ]
+    }
   }
 }

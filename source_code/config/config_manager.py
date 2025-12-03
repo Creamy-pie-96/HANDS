@@ -196,7 +196,12 @@ class Config:
                     "pinch_exclusion_distance": 0.08
                 },
                 "thumbs": {
-                    "velocity_threshold": 0.2
+                    "velocity_threshold": 0.2,
+                    "ewma_alpha": 0.3,
+                    "hold_frames": 5,
+                    "confidence_ramp_up": 0.3,
+                    "confidence_decay": 0.2,
+                    "confidence_threshold": 0.6
                 }
             },
             "system_control": {
@@ -218,11 +223,15 @@ class Config:
                 },
                 "scroll": {
                     "sensitivity": 30,
+                    "speed_neutral": 1.0,
+                    "speed_factor": 0.2,
                     "horizontal_enabled": True,
                     "vertical_enabled": True
                 },
                 "zoom": {
                     "sensitivity": 5,
+                    "speed_neutral": 1.0,
+                    "speed_factor": 0.2,
                     "use_system_zoom": True
                 }
             },
@@ -312,7 +321,16 @@ class Config:
                 "window_width": 1280,
                 "window_height": 720,
                 "flip_horizontal": True,
-                "fps_update_interval": 30
+                "fps_update_interval": 30,
+                "visual_mode": "full",
+                "status_indicator": {
+                    "enabled": True,
+                    "size": 64,
+                    "opacity": 0.8,
+                    "position": "top-right",
+                    "margin_x": 20,
+                    "margin_y": 20
+                }
             }
         }
     

@@ -3,3 +3,6 @@ opencv-python>=4.10
 mediapipe>=0.10.14
 pynput
 screeninfo
+opencv-python-headless
+opencv-contrib-python-headless
+PyQt6
