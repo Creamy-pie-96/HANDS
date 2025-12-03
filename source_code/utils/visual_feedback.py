@@ -523,10 +523,9 @@ class VisualFeedback:
         elif gesture_name == 'swipe':
             params = [
                 f"Dir:{str(meta.get('current_direction', meta.get('direction', 'none')))[:4]}",
-                f"Spd:{meta.get('speed', 0):.3f}",
-                f"Thrs:{meta.get('velocity_threshold', 0):.2f}",
-                f"Conf:{meta.get('confidence', 0):.2f}",
-                f"Frames:{meta.get('frame_count', 0)}/{meta.get('min_history', 0)}"
+                f"VelX:{meta.get('velocity_threshold_x', 0):.2f}",
+                f"VelY:{meta.get('velocity_threshold_y', 0):.2f}",
+                f"Conf:{meta.get('confidence', 0):.2f}"
             ]
             if meta.get('reason'):
                 params.append(f"Rsn:{meta['reason'][:12]}")

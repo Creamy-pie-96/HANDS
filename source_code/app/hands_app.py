@@ -176,10 +176,10 @@ class HANDSApplication:
         # Zoom: System zoom
         if 'zoom' in right_gestures:
             data = right_gestures['zoom'].metadata
-            zoom_type = data.get('zoom_type')
-            if zoom_type == 'in':
+            direction = data.get('direction')
+            if direction == 'in':
                 self.system_ctrl.zoom(zoom_in=True)
-            elif zoom_type == 'out':
+            elif direction == 'out':
                 self.system_ctrl.zoom(zoom_in=False)
         
         # Swipe: Scroll or workspace switch

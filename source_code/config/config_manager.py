@@ -166,12 +166,13 @@ class Config:
                 },
                 "swipe": {
                     "ewma_alpha": 0.3,
-                    "velocity_threshold": 0.4,
+                    "velocity_threshold_x": 0.4,
+                    "velocity_threshold_y": 0.4,
                     "confidence_ramp_up": 0.25,
                     "confidence_decay": 0.15,
                     "confidence_threshold": 0.6,
-                    "max_velocity": 2.0,
-                    "min_history": 3
+                    "max_velocity_x": 2.0,
+                    "max_velocity_y": 2.0
                 },
                 "finger_extension": {
                     "open_ratio": 1.20,

@@ -124,7 +124,6 @@ def compute_hand_metrics(
     eps = 1e-6
     diag_rel = hand_diag_px / (img_diag_px + eps)
 
-    # Computed velocity is normalized so distance of hand from camera does not create issues
     velocity = (0.0, 0.0)
     speed = 0.0
     if prev_metrics is not None:
@@ -149,11 +148,6 @@ def compute_hand_metrics(
             velocity = (float(vx), float(vy))
             speed = float(np.hypot(vx, vy))
 
-    # Motion-aware scaling: compute sigmoid of speed and use it to increase
-    # the open_ratio when the hand is moving. Sigmoid in (0,1), factor = 1+sigmoid -> (1,2).
-    # Using sigmoid cz velocity of hand can be any arbitary value and so we need to wrap all input 
-    # value of velocity between a range or value for predictable behaviour(1 to 2). So sigmoid(vel)+1 takes any arbitary
-    # value of velocity and wrap it between 0 and 1 and then add 1 to wrap between (1 to 2)
     try:
         sig = 1.0 / (1.0 + float(np.exp(-motion_sigmoid_k * (speed - motion_speed_threshold))))
     except Exception:
@@ -162,7 +156,6 @@ def compute_hand_metrics(
     motion_factor = 1.0 + sig
     effective_open_ratio = open_ratio * motion_factor
 
-    # tracks which finger is extented
     finger_extended = {
         'thumb': is_finger_extended(norm, 'thumb', centroid, prev_metrics, diag_rel, handedness, effective_open_ratio, close_ratio),
         'index': is_finger_extended(norm, 'index',  centroid, prev_metrics, diag_rel, handedness, effective_open_ratio, close_ratio),
@@ -359,75 +352,63 @@ class PointingDetector:
 
 class SwipeDetector:
     """
-    Detects continuous directional hand movements.
-    Uses EWMA velocity smoothing and confidence ramping for stable, continuous detection.
+    Detects continuous directional hand movements with axis-specific tuning.
     """
     def __init__(
         self,
-        ewma_alpha: float = 0.3,  # EWMA smoothing factor (higher=more responsive)
-        velocity_threshold: float = 0.4,  # Min EWMA velocity to gain confidence
-        confidence_ramp_up: float = 0.25,  # Confidence increase per valid frame
-        confidence_decay: float = 0.15,  # Confidence decrease per invalid frame
-        confidence_threshold: float = 0.6,  # Min confidence to report detected
-        max_velocity: float = 2.0,  # Maximum velocity (filters jumps)
-        min_history: int = 3  # Minimum frames before detection
+        ewma_alpha: float = 0.3,
+        velocity_threshold_x: float = 0.4,
+        velocity_threshold_y: float = 0.4,
+        confidence_ramp_up: float = 0.25,
+        confidence_decay: float = 0.15,
+        confidence_threshold: float = 0.6,
+        max_velocity_x: float = 2.0,
+        max_velocity_y: float = 2.0
     ):
         self.ewma_alpha = ewma_alpha
-        self.velocity_threshold = velocity_threshold
+        self.velocity_threshold_x = velocity_threshold_x
+        self.velocity_threshold_y = velocity_threshold_y
         self.confidence_ramp_up = confidence_ramp_up
         self.confidence_decay = confidence_decay
         self.confidence_threshold = confidence_threshold
-        self.max_velocity = max_velocity
-        self.min_history = int(min_history)
+        self.max_velocity_x = max_velocity_x
+        self.max_velocity_y = max_velocity_y
         
         self.confidence = 0.0
         self.ewma_velocity = EWMA(alpha=ewma_alpha)
         self.current_direction: Optional[str] = None
-        self.frame_count = 0
     
     def detect(self, metrics: HandMetrics) -> GestureResult:
-        self.frame_count += 1
-        
         vx, vy = metrics.velocity
         
-        # Update EWMA for both components
         smoothed = self.ewma_velocity.update([vx, vy])
         ewma_vx = float(smoothed[0])
         ewma_vy = float(smoothed[1])
         
-        speed = float(np.hypot(ewma_vx, ewma_vy))
-        
-        # Determine direction based on which component is larger
         if abs(ewma_vx) > abs(ewma_vy):
             detected_direction = 'right' if ewma_vx > 0 else 'left'
+            primary_velocity = abs(ewma_vx)
+            velocity_threshold = self.velocity_threshold_x
+            max_velocity = self.max_velocity_x
         else:
             detected_direction = 'down' if ewma_vy > 0 else 'up'
+            primary_velocity = abs(ewma_vy)
+            velocity_threshold = self.velocity_threshold_y
+            max_velocity = self.max_velocity_y
         
         base_metadata = {
             'direction': detected_direction,
             'current_direction': self.current_direction,
-            'speed': speed,
             'raw_velocity': (vx, vy),
             'ewma_velocity': (ewma_vx, ewma_vy),
-            'velocity_threshold': self.velocity_threshold,
+            'velocity_threshold_x': self.velocity_threshold_x,
+            'velocity_threshold_y': self.velocity_threshold_y,
             'confidence': self.confidence,
             'confidence_threshold': self.confidence_threshold,
-            'frame_count': self.frame_count,
-            'min_history': self.min_history,
             'reason': None
         }
         
-        if self.frame_count < self.min_history:
-            base_metadata['reason'] = 'insufficient_history'
-            return GestureResult(
-                detected=False,
-                gesture_name='swipe',
-                confidence=self.confidence,
-                metadata=base_metadata
-            )
-        
-        # Filter out sudden jumps
-        if speed > self.max_velocity:
+        if primary_velocity > max_velocity:
             self.confidence = max(0.0, self.confidence - self.confidence_decay)
             base_metadata['reason'] = 'velocity_too_high'
             base_metadata['confidence'] = self.confidence
@@ -442,19 +423,15 @@ class SwipeDetector:
                 metadata=base_metadata
             )
         
-        # Check if velocity exceeds threshold
-        if speed > self.velocity_threshold:
+        if primary_velocity > velocity_threshold:
             if self.current_direction is None:
-                # Starting new swipe
                 self.current_direction = detected_direction
                 self.confidence = min(1.0, self.confidence + self.confidence_ramp_up)
                 base_metadata['reason'] = 'swipe_started'
             elif self.current_direction == detected_direction:
-                # Continuing same direction
                 self.confidence = min(1.0, self.confidence + self.confidence_ramp_up)
                 base_metadata['reason'] = 'swipe_sustained'
             else:
-                # Direction changed
                 self.confidence = max(0.0, self.confidence - self.confidence_decay)
                 base_metadata['reason'] = 'direction_changed'
                 
@@ -463,7 +440,6 @@ class SwipeDetector:
                     self.confidence = min(1.0, self.confidence + self.confidence_ramp_up)
                     base_metadata['reason'] = 'swipe_direction_switched'
         else:
-            # Velocity below threshold
             self.confidence = max(0.0, self.confidence - self.confidence_decay)
             base_metadata['reason'] = 'movement_stopped'
             
@@ -584,9 +560,9 @@ class ZoomDetector:
         
         eps = 1e-6
         if ewma_vel < -self.velocity_threshold:
-            detected_direction = 'in'
-        elif ewma_vel > self.velocity_threshold:
             detected_direction = 'out'
+        elif ewma_vel > self.velocity_threshold:
+            detected_direction = 'in'
         else:
             detected_direction = None
         
@@ -641,7 +617,7 @@ class OpenHandDetector:
         # Count how many fingers are extended
         count = sum(metrics.fingers_extended.values())
         
-        # Additional check: if thumb and index are too close, it's a pinch, not open hand
+        # if thumb and index are too close, it's a pinch
         thumb_index_dist = metrics.tip_distances.get('index_thumb', 0.0)
         is_pinching = thumb_index_dist < float(self.pinch_threshold)
         
@@ -748,12 +724,13 @@ class GestureManager:
             pointing_max_speed = get_gesture_threshold('pointing', 'max_speed', default=0.5)
 
             swipe_ewma_alpha = get_gesture_threshold('swipe', 'ewma_alpha', default=0.3)
-            swipe_vel_thresh = get_gesture_threshold('swipe', 'velocity_threshold', default=0.4)
+            swipe_vel_thresh_x = get_gesture_threshold('swipe', 'velocity_threshold_x', default=0.4)
+            swipe_vel_thresh_y = get_gesture_threshold('swipe', 'velocity_threshold_y', default=0.4)
             swipe_conf_ramp = get_gesture_threshold('swipe', 'confidence_ramp_up', default=0.25)
             swipe_conf_decay = get_gesture_threshold('swipe', 'confidence_decay', default=0.15)
             swipe_conf_thresh = get_gesture_threshold('swipe', 'confidence_threshold', default=0.6)
-            swipe_max_vel = get_gesture_threshold('swipe', 'max_velocity', default=2.0)
-            swipe_min_history = get_gesture_threshold('swipe', 'min_history', default=3)
+            swipe_max_vel_x = get_gesture_threshold('swipe', 'max_velocity_x', default=2.0)
+            swipe_max_vel_y = get_gesture_threshold('swipe', 'max_velocity_y', default=2.0)
 
             # New EWMA-based zoom parameters
             zoom_gap = get_gesture_threshold('zoom', 'finger_gap_threshold', default=0.10)
@@ -784,12 +761,13 @@ class GestureManager:
             pointing_max_extra = 1
             pointing_max_speed = 0.5
             swipe_ewma_alpha = 0.3
-            swipe_vel_thresh = 0.4
+            swipe_vel_thresh_x = 0.4
+            swipe_vel_thresh_y = 0.4
             swipe_conf_ramp = 0.25
             swipe_conf_decay = 0.15
             swipe_conf_thresh = 0.6
-            swipe_max_vel = 2.0
-            swipe_min_history = 3
+            swipe_max_vel_x = 2.0
+            swipe_max_vel_y = 2.0
             # New EWMA-based zoom fallbacks
             zoom_gap = 0.10
             zoom_ewma_alpha = 0.3
@@ -811,12 +789,13 @@ class GestureManager:
         self.pointing = PointingDetector(min_extension_ratio=pointing_min_ext, max_extra_fingers=pointing_max_extra, max_speed=pointing_max_speed)
         self.swipe = SwipeDetector(
             ewma_alpha=swipe_ewma_alpha,
-            velocity_threshold=swipe_vel_thresh,
+            velocity_threshold_x=swipe_vel_thresh_x,
+            velocity_threshold_y=swipe_vel_thresh_y,
             confidence_ramp_up=swipe_conf_ramp,
             confidence_decay=swipe_conf_decay,
             confidence_threshold=swipe_conf_thresh,
-            max_velocity=swipe_max_vel,
-            min_history=swipe_min_history
+            max_velocity_x=swipe_max_vel_x,
+            max_velocity_y=swipe_max_vel_y
         )
         self.zoom = ZoomDetector(
             finger_gap_threshold=zoom_gap,

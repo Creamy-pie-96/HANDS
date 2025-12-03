@@ -33,29 +33,33 @@
         0.3,
         "EWMA smoothing factor for velocity (0-1, higher=more responsive, lower=smoother)"
       ],
-      "velocity_threshold": [
-        0.4,
-        "Minimum EWMA-smoothed velocity to gain confidence (normalized units/frame)"
+      "velocity_threshold_x": [
+        0.25,
+        "Minimum horizontal velocity to trigger swipe detection (normalized units/frame)"
+      ],
+      "velocity_threshold_y": [
+        0.1,
+        "Minimum vertical velocity to trigger swipe detection (normalized units/frame)"
       ],
       "confidence_ramp_up": [
-        0.25,
+        0.6,
         "Confidence increase per frame when movement detected (0-1, higher=faster trigger)"
       ],
       "confidence_decay": [
-        0.15,
+        0.55,
         "Confidence decrease per frame when movement stops/changes (0-1, higher=faster turnoff)"
       ],
       "confidence_threshold": [
         0.6,
         "Minimum confidence level to report swipe as detected (0-1, lower=easier trigger)"
       ],
-      "max_velocity": [
+      "max_velocity_x": [
         2.0,
-        "Maximum velocity allowed (filters sudden jumps/noise)"
+        "Maximum horizontal velocity allowed (filters sudden jumps/noise)"
       ],
-      "min_history": [
-        3,
-        "Minimum frames needed before attempting swipe detection"
+      "max_velocity_y": [
+        2.0,
+        "Maximum vertical velocity allowed (filters sudden jumps/noise)"
       ]
     },
     "finger_extension": {
