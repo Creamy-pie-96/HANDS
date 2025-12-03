@@ -109,17 +109,19 @@ def compute_hand_metrics(
     }
 
     # Distance between tips - normalized by hand bounding box diagonal
+    # Since euclidean gives distance in normalized image coords (0-1),
+    # and diag_rel = hand_diag / img_diag, dividing by diag_rel gives distance relative to hand size
     tip_distances = {
-        'index_thumb' : float(euclidean(norm[4],norm[8])) / (hand_diag_px / img_diag_px + eps),
-        'index_middle' : float(euclidean(norm[8],norm[12])) / (hand_diag_px / img_diag_px + eps),
-        'index_ring' : float(euclidean(norm[8],norm[16])) / (hand_diag_px / img_diag_px + eps),
-        'index_pinky' : float(euclidean(norm[8],norm[20])) / (hand_diag_px / img_diag_px + eps),
-        'thumb_middle' : float(euclidean(norm[4],norm[12])) / (hand_diag_px / img_diag_px + eps),
-        'thumb_ring' : float(euclidean(norm[4],norm[16])) / (hand_diag_px / img_diag_px + eps),
-        'thumb_pinky' : float(euclidean(norm[4],norm[20])) / (hand_diag_px / img_diag_px + eps),
-        'middle_ring' : float(euclidean(norm[12],norm[16])) / (hand_diag_px / img_diag_px + eps),
-        'middle_pinky' : float(euclidean(norm[12],norm[20])) / (hand_diag_px / img_diag_px + eps),
-        'ring_pinky' : float(euclidean(norm[16],norm[20])) / (hand_diag_px / img_diag_px + eps)
+        'index_thumb' : float(euclidean(norm[4],norm[8])) / (diag_rel + eps),
+        'index_middle' : float(euclidean(norm[8],norm[12])) / (diag_rel + eps),
+        'index_ring' : float(euclidean(norm[8],norm[16])) / (diag_rel + eps),
+        'index_pinky' : float(euclidean(norm[8],norm[20])) / (diag_rel + eps),
+        'thumb_middle' : float(euclidean(norm[4],norm[12])) / (diag_rel + eps),
+        'thumb_ring' : float(euclidean(norm[4],norm[16])) / (diag_rel + eps),
+        'thumb_pinky' : float(euclidean(norm[4],norm[20])) / (diag_rel + eps),
+        'middle_ring' : float(euclidean(norm[12],norm[16])) / (diag_rel + eps),
+        'middle_pinky' : float(euclidean(norm[12],norm[20])) / (diag_rel + eps),
+        'ring_pinky' : float(euclidean(norm[16],norm[20])) / (diag_rel + eps)
     }
 
     velocity = (0.0, 0.0)
@@ -305,7 +307,8 @@ class PointingDetector:
     def detect(self, metrics: HandMetrics) -> GestureResult:
         index_tip = metrics.tip_positions['index']
         centroid = metrics.centroid
-        # Normalize distance by hand size (diag_rel contains hand_diag/img_diag)
+        # Normalize distance by hand size (diag_rel = hand_diag / img_diag)
+        # Distance is in normalized image coords, so divide by diag_rel to get relative to hand
         eps = 1e-6
         distance = euclidean(index_tip, centroid) / (metrics.diag_rel + eps)
         distance = euclidean(index_tip, centroid)
