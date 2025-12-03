@@ -66,6 +66,10 @@ class VisualFeedback:
             'thumbs': False
         }
         
+        # Position cache for debug panels
+        self.debug_panel_positions = {}
+        self.debug_panel_layout_dirty = True
+        
         # Load config
         if config:
             from source_code.config.config_manager import get_visual_setting
@@ -246,18 +250,14 @@ class VisualFeedback:
         self._draw_gesture_debug_overlays(frame, metrics, gestures, hand_label)
     
     def _draw_gesture_debug_overlays(self, frame, metrics, gestures, hand_label):
-        """Draw debug metadata overlays for all gestures based on toggle state."""
+        """Draw debug metadata overlays with intelligent dynamic positioning."""
         h, w = frame.shape[:2]
-        bbox = metrics.bbox
-        bx = int(bbox[0] * w) + 8
-        by = int(bbox[1] * h) - 10
-        if by < 30:
-            by = int(bbox[3] * h) + 20
         
-        # Draw each gesture's metadata if its toggle is on
+        # Collect active debug gestures
         meta_keys = ['__zoom_meta', '__pinch_meta', '__pointing_meta', '__swipe_meta', '__open_hand_meta', '__thumbs_meta']
         gesture_names = ['zoom', 'pinch', 'pointing', 'swipe', 'open_hand', 'thumbs']
         
+        active_panels = []
         for meta_key, gesture_name in zip(meta_keys, gesture_names):
             if not self.show_gesture_debug.get(gesture_name, False):
                 continue
@@ -275,19 +275,215 @@ class VisualFeedback:
             if not params:
                 continue
             
-            # Draw title
-            title_color = self.colors.active if result.detected else self.colors.text_secondary
-            cv2.putText(frame, f"{gesture_name.upper()}:", (bx, by), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.45, title_color, 1, cv2.LINE_AA)
-            by += 16
+            active_panels.append({
+                'name': gesture_name,
+                'result': result,
+                'params': params
+            })
+        
+        # Early exit if no active panels
+        if not active_panels:
+            self.debug_panel_layout_dirty = True
+            return
+        
+        # Recalculate layout if needed (also clear old positions when set changes)
+        active_names = set(p['name'] for p in active_panels)
+        cached_names = set(self.debug_panel_positions.keys())
+        
+        if self.debug_panel_layout_dirty or active_names != cached_names:
+            # Clear positions for removed panels
+            for name in list(self.debug_panel_positions.keys()):
+                if name not in active_names:
+                    del self.debug_panel_positions[name]
             
-            # Draw each parameter
-            for param in params:
-                cv2.putText(frame, param, (bx, by), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.35, self.colors.text_secondary, 1, cv2.LINE_AA)
-                by += 13
+            self._calculate_debug_panel_layout(active_panels, w, h)
+            self.debug_panel_layout_dirty = False
+        
+        # Calculate total bounding box for background
+        if active_panels and self.debug_panel_positions:
+            min_x = min(pos['x'] for pos in self.debug_panel_positions.values())
+            min_y = min(pos['y'] for pos in self.debug_panel_positions.values())
+            max_x = max(pos['x'] + pos['width'] for pos in self.debug_panel_positions.values())
+            max_y = max(pos['y'] + pos['height'] for pos in self.debug_panel_positions.values())
             
-            by += 5  # Extra spacing between gestures
+            # Add padding
+            padding = 8
+            bg_tl = (max(0, min_x - padding), max(0, min_y - padding))
+            bg_br = (min(w, max_x + padding), min(h, max_y + padding))
+            
+            # Draw dynamic translucent background
+            overlay = frame.copy()
+            cv2.rectangle(overlay, bg_tl, bg_br, self.colors.background, -1)
+            cv2.addWeighted(overlay, 0.45, frame, 0.55, 0, frame)
+        
+        # Draw each panel at its cached position
+        for panel_info in active_panels:
+            gesture_name = panel_info['name']
+            if gesture_name not in self.debug_panel_positions:
+                continue
+            
+            pos = self.debug_panel_positions[gesture_name]
+            bx, by = pos['x'], pos['y']
+            
+            # Title
+            title_color = self.colors.active if panel_info['result'].detected else self.colors.text_secondary
+            cv2.putText(frame, f"{gesture_name.upper()}:", (bx, by),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, title_color, 2, cv2.LINE_AA)
+            by += 20
+            
+            # Metadata
+            meta_color = self.colors.accent
+            for param in panel_info['params']:
+                cv2.putText(frame, param, (bx, by),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.48, meta_color, 2, cv2.LINE_AA)
+                by += 16
+    
+    def _calculate_debug_panel_layout(self, active_panels, frame_w, frame_h):
+        """Calculate optimal positions for debug panels using intelligent layout."""
+        margin = 12
+        spacing = 8
+        base_width = 240
+        line_height = 16
+        title_height = 20
+        
+        # Calculate dimensions for each panel
+        for panel in active_panels:
+            panel['width'] = base_width
+            panel['height'] = title_height + len(panel['params']) * line_height
+        
+        # Start from top-right
+        start_x = frame_w - base_width - margin
+        start_y = margin + 8
+        
+        # Available area (top-right quadrant preference)
+        occupied_regions = []
+        
+        for panel in active_panels:
+            name = panel['name']
+            pw = panel['width']
+            ph = panel['height']
+            
+            # Try to find best position
+            best_pos = self._find_best_position(
+                pw, ph, start_x, start_y, 
+                frame_w, frame_h, margin, spacing,
+                occupied_regions
+            )
+            
+            # Cache the position
+            self.debug_panel_positions[name] = {
+                'x': best_pos[0],
+                'y': best_pos[1],
+                'width': pw,
+                'height': ph
+            }
+            
+            # Mark region as occupied
+            occupied_regions.append({
+                'x': best_pos[0],
+                'y': best_pos[1],
+                'width': pw,
+                'height': ph
+            })
+    
+    def _find_best_position(self, width, height, start_x, start_y, 
+                           frame_w, frame_h, margin, spacing, occupied):
+        """Find best non-overlapping position for a panel."""
+        
+        # Try positions in order of preference:
+        # 0. Start position (first panel)
+        # 1. Horizontally to the left (same row if space available)
+        # 2. Vertically stack below
+        # 3. New column to the left
+        
+        candidates = []
+        
+        # Strategy 0: Start position (first panel or fallback)
+        if self._is_position_valid(start_x, start_y, width, height, frame_w, frame_h, margin, occupied):
+            candidates.append((start_x, start_y, 0))  # priority 0 (best)
+        
+        # Strategy 1: Place to the left of existing panels (horizontal preference)
+        if occupied:
+            # Sort by x position to find rightmost panels
+            sorted_by_x = sorted(occupied, key=lambda r: r['x'], reverse=True)
+            
+            for region in sorted_by_x:
+                # Try to the left of this region at same y
+                x = region['x'] - width - spacing
+                y = region['y']
+                if self._is_position_valid(x, y, width, height, frame_w, frame_h, margin, occupied):
+                    candidates.append((x, y, 1))  # priority 1
+                    break  # Take first valid horizontal position
+        
+        # Strategy 2: Stack below existing panels in same column
+        if occupied:
+            # Sort by y position to find placement opportunities
+            sorted_by_y = sorted(occupied, key=lambda r: r['y'])
+            
+            for region in sorted_by_y:
+                # Try below this region
+                x = region['x']
+                y = region['y'] + region['height'] + spacing
+                if self._is_position_valid(x, y, width, height, frame_w, frame_h, margin, occupied):
+                    candidates.append((x, y, 2))  # priority 2
+                    break  # Take first valid vertical position
+        
+        # Strategy 3: New column to the far left
+        if occupied:
+            leftmost = min(r['x'] for r in occupied)
+            x = leftmost - width - spacing
+            y = start_y
+            if self._is_position_valid(x, y, width, height, frame_w, frame_h, margin, occupied):
+                candidates.append((x, y, 3))  # priority 3
+        
+        # Strategy 4: Scan for any valid position (last resort)
+        if not candidates:
+            # Scan horizontally first (prefer horizontal placement)
+            for x in range(frame_w - width - margin, margin, -30):
+                for y in range(margin, frame_h - height - margin, 20):
+                    if self._is_position_valid(x, y, width, height, frame_w, frame_h, margin, occupied):
+                        candidates.append((x, y, 4))
+                        break
+                if candidates:
+                    break
+        
+        # Return best candidate (lowest priority number)
+        if candidates:
+            candidates.sort(key=lambda c: c[2])
+            return (candidates[0][0], candidates[0][1])
+        
+        # Absolute fallback: top-left corner
+        return (margin, margin)
+    
+    def _is_position_valid(self, x, y, width, height, frame_w, frame_h, margin, occupied):
+        """Check if position is valid (in bounds and doesn't overlap)."""
+        # Check frame bounds
+        if x < margin or y < margin:
+            return False
+        if x + width > frame_w - margin or y + height > frame_h - margin:
+            return False
+        
+        # Check overlap with occupied regions (add small spacing buffer)
+        spacing_buffer = 4
+        for region in occupied:
+            if self._rectangles_overlap(
+                x, y, width, height,
+                region['x'], region['y'], region['width'], region['height'],
+                buffer=spacing_buffer
+            ):
+                return False
+        
+        return True
+    
+    def _rectangles_overlap(self, x1, y1, w1, h1, x2, y2, w2, h2, buffer=0):
+        """Check if two rectangles overlap (with optional buffer spacing)."""
+        # Expand rectangles by buffer to ensure spacing
+        return not (
+            x1 + w1 + buffer < x2 or 
+            x2 + w2 + buffer < x1 or 
+            y1 + h1 + buffer < y2 or 
+            y2 + h2 + buffer < y1
+        )
     
     def _format_gesture_metadata(self, gesture_name, meta):
         """Format gesture metadata into displayable strings."""
@@ -297,10 +493,10 @@ class VisualFeedback:
             params = [
                 f"Gap:{meta.get('finger_gap', 0):.3f}",
                 f"Spr:{meta.get('spread', 0):.3f}",
-                f"Chg:{meta.get('relative_change', 0):.2%}",
-                f"Inr:{meta.get('inertia', 0):.2f}",
-                f"Vel:{meta.get('avg_velocity', 0):.3f}",
-                f"VCon:{meta.get('velocity_consistency', 0):.2f}"
+                f"EVel:{meta.get('ewma_velocity', 0):.3f}",
+                f"Conf:{meta.get('confidence', 0):.2f}",
+                f"Dir:{meta.get('direction', 'none')}",
+                f"dS:{meta.get('delta_spread', 0):.3f}"
             ]
             if meta.get('reason'):
                 params.append(f"Rsn:{meta['reason'][:12]}")
@@ -326,11 +522,11 @@ class VisualFeedback:
         
         elif gesture_name == 'swipe':
             params = [
-                f"Dir:{meta.get('direction', 'none')[:4]}",
+                f"Dir:{str(meta.get('current_direction', meta.get('direction', 'none')))[:4]}",
                 f"Spd:{meta.get('speed', 0):.3f}",
                 f"Thrs:{meta.get('velocity_threshold', 0):.2f}",
-                f"Hist:{meta.get('history_size', 0)}/{meta.get('min_history', 0)}",
-                f"CDwn:{meta.get('cooldown_remaining', 0):.1f}s"
+                f"Conf:{meta.get('confidence', 0):.2f}",
+                f"Frames:{meta.get('frame_count', 0)}/{meta.get('min_history', 0)}"
             ]
             if meta.get('reason'):
                 params.append(f"Rsn:{meta['reason'][:12]}")
@@ -444,16 +640,16 @@ class VisualFeedback:
                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, self.colors.text_secondary, 1, cv2.LINE_AA)
                     y += 20
                     
-                    # Show detailed zoom parameters
+                    # Show detailed zoom parameters (fields provided by ZoomDetector)
                     params = [
                         f"Gap: {result.metadata.get('finger_gap', 0):.3f}",
                         f"Spread: {result.metadata.get('spread', 0):.3f}",
-                        f"Change: {result.metadata.get('relative_change', 0):.2%}",
-                        f"Inertia: {result.metadata.get('inertia', 0):.2f}",
-                        f"Vel: {result.metadata.get('avg_velocity', 0):.3f}",
-                        f"VelCons: {result.metadata.get('velocity_consistency', 0):.2f}"
+                        f"dS: {result.metadata.get('delta_spread', 0):.3f}",
+                        f"EVel: {result.metadata.get('ewma_velocity', 0):.3f}",
+                        f"Conf: {result.metadata.get('confidence', 0):.2f}",
+                        f"Dir: {result.metadata.get('direction', 'none')}"
                     ]
-                    
+
                     for param in params:
                         cv2.putText(frame, param, (45, y), 
                                    cv2.FONT_HERSHEY_SIMPLEX, 0.35, self.colors.text_secondary, 1, cv2.LINE_AA)

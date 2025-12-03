@@ -1,100 +1,310 @@
 {
   "gesture_thresholds": {
     "pinch": {
-      "threshold_rel": [0.055, "Maximum distance between thumb and index fingertips to trigger pinch (normalized 0-1)"],
-      "hold_frames": [3, "Number of consecutive frames pinch must be held before triggering"],
-      "cooldown_seconds": [0.6, "Minimum time between pinch detections to prevent double-triggering"]
+      "threshold_rel": [
+        0.055,
+        "Maximum distance between thumb and index fingertips to trigger pinch (normalized 0-1)"
+      ],
+      "hold_frames": [
+        3,
+        "Number of consecutive frames pinch must be held before triggering"
+      ],
+      "cooldown_seconds": [
+        0.6,
+        "Minimum time between pinch detections to prevent double-triggering"
+      ]
     },
     "pointing": {
-      "min_extension_ratio": [0.12, "Minimum distance index finger tip must be from palm to count as pointing"],
-      "max_speed": [0.5, "Maximum hand velocity allowed for stable pointing (prevents detection during fast movement)"],
-      "max_extra_fingers": [1, "Maximum number of other fingers allowed to be extended (0=only index, 1=index+one more)"]
+      "min_extension_ratio": [
+        0.12,
+        "Minimum distance index finger tip must be from palm to count as pointing"
+      ],
+      "max_speed": [
+        0.5,
+        "Maximum hand velocity allowed for stable pointing (prevents detection during fast movement)"
+      ],
+      "max_extra_fingers": [
+        1,
+        "Maximum number of other fingers allowed to be extended (0=only index, 1=index+one more)"
+      ]
     },
     "swipe": {
-      "velocity_threshold": [0.45, "Minimum hand velocity required to trigger swipe gesture"],
-      "cooldown_seconds": [0.4, "Minimum time between swipe detections"],
-      "history_size": [8, "Number of frames to track for velocity calculation"],
-      "min_history": [3, "Minimum frames needed before attempting swipe detection"]
+      "ewma_alpha": [
+        0.3,
+        "EWMA smoothing factor for velocity (0-1, higher=more responsive, lower=smoother)"
+      ],
+      "velocity_threshold": [
+        0.4,
+        "Minimum EWMA-smoothed velocity to gain confidence (normalized units/frame)"
+      ],
+      "confidence_ramp_up": [
+        0.25,
+        "Confidence increase per frame when movement detected (0-1, higher=faster trigger)"
+      ],
+      "confidence_decay": [
+        0.15,
+        "Confidence decrease per frame when movement stops/changes (0-1, higher=faster turnoff)"
+      ],
+      "confidence_threshold": [
+        0.6,
+        "Minimum confidence level to report swipe as detected (0-1, lower=easier trigger)"
+      ],
+      "max_velocity": [
+        2.0,
+        "Maximum velocity allowed (filters sudden jumps/noise)"
+      ],
+      "min_history": [
+        3,
+        "Minimum frames needed before attempting swipe detection"
+      ]
     },
     "finger_extension": {
-      "open_ratio": [1.2, "Ratio threshold to detect finger as extended (tip distance / pip distance from palm)"],
-      "close_ratio": [1.1, "Ratio threshold to detect finger as closed (hysteresis prevents flickering)"],
-      "motion_speed_threshold": [0.2, "Hand speed above which extension thresholds are relaxed for moving hands"],
-      "motion_sigmoid_k": [20.0, "Steepness of sigmoid curve for motion-based threshold scaling"]
+      "open_ratio": [
+        1.2,
+        "Ratio threshold to detect finger as extended (tip distance / pip distance from palm)"
+      ],
+      "close_ratio": [
+        1.1,
+        "Ratio threshold to detect finger as closed (hysteresis prevents flickering)"
+      ],
+      "motion_speed_threshold": [
+        0.2,
+        "Hand speed above which extension thresholds are relaxed for moving hands"
+      ],
+      "motion_sigmoid_k": [
+        20.0,
+        "Steepness of sigmoid curve for motion-based threshold scaling"
+      ]
     },
     "zoom": {
-      "scale_threshold": [0.1, "Minimum spread change (10%) required to trigger zoom detection"],
-      "finger_gap_threshold": [0.1, "Maximum allowed distance between index and middle fingers (they must stay together)"],
-      "history_size": [5, "Number of frames to analyze for zoom trend detection"],
-      "inertia_increase": [0.4, "How much zoom confidence increases per valid frame (0-1, higher=faster buildup)"],
-      "inertia_decrease": [0.1, "How much zoom confidence decreases per invalid frame (0-1, lower=slower decay)"],
-      "inertia_threshold": [0.4, "Minimum inertia level required to report zoom as detected (0-1, lower=easier trigger)"],
-      "min_velocity": [0.05, "Minimum spread change velocity to count as intentional zoom (filters slow drift)"],
-      "max_velocity": [2.0, "Maximum spread change velocity allowed (filters sudden jumps/noise)"],
-      "velocity_consistency_threshold": [0.7, "How consistent velocity must be (0-1, higher=smoother motion required)"],
-      "require_fingers_extended": [false, "Whether to require all 3 fingers detected as extended (false=more forgiving)"]
+      "finger_gap_threshold": [
+        0.06,
+        "Maximum allowed distance between index and middle fingers (they must stay together)"
+      ],
+      "ewma_alpha": [
+        0.3,
+        "EWMA smoothing factor for spread change rate (0-1, higher=more responsive, lower=smoother)"
+      ],
+      "velocity_threshold": [
+        0.007,
+        "Minimum EWMA-smoothed spread change velocity to gain confidence (normalized units/frame)"
+      ],
+      "confidence_ramp_up": [
+        0.34,
+        "Confidence increase per frame when correct movement detected (0-1, higher=faster trigger)"
+      ],
+      "confidence_decay": [
+        0.15,
+        "Confidence decrease per frame when movement stops/reverses (0-1, higher=faster turnoff)"
+      ],
+      "confidence_threshold": [
+        0.6,
+        "Minimum confidence level to report zoom as detected (0-1, lower=easier trigger)"
+      ],
+      "max_velocity": [
+        1.5,
+        "Maximum spread change velocity allowed (filters sudden jumps/noise)"
+      ],
+      "require_fingers_extended": [
+        false,
+        "Whether to require all 3 fingers detected as extended (false=more forgiving)"
+      ]
     },
     "open_hand": {
-      "min_fingers": [4, "Minimum number of fingers extended to detect open hand (4 or 5)"],
-      "pinch_exclusion_distance": [0.08, "If thumb-index distance is below this, reject as open hand (it's a pinch)"]
+      "min_fingers": [
+        4,
+        "Minimum number of fingers extended to detect open hand (4 or 5)"
+      ],
+      "pinch_exclusion_distance": [
+        0.08,
+        "If thumb-index distance is below this, reject as open hand (it's a pinch)"
+      ]
     },
     "thumbs": {
-      "velocity_threshold": [0.2, "Minimum thumb velocity to detect thumbs-up/down movement"]
+      "velocity_threshold": [
+        0.2,
+        "Minimum thumb velocity to detect thumbs-up/down movement"
+      ]
     }
   },
   "system_control": {
     "cursor": {
-      "smoothing_factor": [0.3, "EWMA smoothing alpha (0-1, higher=less smooth but more responsive)"],
-      "speed_multiplier": [1.5, "Cursor movement speed multiplier"],
-      "bounds_padding": [10, "Pixels to keep cursor away from screen edges"],
-      "precision_damping": [0.3, "Movement reduction factor in precision mode (lower=finer control)"]
+      "smoothing_factor": [
+        0.3,
+        "EWMA smoothing alpha (0-1, higher=less smooth but more responsive)"
+      ],
+      "speed_multiplier": [
+        1.5,
+        "Cursor movement speed multiplier"
+      ],
+      "bounds_padding": [
+        10,
+        "Pixels to keep cursor away from screen edges"
+      ],
+      "precision_damping": [
+        0.3,
+        "Movement reduction factor in precision mode (lower=finer control)"
+      ]
     },
     "click": {
-      "double_click_timeout": [0.5, "Maximum time between pinches to count as double-click (seconds)"],
-      "drag_hold_duration": [1.0, "How long pinch must be held to start drag operation (seconds)"]
+      "double_click_timeout": [
+        0.5,
+        "Maximum time between pinches to count as double-click (seconds)"
+      ],
+      "drag_hold_duration": [
+        1.0,
+        "How long pinch must be held to start drag operation (seconds)"
+      ]
     },
     "scroll": {
-      "sensitivity": [30, "Scroll amount multiplier (higher=faster scrolling)"],
-      "horizontal_enabled": [true, "Whether horizontal scrolling is enabled"],
-      "vertical_enabled": [true, "Whether vertical scrolling is enabled"]
+      "sensitivity": [
+        30,
+        "Scroll amount multiplier (higher=faster scrolling)"
+      ],
+      "horizontal_enabled": [
+        true,
+        "Whether horizontal scrolling is enabled"
+      ],
+      "vertical_enabled": [
+        true,
+        "Whether vertical scrolling is enabled"
+      ]
     },
     "zoom": {
-      "sensitivity": [5, "System zoom sensitivity multiplier"],
-      "use_system_zoom": [true, "Whether to use system-level zoom (Ctrl+Plus/Minus)"]
+      "sensitivity": [
+        5,
+        "System zoom sensitivity multiplier"
+      ],
+      "use_system_zoom": [
+        true,
+        "Whether to use system-level zoom (Ctrl+Plus/Minus)"
+      ]
     }
   },
   "visual_feedback": {
-    "enabled": [true, "Enable visual overlays on video feed"],
-    "show_hand_skeleton": [true, "Draw hand skeleton and connections"],
-    "show_fingertips": [true, "Draw circles at fingertip locations"],
-    "show_cursor_preview": [true, "Show where cursor will move to"],
-    "show_gesture_name": [true, "Display active gesture names on screen"],
-    "overlay_opacity": [0.7, "Transparency of overlays (0=transparent, 1=opaque)"],
+    "enabled": [
+      true,
+      "Enable visual overlays on video feed"
+    ],
+    "show_hand_skeleton": [
+      true,
+      "Draw hand skeleton and connections"
+    ],
+    "show_fingertips": [
+      true,
+      "Draw circles at fingertip locations"
+    ],
+    "show_cursor_preview": [
+      true,
+      "Show where cursor will move to"
+    ],
+    "show_gesture_name": [
+      true,
+      "Display active gesture names on screen"
+    ],
+    "overlay_opacity": [
+      0.7,
+      "Transparency of overlays (0=transparent, 1=opaque)"
+    ],
     "colors": {
-      "left_hand": [[0, 255, 255], "BGR color for left hand visualization"],
-      "right_hand": [[255, 128, 0], "BGR color for right hand visualization"],
-      "cursor_preview": [[0, 255, 0], "BGR color for cursor preview"],
-      "active_gesture": [[255, 0, 255], "BGR color for active gesture indicators"],
-      "background": [[0, 0, 0], "BGR color for panel backgrounds"]
+      "left_hand": [
+        [
+          0,
+          255,
+          255
+        ],
+        "BGR color for left hand visualization"
+      ],
+      "right_hand": [
+        [
+          255,
+          128,
+          0
+        ],
+        "BGR color for right hand visualization"
+      ],
+      "cursor_preview": [
+        [
+          0,
+          255,
+          0
+        ],
+        "BGR color for cursor preview"
+      ],
+      "active_gesture": [
+        [
+          255,
+          0,
+          255
+        ],
+        "BGR color for active gesture indicators"
+      ],
+      "background": [
+        [
+          0,
+          0,
+          0
+        ],
+        "BGR color for panel backgrounds"
+      ]
     }
   },
   "camera": {
-    "index": [0, "Camera device index (0=default, 1=second camera, etc.)"],
-    "width": [640, "Camera capture width in pixels"],
-    "height": [480, "Camera capture height in pixels"],
-    "fps": [60, "Requested frames per second (actual may vary)"]
+    "index": [
+      0,
+      "Camera device index (0=default, 1=second camera, etc.)"
+    ],
+    "width": [
+      640,
+      "Camera capture width in pixels"
+    ],
+    "height": [
+      480,
+      "Camera capture height in pixels"
+    ],
+    "fps": [
+      30,
+      "Requested frames per second (actual may vary)"
+    ]
   },
   "performance": {
-    "show_fps": [true, "Display FPS counter on screen"],
-    "show_debug_info": [false, "Print detailed gesture detection info to console"],
-    "max_hands": [2, "Maximum number of hands to detect (1 or 2)"],
-    "min_detection_confidence": [0.7, "MediaPipe hand detection confidence threshold (0-1)"],
-    "min_tracking_confidence": [0.3, "MediaPipe hand tracking confidence threshold (0-1)"]
+    "show_fps": [
+      true,
+      "Display FPS counter on screen"
+    ],
+    "show_debug_info": [
+      false,
+      "Print detailed gesture detection info to console"
+    ],
+    "max_hands": [
+      2,
+      "Maximum number of hands to detect (1 or 2)"
+    ],
+    "min_detection_confidence": [
+      0.7,
+      "MediaPipe hand detection confidence threshold (0-1)"
+    ],
+    "min_tracking_confidence": [
+      0.5,
+      "MediaPipe hand tracking confidence threshold (0-1)"
+    ]
   },
   "display": {
-    "window_width": [1280, "Application window width in pixels"],
-    "window_height": [720, "Application window height in pixels"],
-    "flip_horizontal": [true, "Mirror video horizontally (true=natural mirror mode)"],
-    "fps_update_interval": [30, "Update FPS calculation every N frames"]
+    "window_width": [
+      1280,
+      "Application window width in pixels"
+    ],
+    "window_height": [
+      720,
+      "Application window height in pixels"
+    ],
+    "flip_horizontal": [
+      true,
+      "Mirror video horizontally (true=natural mirror mode)"
+    ],
+    "fps_update_interval": [
+      30,
+      "Update FPS calculation every N frames"
+    ]
   }
 }

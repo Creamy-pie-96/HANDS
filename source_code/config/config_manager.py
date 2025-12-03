@@ -165,9 +165,12 @@ class Config:
                     "max_extra_fingers": 1
                 },
                 "swipe": {
-                    "velocity_threshold": 0.8,
-                    "cooldown_seconds": 0.5,
-                    "history_size": 8,
+                    "ewma_alpha": 0.3,
+                    "velocity_threshold": 0.4,
+                    "confidence_ramp_up": 0.25,
+                    "confidence_decay": 0.15,
+                    "confidence_threshold": 0.6,
+                    "max_velocity": 2.0,
                     "min_history": 3
                 },
                 "finger_extension": {
@@ -177,15 +180,13 @@ class Config:
                     "motion_sigmoid_k": 20.0
                 },
                 "zoom": {
-                    "scale_threshold": 0.10,
                     "finger_gap_threshold": 0.10,
-                    "history_size": 5,
-                    "inertia_increase": 0.4,
-                    "inertia_decrease": 0.1,
-                    "inertia_threshold": 0.4,
-                    "min_velocity": 0.05,
-                    "max_velocity": 2.0,
-                    "velocity_consistency_threshold": 0.7,
+                    "ewma_alpha": 0.3,
+                    "velocity_threshold": 0.08,
+                    "confidence_ramp_up": 0.25,
+                    "confidence_decay": 0.15,
+                    "confidence_threshold": 0.6,
+                    "max_velocity": 1.5,
                     "require_fingers_extended": False
                 },
                 "open_hand": {
