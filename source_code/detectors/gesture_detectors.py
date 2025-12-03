@@ -924,14 +924,21 @@ class GestureManager:
             
         # Only check open_hand if no other higher-priority gesture detected
         if open_hand_result.detected:
-
+            # When open hand is detected, check if we're also swiping
             if swipe_result.detected:
                 finger_count = sum(metrics.fingers_extended.values())
-                all_open = (finger_count == 5)
-                if all_open:
+                # Swipe requires 4 or 5 fingers extended (open hand while moving)
+                if finger_count >= 4:
                     results['swipe'] = swipe_result
+                else:
+                    results['open_hand'] = open_hand_result
             else:
                 results['open_hand'] = open_hand_result
+        elif swipe_result.detected:
+            # Swipe can also be detected independently with enough fingers
+            finger_count = sum(metrics.fingers_extended.values())
+            if finger_count >= 4:
+                results['swipe'] = swipe_result
 
         return results
 

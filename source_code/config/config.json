@@ -2,7 +2,7 @@
   "gesture_thresholds": {
     "pinch": {
       "threshold_rel": [
-        0.17,
+        0.25,
         "Maximum distance between thumb and index fingertips to trigger pinch (normalized 0-1)"
       ],
       "hold_frames": [
@@ -46,7 +46,7 @@
         "Minimum vertical velocity to trigger swipe detection (normalized units/frame)"
       ],
       "confidence_ramp_up": [
-        0.6,
+        0.8,
         "Confidence increase per frame when movement detected (0-1, higher=faster trigger)"
       ],
       "confidence_decay": [
@@ -54,7 +54,7 @@
         "Confidence decrease per frame when movement stops/changes (0-1, higher=faster turnoff)"
       ],
       "confidence_threshold": [
-        0.6,
+        0.65,
         "Minimum confidence level to report swipe as detected (0-1, lower=easier trigger)"
       ],
       "max_velocity_x": [
