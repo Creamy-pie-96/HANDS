@@ -616,7 +616,75 @@
       "margin_y": [
         20,
         "Vertical margin from screen edge"
-      ]
+      ],
+      "stickers_base_path": [
+        "stickers",
+        "Base directory for gesture sticker images (relative to config or absolute path)"
+      ],
+      "stickers": {
+        "pointing": [
+          "pointing.png",
+          "Sticker for pointing gesture"
+        ],
+        "pinch": [
+          "pinch.png",
+          "Sticker for pinch gesture"
+        ],
+        "zoom": [
+          "zoom.png",
+          "Sticker for zoom gesture"
+        ],
+        "swipe": [
+          "swipe.png",
+          "Sticker for swipe gesture"
+        ],
+        "open_hand": [
+          "open_hand.png",
+          "Sticker for open hand gesture"
+        ],
+        "thumbs_up": [
+          "thumbs_up.png",
+          "Sticker for static thumbs up gesture"
+        ],
+        "thumbs_down": [
+          "thumbs_down.png",
+          "Sticker for static thumbs down gesture"
+        ],
+        "thumbs_up_moving_up": [
+          "thumbs_up_moving_up.png",
+          "Sticker for thumbs up moving upward"
+        ],
+        "thumbs_up_moving_down": [
+          "thumbs_up_moving_down.png",
+          "Sticker for thumbs up moving downward"
+        ],
+        "thumbs_down_moving_up": [
+          "thumbs_down_moving_up.png",
+          "Sticker for thumbs down moving upward"
+        ],
+        "thumbs_down_moving_down": [
+          "thumbs_down_moving_down.png",
+          "Sticker for thumbs down moving downward"
+        ],
+        "pan": [
+          "pan.png",
+          "Sticker for bimanual pan gesture"
+        ],
+        "precision_cursor": [
+          "precision_cursor.png",
+          "Sticker for bimanual precision cursor mode"
+        ]
+      }
     }
+  },
+  "app_control": {
+    "pause": [
+      false,
+      "Set to true to pause gesture control (hot-reloaded)"
+    ],
+    "exit": [
+      false,
+      "Set to true to gracefully exit the application (hot-reloaded)"
+    ]
   }
 }

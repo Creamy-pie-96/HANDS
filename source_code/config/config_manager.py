@@ -329,8 +329,28 @@ class Config:
                     "opacity": 0.8,
                     "position": "top-right",
                     "margin_x": 20,
-                    "margin_y": 20
+                    "margin_y": 20,
+                    "stickers_base_path": "stickers",
+                    "stickers": {
+                        "pointing": "pointing.png",
+                        "pinch": "pinch.png",
+                        "zoom": "zoom.png",
+                        "swipe": "swipe.png",
+                        "open_hand": "open_hand.png",
+                        "thumbs_up": "thumbs_up.png",
+                        "thumbs_down": "thumbs_down.png",
+                        "thumbs_up_moving_up": "thumbs_up_moving_up.png",
+                        "thumbs_up_moving_down": "thumbs_up_moving_down.png",
+                        "thumbs_down_moving_up": "thumbs_down_moving_up.png",
+                        "thumbs_down_moving_down": "thumbs_down_moving_down.png",
+                        "pan": "pan.png",
+                        "precision_cursor": "precision_cursor.png"
+                    }
                 }
+            },
+            "app_control": {
+                "pause": False,
+                "exit": False
             }
         }
     

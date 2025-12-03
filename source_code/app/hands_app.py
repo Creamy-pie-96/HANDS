@@ -378,6 +378,23 @@ class HANDSApplication:
                                 self.system_ctrl = SystemController(self.config)
                             self.visual = VisualFeedback(self.config)
                             print("✓ Components reloaded with new configuration\n")
+                        
+                        # Check app_control flags (hot-reloaded)
+                        config_pause = self.config.get('app_control', 'pause', default=False)
+                        config_exit = self.config.get('app_control', 'exit', default=False)
+                        
+                        # Handle pause via config
+                        if config_pause != self.paused:
+                            self.paused = config_pause
+                            if self.system_ctrl:
+                                self.system_ctrl.toggle_pause()
+                            print(f"{'⏸ PAUSED (via config)' if self.paused else '▶ RESUMED (via config)'}")
+                        
+                        # Handle exit via config
+                        if config_exit:
+                            print("\n🛑 Exit signal received via config")
+                            self.running = False
+                            
                     except Exception as e:
                         print(f"⚠ Error checking config update: {e}")
 
@@ -478,59 +495,36 @@ class HANDSApplication:
                 # Update Status Indicator
                 if self.status_queue:
                     state = 'yellow'  # Default: AI working, no hand
-                    text = ""
+                    gesture_name = ""
                     
                     if not self.enable_system_control:
                         state = 'red'
-                        text = "DRY"
+                        gesture_name = "dry_run"
                     
                     if self.paused:
                         state = 'red'
-                        text = "⏸"
+                        gesture_name = "paused"
                     elif left_landmarks or right_landmarks:
                         state = 'blue'  # Hand detected (User preference: Blue instead of Green)
                         
-                        # Check for active gestures to update text/icon
+                        # Check for active gestures and get gesture name
                         # Priority: Bimanual > Right > Left
-                        gest_text = ""
                         
-                        # Helper to map gesture to emoji/text
-                        def get_gesture_icon(g_name):
-                            icons = {
-                                'pointing': '👆',
-                                'pinch': '🤏',
-                                'zoom': '🤌',
-                                'swipe': '👋',
-                                'open_hand': '✋',
-                                'thumbs_up': '👍',
-                                'thumbs_down': '👎',
-                                'precision_cursor': '🎯',
-                                'pan': '↔️'
-                            }
-                            return icons.get(g_name, g_name[:2].upper())
-
                         # Check Bimanual
                         bi_gests = all_gestures.get('bimanual', {})
                         if bi_gests:
-                            g_name = next(iter(bi_gests))
-                            gest_text = get_gesture_icon(g_name)
-                            # state = 'blue' # Already blue
+                            gesture_name = next(iter(bi_gests))
                         else:
                             # Check Right
                             r_gests = all_gestures.get('right', {})
                             if r_gests:
-                                g_name = next(iter(r_gests))
-                                gest_text = get_gesture_icon(g_name)
+                                gesture_name = next(iter(r_gests))
                             else:
                                 # Check Left
                                 l_gests = all_gestures.get('left', {})
                                 if l_gests:
-                                    g_name = next(iter(l_gests))
-                                    gest_text = get_gesture_icon(g_name)
+                                    gesture_name = next(iter(l_gests))
                         
-                        if gest_text:
-                            text = gest_text
-                            
                         # Quit Gesture Logic (Thumbs Down held)
                         is_thumbs_down = 'thumbs_down' in all_gestures.get('right', {}) or \
                                          'thumbs_down' in all_gestures.get('left', {})
@@ -544,14 +538,14 @@ class HANDSApplication:
                                 print("\n🛑 Quit gesture detected! Exiting...")
                                 self.running = False
                             else:
-                                # Show countdown or visual feedback for quitting
+                                # Show countdown for quitting
                                 remaining = int(self.quit_hold_duration - elapsed + 0.9)
-                                text = f"🚪 {remaining}"
+                                gesture_name = f"exit_{remaining}"
                                 state = 'red'
                         else:
                             self.quit_gesture_start_time = 0
 
-                    self.status_queue.put((state, text))
+                    self.status_queue.put((state, gesture_name))
 
                 if show_camera:
                     # Resize frame to match display window size
