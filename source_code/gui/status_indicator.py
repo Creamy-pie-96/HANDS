@@ -44,8 +44,12 @@ class StatusIndicator(QWidget):
         self.sticker_cache = {}
         self.stickers_enabled = False
         
-        # Load stickers from config
+        # Color map: {color_name: QColor}
+        self.color_map = {}
+        
+        # Load stickers and colors from config
         self._load_stickers()
+        self._load_colors()
         
         self.initUI()
         
@@ -69,7 +73,13 @@ class StatusIndicator(QWidget):
         self.sticker_cache.clear()
         loaded_count = 0
         
-        for gesture_name, filename in sticker_paths.items():
+        for gesture_name, filename_entry in sticker_paths.items():
+            # Handle [value, description] format from config
+            if isinstance(filename_entry, list):
+                filename = filename_entry[0] if filename_entry else None
+            else:
+                filename = filename_entry
+            
             if not filename:
                 continue
             
@@ -173,6 +183,29 @@ class StatusIndicator(QWidget):
             painter.setFont(font)
             painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, self.current_text)
 
+    def _load_colors(self):
+        """Load indicator colors from config."""
+        colors_cfg = self.config.get('display', 'status_indicator', 'colors', default={})
+        
+        # Default colors
+        defaults = {
+            'red': [255, 50, 50],
+            'yellow': [255, 200, 0],
+            'blue': [50, 150, 255]
+        }
+        
+        self.color_map = {}
+        for color_name, default_rgb in defaults.items():
+            rgb = colors_cfg.get(color_name, default_rgb)
+            # Handle [value, description] format
+            if isinstance(rgb, list) and len(rgb) >= 3:
+                if isinstance(rgb[0], list):
+                    # Nested list format: [[r,g,b], "description"]
+                    rgb = rgb[0]
+                self.color_map[color_name] = QColor(rgb[0], rgb[1], rgb[2])
+            else:
+                self.color_map[color_name] = QColor(*default_rgb)
+    
     def update_status(self, color_name: str, text: str):
         """
         Update the indicator state.
@@ -181,13 +214,7 @@ class StatusIndicator(QWidget):
             color_name: 'red', 'yellow', 'blue' for state color
             text: Gesture name (for sticker lookup) or special state
         """
-        color_map = {
-            'red': QColor(255, 50, 50),      # Error/Paused
-            'yellow': QColor(255, 200, 0),   # Idle/Searching
-            'blue': QColor(50, 150, 255)     # Hand Detected 
-        }
-        
-        self.current_color = color_map.get(color_name, QColor(100, 100, 100))
+        self.current_color = self.color_map.get(color_name, QColor(100, 100, 100))
         
         # Map gesture name to emoji for fallback display
         emoji_map = {
@@ -221,9 +248,10 @@ class StatusIndicator(QWidget):
         self.update()  # Trigger repaint
     
     def reload_config(self):
-        """Reload configuration and refresh stickers."""
+        """Reload configuration and refresh stickers and colors."""
         self.config.reload()
         self._load_stickers()
+        self._load_colors()
         
         # Update visual settings
         size = self.config.get('display', 'status_indicator', 'size', default=64)

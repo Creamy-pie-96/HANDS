@@ -345,6 +345,11 @@ class Config:
                         "thumbs_down_moving_down": "thumbs_down_moving_down.png",
                         "pan": "pan.png",
                         "precision_cursor": "precision_cursor.png"
+                    },
+                    "colors": {
+                        "red": [255, 50, 50],
+                        "yellow": [255, 200, 0],
+                        "blue": [50, 150, 255]
                     }
                 }
             },
