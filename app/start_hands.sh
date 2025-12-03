@@ -4,10 +4,7 @@
 # Launches the HANDS application with proper environment
 #
 
-echo "=================================="
-echo "HANDS Quick Start"
-echo "=================================="
-echo ""
+# Minimal launcher output (suppressed verbose startup banners)
 
 
 # Resolve the directory where the script is located
@@ -15,7 +12,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 # Project root is the parent of the app directory
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-echo "Project root: $PROJECT_ROOT"
+# project root is available in $PROJECT_ROOT (no verbose printing)
 
 # Help function: display usage and examples
 show_help() {
@@ -101,6 +98,7 @@ PAUSE_VAL=""
 EXIT_FLAG=false
 EXIT_VAL=""
 FINALARGS=()
+STATUS_FLAG=false
 
 # Iterate over previously-collected NEWARGS and peel off control flags
 i=0
@@ -156,6 +154,12 @@ while [ $i -lt ${#NEWARGS[@]} ]; do
             EXIT_FLAG=true
             EXIT_VAL="${a#--exit=}"
             ;;
+        --status)
+            STATUS_FLAG=true
+            ;;
+        --status=*)
+            STATUS_FLAG=true
+            ;;
         --start)
             # handled above; noop
             ;;
@@ -180,9 +184,11 @@ done
 # We'll call the Python control script after we find the python executable.
 
 if [ "$CLEAN" = true ]; then
-    echo "Cleaning Python caches (__pycache__ and .pyc files)..."
+    echo "Cleaning Python caches..."
     find "$PROJECT_ROOT" -type d -name "__pycache__" -print -exec rm -rf {} +
     find "$PROJECT_ROOT" -type f -name "*.pyc" -print -delete
+    # Clear the terminal to remove noisy output from the cleanup
+    clear
 fi
 
 # Locate venv python executable in a cross-platform way
@@ -196,10 +202,9 @@ else
     exit 1
 fi
 
-echo "Starting HANDS application..."
-echo ""
+# Starting HANDS application (minimal output)
 # If user requested pause/exit control, call the app_control script first
-if [ "$PAUSE_FLAG" = true ] || [ "$EXIT_FLAG" = true ] || [ "${ORIGARGS[*]}" = *--status* ]; then
+if [ "$PAUSE_FLAG" = true ] || [ "$EXIT_FLAG" = true ] || [ "$STATUS_FLAG" = true ]; then
     # Build control args by forwarding any control-related tokens from ORIGARGS
     CTRL_ARGS=()
     i=0
@@ -248,7 +253,28 @@ if [ "$PAUSE_FLAG" = true ] || [ "$EXIT_FLAG" = true ] || [ "${ORIGARGS[*]}" = *
         CTRL_ARGS+=(--config "$PROJECT_ROOT/source_code/config/config.json")
     fi
 
-    echo "Running app control: $PYEXEC $PROJECT_ROOT/source_code/scripts/app_control.py ${CTRL_ARGS[*]}"
+    # Determine the config path used by control so we can reuse it for resetting
+    CTRL_CONFIG=""
+    j=0
+    while [ $j -lt ${#CTRL_ARGS[@]} ]; do
+        t="${CTRL_ARGS[$j]}"
+        if [[ "$t" == --config=* ]]; then
+            CTRL_CONFIG="${t#--config=}"
+            break
+        elif [[ "$t" == --config ]]; then
+            nextj=$((j+1))
+            if [ $nextj -lt ${#CTRL_ARGS[@]} ]; then
+                CTRL_CONFIG="${CTRL_ARGS[$nextj]}"
+                break
+            fi
+        fi
+        j=$((j+1))
+    done
+    if [ -z "$CTRL_CONFIG" ]; then
+        CTRL_CONFIG="$PROJECT_ROOT/source_code/config/config.json"
+    fi
+
+    # Invoke control script silently (it prints its own confirmations/errors)
     "$PYEXEC" "$PROJECT_ROOT/source_code/scripts/app_control.py" "${CTRL_ARGS[@]}"
 
     # If exit flag set to a truthy value, wait 5s then exit without starting HANDS
@@ -258,6 +284,8 @@ if [ "$PAUSE_FLAG" = true ] || [ "$EXIT_FLAG" = true ] || [ "${ORIGARGS[*]}" = *
         if [ -z "$ev" ] || [ "$ev" = "true" ] || [ "$ev" = "1" ] || [ "$ev" = "yes" ]; then
             echo "Exit requested via --exit; waiting 5s then exiting..."
             sleep 5
+            # Reset the exit flag using the same config the control invocation used
+            "$PYEXEC" "$PROJECT_ROOT/source_code/scripts/app_control.py" --exit false --config "$CTRL_CONFIG"
             exit 0
         fi
     fi
