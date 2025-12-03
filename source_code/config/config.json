@@ -86,19 +86,19 @@
     },
     "zoom": {
       "finger_gap_threshold": [
-        0.06,
+        0.175,
         "Maximum allowed distance between index and middle fingers (they must stay together)"
       ],
       "ewma_alpha": [
-        0.3,
+        0.5,
         "EWMA smoothing factor for spread change rate (0-1, higher=more responsive, lower=smoother)"
       ],
       "velocity_threshold": [
-        0.007,
+        0.0001,
         "Minimum EWMA-smoothed spread change velocity to gain confidence (normalized units/frame)"
       ],
       "confidence_ramp_up": [
-        0.34,
+        0.95,
         "Confidence increase per frame when correct movement detected (0-1, higher=faster trigger)"
       ],
       "confidence_decay": [
@@ -110,7 +110,7 @@
         "Minimum confidence level to report zoom as detected (0-1, lower=easier trigger)"
       ],
       "max_velocity": [
-        1.5,
+        2.0,
         "Maximum spread change velocity allowed (filters sudden jumps/noise)"
       ],
       "require_fingers_extended": [
