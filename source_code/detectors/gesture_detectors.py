@@ -866,20 +866,16 @@ class GestureManager:
         )
         self.history[hand_label].append(metrics)
         
-        # Run all detectors
         results = {}
         
-        # Call each detector
         pinch_result = self.pinch.detect(metrics)
         pointing_result = self.pointing.detect(metrics)
         swipe_result = self.swipe.detect(metrics)
         zoom_result = self.zoom.detect(metrics)
         thumbs_result = self.thumbs.detect(metrics)
         open_hand_result = self.open_hand.detect(metrics)
-        
-        # Always expose all detector results as metadata previews for visual feedback
-        # under reserved keys so visualizers can display tuning info even when gestures
-        # are not reported as active.
+
+
         results['__pinch_meta'] = pinch_result
         results['__pointing_meta'] = pointing_result
         results['__swipe_meta'] = swipe_result
@@ -921,24 +917,14 @@ class GestureManager:
             # if swipe_result.detected:
             #     results['swipe'] = swipe_result
             return results
-            
-        # Only check open_hand if no other higher-priority gesture detected
-        if open_hand_result.detected:
-            # When open hand is detected, check if we're also swiping
-            if swipe_result.detected:
-                finger_count = sum(metrics.fingers_extended.values())
-                # Swipe requires 4 or 5 fingers extended (open hand while moving)
-                if finger_count >= 4:
-                    results['swipe'] = swipe_result
-                else:
-                    results['open_hand'] = open_hand_result
-            else:
-                results['open_hand'] = open_hand_result
-        elif swipe_result.detected:
-            # Swipe can also be detected independently with enough fingers
+        if swipe_result.detected:
             finger_count = sum(metrics.fingers_extended.values())
             if finger_count >= 4:
                 results['swipe'] = swipe_result
+                return results
+                        
+        if open_hand_result.detected:
+                    results['open_hand'] = open_hand_result
 
         return results
 
