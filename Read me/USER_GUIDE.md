@@ -46,15 +46,12 @@ These keys control the application itself and general displays.
 | Open hand (✋)                      | Reserved (5 fingers)                  |
 | Thumbs Up (👍)                      | Thumbs up — Confirm / Accept          |
 | Thumbs Down (👎)                    | Thumbs down — Reject / Decline        |
-| Thumbs Up (👍) — Moving Up          | Thumbs up + upward velocity           |
-| Thumbs Up (👍) — Moving Down        | Thumbs up + downward velocity         |
-| Thumbs Down (👎)— Moving Up         | Thumbs down + upward velocity         |
 | Thumbs Up (👍⬆️)                    | Thumbs up + upward velocity           |
 | Thumbs Up (👍⬇️)                    | Thumbs up + downward velocity         |
 | Thumbs Down (👎⬆️)                  | Thumbs down + upward velocity         |
 | Thumbs Down (👎⬇️)                  | Thumbs down + downward velocity       |
-| Two-hand — Left still + Right move  | Pan / Scroll                          |
-| Two-hand — Left still + Right point | Precision cursor                      |
+| Two-hand — Left still (✋) + Right move (👋)  | Pan / Scroll                          |
+| Two-hand — Left still (✋) + Right point (👆) | Precision cursor                      |
 
 ---
 

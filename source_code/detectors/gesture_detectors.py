@@ -89,7 +89,17 @@ def compute_hand_metrics(
     ymin, ymax = float(norm[:,1].min()), float(norm[:,1].max())
 
     bbox = (xmin,ymin,xmax,ymax)
-    # Extract finget tips positions
+    
+    # Calculate hand bounding box dimensions for normalization
+    h, w = img_shape[0], img_shape[1]
+    bbox_w_px = (xmax - xmin) * w
+    bbox_h_px = (ymax - ymin) * h
+    hand_diag_px = float(np.hypot(bbox_w_px, bbox_h_px))
+    img_diag_px = float(np.hypot(w, h))
+    eps = 1e-6
+    diag_rel = hand_diag_px / (img_diag_px + eps)
+    
+    # Extract finger tips positions
     tip_positions = {
         'thumb' : tuple(norm[4]),
         'index' : tuple(norm[8]),
@@ -98,31 +108,19 @@ def compute_hand_metrics(
         'pinky' : tuple(norm[20]),
     }
 
-    # Distence between tips
+    # Distance between tips - normalized by hand bounding box diagonal
     tip_distances = {
-        'index_thumb' : float(euclidean(norm[4],norm[8])),
-        'index_middle' : float(euclidean(norm[8],norm[12])),
-        'index_ring' : float(euclidean(norm[8],norm[16])),
-        'index_pinky' : float(euclidean(norm[8],norm[20])),
-        'thumb_middle' : float(euclidean(norm[4],norm[12])),
-        'thumb_ring' : float(euclidean(norm[4],norm[16])),
-        'thumb_pinky' : float(euclidean(norm[4],norm[20])),
-        'middle_ring' : float(euclidean(norm[12],norm[16])),
-        'middle_pinky' : float(euclidean(norm[12],norm[20])),
-        'ring_pinky' : float(euclidean(norm[16],norm[20]))
+        'index_thumb' : float(euclidean(norm[4],norm[8])) / (hand_diag_px / img_diag_px + eps),
+        'index_middle' : float(euclidean(norm[8],norm[12])) / (hand_diag_px / img_diag_px + eps),
+        'index_ring' : float(euclidean(norm[8],norm[16])) / (hand_diag_px / img_diag_px + eps),
+        'index_pinky' : float(euclidean(norm[8],norm[20])) / (hand_diag_px / img_diag_px + eps),
+        'thumb_middle' : float(euclidean(norm[4],norm[12])) / (hand_diag_px / img_diag_px + eps),
+        'thumb_ring' : float(euclidean(norm[4],norm[16])) / (hand_diag_px / img_diag_px + eps),
+        'thumb_pinky' : float(euclidean(norm[4],norm[20])) / (hand_diag_px / img_diag_px + eps),
+        'middle_ring' : float(euclidean(norm[12],norm[16])) / (hand_diag_px / img_diag_px + eps),
+        'middle_pinky' : float(euclidean(norm[12],norm[20])) / (hand_diag_px / img_diag_px + eps),
+        'ring_pinky' : float(euclidean(norm[16],norm[20])) / (hand_diag_px / img_diag_px + eps)
     }
-
-    # diagonal relations
-
-    h, w = img_shape[0], img_shape[1]
-    # bbox is in normalized coords; convert to pixel sizes for diagonal
-    bbox_w_px = (xmax - xmin) * w
-    bbox_h_px = (ymax - ymin) * h
-    hand_diag_px = float(np.hypot(bbox_w_px, bbox_h_px))
-    img_diag_px = float(np.hypot(w, h))
-    # diag_rel: hand diagonal relative to image diagonal
-    eps = 1e-6
-    diag_rel = hand_diag_px / (img_diag_px + eps)
 
     velocity = (0.0, 0.0)
     speed = 0.0
@@ -219,7 +217,8 @@ def is_finger_extended(
     tip_pt = landmarks_norm[tip_idx]
     pip_pt = landmarks_norm[pip_idx]
 
-    # distances to palm centroid
+    # distances to palm centroid - already in normalized coords, no further normalization needed
+    # since we're computing a ratio, the normalization cancels out
     d_tip = euclidean(tip_pt, palm_centroid)
     d_pip = euclidean(pip_pt, palm_centroid)
 
@@ -303,10 +302,12 @@ class PointingDetector:
         self.max_speed = float(max_speed)
         self.ewma_alpha = ewma_alpha
         self.ewma_speed = EWMA(alpha=ewma_alpha)
-
     def detect(self, metrics: HandMetrics) -> GestureResult:
         index_tip = metrics.tip_positions['index']
         centroid = metrics.centroid
+        # Normalize distance by hand size (diag_rel contains hand_diag/img_diag)
+        eps = 1e-6
+        distance = euclidean(index_tip, centroid) / (metrics.diag_rel + eps)
         distance = euclidean(index_tip, centroid)
         
         raw_speed = float(np.hypot(metrics.velocity[0], metrics.velocity[1]))
