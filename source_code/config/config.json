@@ -2,11 +2,11 @@
   "gesture_thresholds": {
     "pinch": {
       "threshold_rel": [
-        0.14,
+        0.17,
         "Maximum distance between thumb and index fingertips to trigger pinch (normalized 0-1)"
       ],
       "hold_frames": [
-        5,
+        3,
         "Number of consecutive frames pinch must be held before triggering"
       ],
       "cooldown_seconds": [
@@ -20,7 +20,7 @@
         "Minimum distance index finger tip must be from palm to count as pointing"
       ],
       "max_speed": [
-        0.5,
+        1.0,
         "Maximum hand velocity allowed for stable pointing (prevents detection during fast movement)"
       ],
       "max_extra_fingers": [
@@ -28,7 +28,7 @@
         "Maximum number of other fingers allowed to be extended (0=only index, 1=index+one more)"
       ],
       "ewma_alpha": [
-        0.4,
+        0.5,
         "EWMA smoothing factor for speed tracking (0-1, higher=more responsive, lower=smoother)"
       ]
     },
@@ -138,15 +138,15 @@
   "system_control": {
     "cursor": {
       "smoothing_factor": [
-        0.3,
+        0.95,
         "EWMA smoothing alpha (0-1, higher=less smooth but more responsive)"
       ],
       "speed_multiplier": [
-        1.5,
+        1.75,
         "Cursor movement speed multiplier"
       ],
       "bounds_padding": [
-        10,
+        1,
         "Pixels to keep cursor away from screen edges"
       ],
       "precision_damping": [
@@ -154,19 +154,19 @@
         "Movement reduction factor in precision mode (lower=finer control)"
       ],
       "dead_zone": [
-        0.02,
+        0.01,
         "Minimum movement threshold to trigger cursor update (normalized 0-1, reduces jitter)"
       ],
       "magnetic_radius": [
-        0.05,
+        0.15,
         "Distance from current position where magnetic damping applies (normalized 0-1)"
       ],
       "magnetic_factor": [
-        0.4,
+        0.5,
         "Movement reduction within magnetic radius (0-1, lower=stronger sticking)"
       ],
       "screen_bounds_padding": [
-        10,
+        1,
         "Pixels to keep cursor away from screen edges (fallback when bounds not detected)"
       ],
       "fallback_screen_width": [
@@ -219,7 +219,7 @@
       "Enable visual overlays on video feed"
     ],
     "show_hand_skeleton": [
-      true,
+      false,
       "Draw hand skeleton and connections"
     ],
     "show_fingertips": [

@@ -208,7 +208,7 @@ def is_finger_extended(
         'ring': LANDMARK_NAMES['RING_PIP'],
         'pinky': LANDMARK_NAMES['PINKY_PIP'],
     }
-
+    wrist_idx = LANDMARK_NAMES['WRIST']
     # ensures requested finger is known
     if finger_name not in tip_idx_map or finger_name not in pip_idx_map:
         return False
@@ -218,16 +218,19 @@ def is_finger_extended(
 
     tip_pt = landmarks_norm[tip_idx]
     pip_pt = landmarks_norm[pip_idx]
+    
+    wrist_pt = landmarks_norm[wrist_idx]
 
     # distances to palm centroid - already in normalized coords, no further normalization needed
     # since we're computing a ratio, the normalization cancels out
     d_tip = euclidean(tip_pt, palm_centroid)
     d_pip = euclidean(pip_pt, palm_centroid)
-
+    d_tip_wrist = euclidean(tip_pt, wrist_pt)
+    d_pip_wrist = euclidean(pip_pt,wrist_pt)
     # eps to avoid dividing by zero
     eps = 1e-6
-    ratio = d_tip / (d_pip + eps)
-
+    ratio1 = d_tip / (d_pip + eps)
+    ratio2 = d_tip_wrist / (d_pip_wrist + eps)
     # hysteresis thresholds
 
     prev_state = False
@@ -236,7 +239,7 @@ def is_finger_extended(
 
     threshold = close_ratio if prev_state else open_ratio
 
-    return (ratio > threshold)
+    return (ratio1 > threshold and ratio2 > threshold)
 
 
 class PinchDetector:
@@ -311,7 +314,6 @@ class PointingDetector:
         # Distance is in normalized image coords, so divide by diag_rel to get relative to hand
         eps = 1e-6
         distance = euclidean(index_tip, centroid) / (metrics.diag_rel + eps)
-        distance = euclidean(index_tip, centroid)
         
         raw_speed = float(np.hypot(metrics.velocity[0], metrics.velocity[1]))
         smoothed_speed_arr = self.ewma_speed.update([raw_speed])
