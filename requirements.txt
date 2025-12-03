@@ -1,5 +1,5 @@
-numpy
-opencv-python
-mediapipe
+numpy>=2.0
+opencv-python>=4.10
+mediapipe>=0.10.14
 pynput
 screeninfo

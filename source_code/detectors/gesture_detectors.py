@@ -237,8 +237,9 @@ def is_finger_extended(
     if prev_metrics is not None and getattr(prev_metrics, 'fingers_extended', None):
         prev_state = bool(prev_metrics.fingers_extended.get(finger_name, False))
 
+    
     threshold = close_ratio if prev_state else open_ratio
-
+    
     return (ratio1 > threshold and ratio2 > threshold)
 
 

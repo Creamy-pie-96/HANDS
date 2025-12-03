@@ -16,11 +16,11 @@
     },
     "pointing": {
       "min_extension_ratio": [
-        0.2,
+        0.1,
         "Minimum distance index finger tip must be from palm to count as pointing"
       ],
       "max_speed": [
-        1.0,
+        10.0,
         "Maximum hand velocity allowed for stable pointing (prevents detection during fast movement)"
       ],
       "max_extra_fingers": [
@@ -28,7 +28,7 @@
         "Maximum number of other fingers allowed to be extended (0=only index, 1=index+one more)"
       ],
       "ewma_alpha": [
-        0.5,
+        0.3,
         "EWMA smoothing factor for speed tracking (0-1, higher=more responsive, lower=smoother)"
       ]
     },
@@ -138,11 +138,11 @@
   "system_control": {
     "cursor": {
       "smoothing_factor": [
-        0.95,
+        0.6,
         "EWMA smoothing alpha (0-1, higher=less smooth but more responsive)"
       ],
       "speed_multiplier": [
-        1.75,
+        1.9,
         "Cursor movement speed multiplier"
       ],
       "bounds_padding": [
@@ -158,11 +158,11 @@
         "Minimum movement threshold to trigger cursor update (normalized 0-1, reduces jitter)"
       ],
       "magnetic_radius": [
-        0.15,
+        0.005,
         "Distance from current position where magnetic damping applies (normalized 0-1)"
       ],
       "magnetic_factor": [
-        0.5,
+        0.7,
         "Movement reduction within magnetic radius (0-1, lower=stronger sticking)"
       ],
       "screen_bounds_padding": [
@@ -219,7 +219,7 @@
       "Enable visual overlays on video feed"
     ],
     "show_hand_skeleton": [
-      false,
+      true,
       "Draw hand skeleton and connections"
     ],
     "show_fingertips": [
@@ -489,11 +489,11 @@
       "Camera device index (0=default, 1=second camera, etc.)"
     ],
     "width": [
-      640,
+      1280,
       "Camera capture width in pixels"
     ],
     "height": [
-      480,
+      720,
       "Camera capture height in pixels"
     ],
     "fps": [
@@ -502,6 +502,10 @@
     ]
   },
   "performance": {
+    "use_gpu": [
+      false,
+      "Use GPU acceleration for hand detection (requires compatible GPU, falls back to CPU if unavailable)"
+    ],
     "show_fps": [
       true,
       "Display FPS counter on screen"

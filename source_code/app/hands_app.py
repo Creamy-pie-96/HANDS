@@ -14,6 +14,8 @@ import numpy as np
 import time
 import os
 import sys
+import urllib.request
+from pathlib import Path
 
 # HANDS modules
 from source_code.detectors.bimanual_gestures import ComprehensiveGestureManager
@@ -23,6 +25,46 @@ from source_code.config.config_manager import config
 
 # MediaPipe setup
 mp_hands = mp.solutions.hands
+
+# MediaPipe Tasks API for GPU support
+from mediapipe.tasks import python as mp_tasks
+from mediapipe.tasks.python import vision as mp_vision
+from mediapipe.tasks.python.core.base_options import BaseOptions
+
+# Model URL and local path
+HAND_LANDMARKER_MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'
+HAND_LANDMARKER_MODEL_PATH = Path(__file__).parent.parent / 'models' / 'hand_landmarker.task'
+
+
+def ensure_model_downloaded():
+    """Download the hand landmarker model if not present."""
+    model_path = HAND_LANDMARKER_MODEL_PATH
+    model_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    if not model_path.exists():
+        print(f"📥 Downloading hand landmarker model...")
+        try:
+            urllib.request.urlretrieve(HAND_LANDMARKER_MODEL_URL, str(model_path))
+            print(f"✓ Model downloaded to {model_path}")
+        except Exception as e:
+            print(f"⚠ Failed to download model: {e}")
+            return None
+    
+    return str(model_path)
+
+
+class TasksLandmarkPoint:
+    """Wrapper to make Tasks API landmark compatible with legacy API."""
+    def __init__(self, landmark):
+        self.x = landmark.x
+        self.y = landmark.y
+        self.z = landmark.z if hasattr(landmark, 'z') else 0.0
+
+
+class TasksLandmarksWrapper:
+    """Wrapper to make Tasks API hand_landmarks compatible with legacy API."""
+    def __init__(self, hand_landmarks):
+        self.landmark = [TasksLandmarkPoint(lm) for lm in hand_landmarks]
 
 
 class HANDSApplication:
@@ -73,13 +115,70 @@ class HANDSApplication:
         detection_conf = config.get('performance', 'min_detection_confidence', default=0.7)
         tracking_conf = config.get('performance', 'min_tracking_confidence', default=0.3)
         max_hands = config.get('performance', 'max_hands', default=2)
+        use_gpu = config.get('performance', 'use_gpu', default=True)
         
-        self.hands = mp_hands.Hands(
-            min_detection_confidence=detection_conf,
-            min_tracking_confidence=tracking_conf,
-            max_num_hands=max_hands
-        )
-        print(f"✓ MediaPipe Hands initialized (max_hands={max_hands})")
+        # Store for later reference
+        self.use_gpu = False
+        self.hands = None
+        self.hand_landmarker = None
+        self.use_tasks_api = False
+        
+        # Try to use Tasks API with GPU if enabled
+        if use_gpu:
+            model_path = ensure_model_downloaded()
+            if model_path:
+                try:
+                    delegate = BaseOptions.Delegate.GPU
+                    options = mp_vision.HandLandmarkerOptions(
+                        base_options=BaseOptions(
+                            model_asset_path=model_path,
+                            delegate=delegate
+                        ),
+                        running_mode=mp_vision.RunningMode.IMAGE,
+                        num_hands=max_hands,
+                        min_hand_detection_confidence=detection_conf,
+                        min_tracking_confidence=tracking_conf
+                    )
+                    self.hand_landmarker = mp_vision.HandLandmarker.create_from_options(options)
+                    self.use_tasks_api = True
+                    self.use_gpu = True
+                    print(f"✓ MediaPipe HandLandmarker initialized with GPU (max_hands={max_hands})")
+                except Exception as e:
+                    print(f"⚠ GPU initialization failed: {e}")
+                    print("  Falling back to CPU...")
+                    self.use_gpu = False
+        
+        # Fallback to CPU (either GPU disabled or failed)
+        if not self.use_tasks_api:
+            if use_gpu:
+                # Try CPU with Tasks API first (still faster than legacy)
+                model_path = ensure_model_downloaded()
+                if model_path:
+                    try:
+                        options = mp_vision.HandLandmarkerOptions(
+                            base_options=BaseOptions(
+                                model_asset_path=model_path,
+                                delegate=BaseOptions.Delegate.CPU
+                            ),
+                            running_mode=mp_vision.RunningMode.IMAGE,
+                            num_hands=max_hands,
+                            min_hand_detection_confidence=detection_conf,
+                            min_tracking_confidence=tracking_conf
+                        )
+                        self.hand_landmarker = mp_vision.HandLandmarker.create_from_options(options)
+                        self.use_tasks_api = True
+                        print(f"✓ MediaPipe HandLandmarker initialized with CPU (max_hands={max_hands})")
+                    except Exception as e:
+                        print(f"⚠ Tasks API CPU fallback failed: {e}")
+            
+            # Final fallback to legacy API
+            if not self.use_tasks_api:
+                self.hands = mp_hands.Hands(
+                    min_detection_confidence=detection_conf,
+                    min_tracking_confidence=tracking_conf,
+                    max_num_hands=max_hands
+                )
+                print(f"✓ MediaPipe Hands (legacy) initialized (max_hands={max_hands})")
         
         # Initialize gesture manager
         self.gesture_mgr = ComprehensiveGestureManager(config)
@@ -256,19 +355,41 @@ class HANDSApplication:
 
                 # Process with MediaPipe
                 frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
-                results = self.hands.process(frame_rgb)
                 
                 # Separate hands
                 left_landmarks = None
                 right_landmarks = None
                 
-                if results.multi_hand_landmarks and results.multi_handedness:
-                    for hand_landmarks, handedness in zip(results.multi_hand_landmarks, results.multi_handedness):
-                        hand_label = handedness.classification[0].label.lower()
-                        if hand_label == 'left':
-                            left_landmarks = hand_landmarks
-                        else:
-                            right_landmarks = hand_landmarks
+                if self.use_tasks_api:
+                    # Use Tasks API (supports GPU)
+                    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame_rgb)
+                    results = self.hand_landmarker.detect(mp_image)
+                    
+                    if results.hand_landmarks and results.handedness:
+                        for hand_landmarks, handedness in zip(results.hand_landmarks, results.handedness):
+                            # Convert Tasks API landmarks to legacy format wrapper
+                            hand_label = handedness[0].category_name.lower()
+                            # IMPORTANT: Tasks API doesn't account for flipped images
+                            # When image is flipped horizontally, we need to swap handedness
+                            # to match user's perspective (mirror mode)
+                            if flip_horizontal:
+                                hand_label = 'right' if hand_label == 'left' else 'left'
+                            landmarks_wrapper = TasksLandmarksWrapper(hand_landmarks)
+                            if hand_label == 'left':
+                                left_landmarks = landmarks_wrapper
+                            else:
+                                right_landmarks = landmarks_wrapper
+                else:
+                    # Use legacy API
+                    results = self.hands.process(frame_rgb)
+                    
+                    if results.multi_hand_landmarks and results.multi_handedness:
+                        for hand_landmarks, handedness in zip(results.multi_hand_landmarks, results.multi_handedness):
+                            hand_label = handedness.classification[0].label.lower()
+                            if hand_label == 'left':
+                                left_landmarks = hand_landmarks
+                            else:
+                                right_landmarks = hand_landmarks
                 
                 # Detect gestures
                 all_gestures = self.gesture_mgr.process_hands(
@@ -310,8 +431,9 @@ class HANDSApplication:
                 
                 # Draw FPS and debug info
                 if self.show_fps:
-                    fps_text = f"FPS: {self.fps:.1f}"
-                    cv2.putText(frame_bgr, fps_text, (w - 150, 30),
+                    mode_str = "GPU" if self.use_gpu else "CPU"
+                    fps_text = f"FPS: {self.fps:.1f} [{mode_str}]"
+                    cv2.putText(frame_bgr, fps_text, (w - 200, 30),
                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2, cv2.LINE_AA)
                 
                 # Debug: Print detected gestures to terminal
@@ -325,8 +447,11 @@ class HANDSApplication:
                                 meta_str = f" ({result.metadata['direction']})"
                             print(f"[{category}] {gesture_name.upper()}{meta_str}")
                 
+                # Resize frame to match display window size
+                display_frame = cv2.resize(frame_bgr, (window_width, window_height), interpolation=cv2.INTER_LINEAR)
+                
                 # Display frame
-                cv2.imshow("HANDS Control", frame_bgr)
+                cv2.imshow("HANDS Control", display_frame)
                 
                 # Handle keyboard input (accept uppercase or lowercase)
                 key = cv2.waitKey(1) & 0xFF
@@ -380,6 +505,9 @@ class HANDSApplication:
         
         if self.cap:
             self.cap.release()
+        
+        if self.hand_landmarker:
+            self.hand_landmarker.close()
         
         if self.hands:
             self.hands.close()

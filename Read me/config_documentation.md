@@ -178,7 +178,13 @@ Controls how gestures map to system actions.
 - `camera.width` / `camera.height`: 640 / 480 — Capture resolution.
 - `camera.fps`: 60 — Requested FPS (actual may vary by camera/system).
 
-- `performance.show_fps`: true — Show FPS counter on-screen.
+- `performance.use_gpu`: true — Use GPU acceleration for hand detection.
+  - When enabled, HANDS uses the MediaPipe Tasks API with GPU delegate for faster inference.
+  - Provides significant FPS improvement (typically 1.5x-2x faster than CPU).
+  - Automatically falls back to CPU if GPU is unavailable or initialization fails.
+  - Set to `false` to force CPU-only processing.
+  - **Requirements**: Compatible GPU with OpenGL ES 3.1+ or Vulkan support.
+- `performance.show_fps`: true — Show FPS counter on-screen (displays [GPU] or [CPU] indicator).
 - `performance.show_debug_info`: false — Print verbose detection info to terminal.
 - `performance.max_hands`: 2 — Max hands to detect.
 - `performance.min_detection_confidence`: 0.7 — MediaPipe detection threshold.

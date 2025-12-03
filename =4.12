@@ -1,0 +1,13 @@
+Requirement already satisfied: numpy in ./.venv/lib/python3.12/site-packages (1.26.4)
+Requirement already satisfied: opencv-python in ./.venv/lib/python3.12/site-packages (4.12.0.88)
+Collecting numpy
+  Using cached numpy-2.2.6-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (62 kB)
+Using cached numpy-2.2.6-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (16.5 MB)
+Installing collected packages: numpy
+  Attempting uninstall: numpy
+    Found existing installation: numpy 1.26.4
+    Uninstalling numpy-1.26.4:
+      Successfully uninstalled numpy-1.26.4
+ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.
+mediapipe 0.10.21 requires numpy<2, but you have numpy 2.2.6 which is incompatible.
+Successfully installed numpy-2.2.6

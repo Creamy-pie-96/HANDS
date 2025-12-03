@@ -299,6 +299,7 @@ class Config:
                 "fps": 60
             },
             "performance": {
+                "use_gpu": True,
                 "show_fps": True,
                 "show_debug_info": False,
                 "max_hands": 2,
