@@ -3,14 +3,54 @@ import os
 import time
 import queue
 from pathlib import Path
-from PyQt6.QtWidgets import QApplication, QWidget
+from PyQt6.QtWidgets import QApplication, QWidget, QLabel
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QObject, QRect
-from PyQt6.QtGui import QColor, QPainter, QBrush, QFont, QPixmap
-
+from PyQt6.QtGui import QColor, QPainter, QBrush, QFont, QPixmap, QImage
 
 class StatusSignals(QObject):
     """Qt signals for thread-safe status updates."""
     update_state = pyqtSignal(str, str)  # gesture_name, state (color)
+    update_frame = pyqtSignal(object)    # frame (numpy array)
+
+class CameraWindow(QWidget):
+    def __init__(self, config):
+        super().__init__()
+        self.config = config
+        self.initUI()
+        
+    def initUI(self):
+        self.setWindowTitle("HANDS Camera View")
+        width = self.config.get('display', 'window_width', default=640)
+        height = self.config.get('display', 'window_height', default=480)
+        self.resize(width, height)
+        
+        self.image_label = QLabel(self)
+        self.image_label.resize(width, height)
+        self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        # Style
+        self.setStyleSheet("background-color: black;")
+
+    def update_frame(self, frame):
+        if frame is None:
+            return
+            
+        # Convert CV2 frame (BGR) to QImage (RGB)
+        height, width, channel = frame.shape
+        bytes_per_line = 3 * width
+        q_img = QImage(frame.data, width, height, bytes_per_line, QImage.Format.Format_RGB888).rgbSwapped()
+        
+        # Scale to window size
+        pixmap = QPixmap.fromImage(q_img)
+        self.image_label.setPixmap(pixmap.scaled(
+            self.image_label.size(),
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation
+        ))
+        
+    def resizeEvent(self, event):
+        self.image_label.resize(self.size())
+        super().resizeEvent(event)
 
 
 class StatusIndicator(QWidget):
@@ -275,49 +315,63 @@ class StatusIndicator(QWidget):
         return False
 
 
-def run_gui(config, status_queue):
+def run_gui(config, status_queue, frame_queue=None):
     """
     Run the status indicator GUI.
     
     Args:
         config: Config instance
         status_queue: Queue for receiving status updates from main app
+        frame_queue: Optional queue for receiving camera frames
     """
     app = QApplication(sys.argv)
     
-    indicator = StatusIndicator(config, status_queue)
+    # Status Indicator
+    indicator = StatusIndicator(config)
     indicator.show()
+    
+    # Camera Window (Optional)
+    camera_window = None
+    if frame_queue is not None:
+        camera_window = CameraWindow(config)
+        camera_window.show()
     
     signals = StatusSignals()
     signals.update_state.connect(indicator.update_status)
+    if camera_window:
+        signals.update_frame.connect(camera_window.update_frame)
     
-    # Timer to check queue for status updates
-    queue_timer = QTimer()
-    def check_queue():
+    # Timer to check queues
+    timer = QTimer()
+    def check_queues():
+        # Check Status Queue
         try:
             while True:
                 state, text = status_queue.get_nowait()
                 signals.update_state.emit(state, text)
         except queue.Empty:
             pass
-    
-    queue_timer.timeout.connect(check_queue)
-    queue_timer.start(50)  # Check every 50ms
-    
-    # Timer for config hot-reload (check every 2 seconds)
-    config_timer = QTimer()
-    def check_config():
-        if indicator.check_config_changed():
-            print("🔄 [StatusIndicator] Config changed, reloading...")
-            indicator.reload_config()
-        
-        # Check for pause/exit signals in config
-        should_exit = config.get('app_control', 'exit', default=False)
-        if should_exit:
-            print("🛑 [StatusIndicator] Exit signal received via config")
-            app.quit()
-    
-    config_timer.timeout.connect(check_config)
-    config_timer.start(2000)  # Check every 2 seconds
+            
+        # Check Frame Queue
+        if frame_queue:
+            try:
+                # Get the latest frame, discard older ones to reduce lag
+                frame = None
+                while True:
+                    frame = frame_queue.get_nowait()
+                
+            except queue.Empty:
+                # If we got at least one frame, emit it
+                if frame is not None:
+                    signals.update_frame.emit(frame)
+            except Exception:
+                pass
+            else:
+                # If loop finished without exception (rare with get_nowait), emit last frame
+                if frame is not None:
+                    signals.update_frame.emit(frame)
+
+    timer.timeout.connect(check_queues)
+    timer.start(30)  # Check every 30ms (~33 FPS)
     
     sys.exit(app.exec())

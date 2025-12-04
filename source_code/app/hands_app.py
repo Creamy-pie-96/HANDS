@@ -226,6 +226,14 @@ class HANDSApplication:
         # Status Queue for GUI
         self.status_queue = status_queue
         
+        # Frame Queue for GUI (Camera View)
+        self.frame_queue = None
+        if hasattr(self, 'frame_queue_init'):
+             self.frame_queue = self.frame_queue_init
+        
+    def set_frame_queue(self, queue):
+        self.frame_queue = queue
+        
         print("\n✓ HANDS application ready!\n")
     
     def process_gestures(self, all_gestures):
@@ -331,16 +339,8 @@ class HANDSApplication:
         visual_mode = config.get('display', 'visual_mode', default='full')
         show_camera = visual_mode in ['full', 'debug']
         
-        if show_camera:
-            try:
-                cv2.namedWindow("HANDS Control", cv2.WINDOW_NORMAL)
-                cv2.resizeWindow("HANDS Control", window_width, window_height)
-            except cv2.error as e:
-                print(f"⚠ OpenCV GUI not available (headless mode): {e}")
-                print("  Switching to 'minimal' visual mode (Status Indicator only)")
-                show_camera = False
-                # Force visual mode update in config if possible, or just ignore
-                visual_mode = 'minimal'
+        # Note: We no longer use cv2.imshow directly. 
+        # Frames are sent to the GUI thread via frame_queue if show_camera is True.
         
         try:
             while self.running:
@@ -547,19 +547,29 @@ class HANDSApplication:
 
                     self.status_queue.put((state, gesture_name))
 
-                if show_camera:
+                if show_camera and self.frame_queue:
                     # Resize frame to match display window size
                     display_frame = cv2.resize(frame_bgr, (window_width, window_height), interpolation=cv2.INTER_LINEAR)
                     
-                    # Display frame
-                    cv2.imshow("HANDS Control", display_frame)
+                    # Send to GUI thread
+                    try:
+                        # Keep queue size small by removing old frames if full
+                        if self.frame_queue.full():
+                            try:
+                                self.frame_queue.get_nowait()
+                            except queue.Empty:
+                                pass
+                        self.frame_queue.put_nowait(display_frame)
+                    except queue.Full:
+                        pass
                     
-                    # Handle keyboard input (accept uppercase or lowercase)
-                    key = cv2.waitKey(1) & 0xFF
+                    # No cv2.waitKey needed here as GUI handles events
+                    time.sleep(0.001) # Small sleep to yield
                 else:
                     # No window, just sleep briefly to avoid busy loop
                     time.sleep(0.01)
-                    key = 255  # No key pressed
+                
+                key = 255 # Default to no key pressed since we don't have cv2.waitKey
                 # Only process if a key was pressed
                 if key != 255:
                     # Normalize to lowercase character when possible
@@ -618,7 +628,8 @@ class HANDSApplication:
             self.hands.close()
         
         try:
-            cv2.destroyAllWindows()
+            # cv2.destroyAllWindows() # Not needed anymore
+            pass
         except Exception:
             pass
         
@@ -686,8 +697,13 @@ def main():
     status_enabled = config.get('display', 'status_indicator', 'enabled', default=True)
     
     status_queue = None
+    frame_queue = None
+    
     if status_enabled:
         status_queue = queue.Queue()
+        # Only create frame queue if we need to show camera
+        if visual_mode in ['full', 'debug']:
+            frame_queue = queue.Queue(maxsize=2)
     
     # Create application
     try:
@@ -696,6 +712,9 @@ def main():
             enable_system_control=not args.dry_run,
             status_queue=status_queue
         )
+        
+        if frame_queue:
+            app.set_frame_queue(frame_queue)
         
         if status_enabled:
             # Run App logic in a separate thread
@@ -706,9 +725,12 @@ def main():
             
             # Run GUI in main thread
             from source_code.gui.status_indicator import run_gui
-            run_gui(config, status_queue)
+            run_gui(config, status_queue, frame_queue)
         else:
             # Run App in main thread (standard mode)
+            # Note: Without GUI, we can't show camera if headless.
+            # But if user wants full mode without status indicator, they might expect cv2.imshow
+            # We'll assume status_indicator.enabled=False means legacy mode or headless
             app.run()
             
     except KeyboardInterrupt:
