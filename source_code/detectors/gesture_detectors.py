@@ -467,9 +467,14 @@ class SwipeDetector:
         
         is_detected = self.confidence >= self.confidence_threshold
         
+        # Include direction in gesture name for consistency with other directional gestures
+        gesture_name = 'swipe'
+        if is_detected and self.current_direction:
+            gesture_name = f'swipe_{self.current_direction}'
+        
         return GestureResult(
             detected=is_detected,
-            gesture_name='swipe',
+            gesture_name=gesture_name,
             confidence=self.confidence,
             metadata=base_metadata
         )
@@ -613,9 +618,14 @@ class ZoomDetector:
         if is_detected and base_metadata['reason'] not in ['direction_started', 'direction_sustained']:
             base_metadata['reason'] = 'zoom_active'
         
+        # Include direction in gesture name for consistency with other directional gestures
+        gesture_name = 'zoom'
+        if is_detected and self.current_direction:
+            gesture_name = f'zoom_{self.current_direction}'
+        
         return GestureResult(
             detected=is_detected,
-            gesture_name='zoom',
+            gesture_name=gesture_name,
             confidence=self.confidence,
             metadata=base_metadata
         )
@@ -1010,13 +1020,13 @@ class GestureManager:
         
         # Check high-priority gestures first
         if thumbs_result.detected:
-            results['thumbs'] = thumbs_result
+            results[thumbs_result.gesture_name] = thumbs_result
             # if swipe_result.detected:
             #     results['swipe'] = swipe_result
             return results
         
         if zoom_result.detected:
-            results['zoom'] = zoom_result
+            results[zoom_result.gesture_name] = zoom_result
             # if swipe_result.detected:
             #     results['swipe'] = swipe_result
             return results
@@ -1036,7 +1046,7 @@ class GestureManager:
         if swipe_result.detected:
             finger_count = sum(metrics.fingers_extended.values())
             if finger_count >= 4:
-                results['swipe'] = swipe_result
+                results[swipe_result.gesture_name] = swipe_result
                 return results
                         
         if open_hand_result.detected:

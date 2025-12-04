@@ -618,62 +618,27 @@
         "Vertical margin from screen edge"
       ],
       "stickers_base_path": [
-        "stickers",
+        "../gui/stickers",
         "Base directory for gesture sticker images (relative to config or absolute path)"
       ],
       "stickers": {
-        "pointing": [
-          "pointing.png",
-          "Sticker for pointing gesture"
-        ],
-        "pinch": [
-          "pinch.png",
-          "Sticker for pinch gesture"
-        ],
-        "zoom": [
-          "zoom.png",
-          "Sticker for zoom gesture"
-        ],
-        "swipe": [
-          "swipe.png",
-          "Sticker for swipe gesture"
-        ],
-        "open_hand": [
-          "open_hand.png",
-          "Sticker for open hand gesture"
-        ],
-        "thumbs_up": [
-          "thumbs_up.png",
-          "Sticker for static thumbs up gesture"
-        ],
-        "thumbs_down": [
-          "thumbs_down.png",
-          "Sticker for static thumbs down gesture"
-        ],
-        "thumbs_up_moving_up": [
-          "thumbs_up_moving_up.png",
-          "Sticker for thumbs up moving upward"
-        ],
-        "thumbs_up_moving_down": [
-          "thumbs_up_moving_down.png",
-          "Sticker for thumbs up moving downward"
-        ],
-        "thumbs_down_moving_up": [
-          "thumbs_down_moving_up.png",
-          "Sticker for thumbs down moving upward"
-        ],
-        "thumbs_down_moving_down": [
-          "thumbs_down_moving_down.png",
-          "Sticker for thumbs down moving downward"
-        ],
-        "pan": [
-          "pan.png",
-          "Sticker for bimanual pan gesture"
-        ],
-        "precision_cursor": [
-          "precision_cursor.png",
-          "Sticker for bimanual precision cursor mode"
-        ]
+        "pointing": ["pointing.png", "Sticker for pointing gesture"],
+        "pinch": ["pinch.png", "Sticker for pinch gesture"],
+        "zoom": ["zoom_in.png", "Sticker for zoom gesture (fallback)"],
+        "zoom_in": ["zoom_in.png", "Sticker for zoom in gesture"],
+        "zoom_out": ["zoom_out.png", "Sticker for zoom out gesture"],
+        "swipe": ["swipe_up.png", "Sticker for swipe gesture (fallback)"],
+        "swipe_up": ["swipe_up.png", "Sticker for swipe up gesture"],
+        "swipe_down": ["swipe_down.png", "Sticker for swipe down gesture"],
+        "swipe_left": ["swipe_left.png", "Sticker for swipe left gesture"],
+        "swipe_right": ["swipe_right.png", "Sticker for swipe right gesture"],
+        "open_hand": ["open_hand.png", "Sticker for open hand gesture"],
+        "thumbs_up": ["thumbs_up.png", "Sticker for static thumbs up gesture"],
+        "thumbs_down": ["thumbs_down.png", "Sticker for static thumbs down gesture"],
+        "thumbs_up_moving_up": ["thumbs_up_moving_up.png", "Sticker for thumbs up moving upward"],
+        "thumbs_up_moving_down": ["thumbs_up_moving_down.png", "Sticker for thumbs up moving downward"],
+        "thumbs_down_moving_up": ["thumbs_down_moving_up.png", "Sticker for thumbs down moving upward"],
+        "thumbs_down_moving_down": ["thumbs_down_moving_down.png", "Sticker for thumbs down moving downward"]
       },
       "colors": {
         "red": [

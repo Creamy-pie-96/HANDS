@@ -231,8 +231,14 @@ class HANDSApplication:
         if hasattr(self, 'frame_queue_init'):
              self.frame_queue = self.frame_queue_init
         
+        # Key Queue for keyboard input from GUI
+        self.key_queue = None
+        
     def set_frame_queue(self, queue):
         self.frame_queue = queue
+    
+    def set_key_queue(self, queue):
+        self.key_queue = queue
         
         print("\n✓ HANDS application ready!\n")
     
@@ -293,34 +299,40 @@ class HANDSApplication:
             self.system_ctrl.handle_pinch_gesture(False)
         
         # Zoom: System zoom
-        if 'zoom' in right_gestures:
-            data = right_gestures['zoom'].metadata
-            direction = data.get('direction')
-            # Get EWMA velocity for modulation
-            ewma_vel = abs(data.get('ewma_velocity', 0.0))
-            if direction == 'in':
-                self.system_ctrl.zoom(zoom_in=True, velocity_norm=ewma_vel)
-            elif direction == 'out':
-                self.system_ctrl.zoom(zoom_in=False, velocity_norm=ewma_vel)
+        # Handle both zoom_in and zoom_out
+        for gesture_name, gesture_result in right_gestures.items():
+            if gesture_name.startswith('zoom_'):
+                data = gesture_result.metadata
+                direction = data.get('direction')
+                # Get EWMA velocity for modulation
+                ewma_vel = abs(data.get('ewma_velocity', 0.0))
+                if direction == 'in':
+                    self.system_ctrl.zoom(zoom_in=True, velocity_norm=ewma_vel)
+                elif direction == 'out':
+                    self.system_ctrl.zoom(zoom_in=False, velocity_norm=ewma_vel)
+                break
         
         # Swipe: Scroll or workspace switch
-        if 'swipe' in right_gestures:
-            data = right_gestures['swipe'].metadata
-            direction = data.get('direction')
-            # Get EWMA velocity for modulation
-            ewma_velocity = data.get('ewma_velocity', (0.0, 0.0))
-            velocity_norm = float(np.hypot(ewma_velocity[0], ewma_velocity[1]))
-            
-            if direction in ['up', 'down']:
-                # Scroll
-                scroll_amount = self.system_ctrl.scroll_sensitivity
-                if direction == 'up':
-                    self.system_ctrl.scroll(0, scroll_amount, velocity_norm=velocity_norm)
-                else:
-                    self.system_ctrl.scroll(0, -scroll_amount, velocity_norm=velocity_norm)
-            elif direction in ['left', 'right']:
-                # Workspace switch
-                self.system_ctrl.workspace_switch(direction)
+        # Handle all swipe directions
+        for gesture_name, gesture_result in right_gestures.items():
+            if gesture_name.startswith('swipe_'):
+                data = gesture_result.metadata
+                direction = data.get('direction')
+                # Get EWMA velocity for modulation
+                ewma_velocity = data.get('ewma_velocity', (0.0, 0.0))
+                velocity_norm = float(np.hypot(ewma_velocity[0], ewma_velocity[1]))
+                
+                if direction in ['up', 'down']:
+                    # Scroll
+                    scroll_amount = self.system_ctrl.scroll_sensitivity
+                    if direction == 'up':
+                        self.system_ctrl.scroll(0, scroll_amount, velocity_norm=velocity_norm)
+                    else:
+                        self.system_ctrl.scroll(0, -scroll_amount, velocity_norm=velocity_norm)
+                elif direction in ['left', 'right']:
+                    # Workspace switch
+                    self.system_ctrl.workspace_switch(direction)
+                break
         
         # Open hand: Pause/unpause
         if 'open_hand' in right_gestures or 'open_hand' in left_gestures:
@@ -510,20 +522,41 @@ class HANDSApplication:
                         # Check for active gestures and get gesture name
                         # Priority: Bimanual > Right > Left
                         
+                        def get_gesture_with_direction(gestures_dict):
+                            """Get gesture name with direction suffix if available."""
+                            if not gestures_dict:
+                                return ""
+                            # Skip internal metadata gestures (start with __)
+                            for name in gestures_dict:
+                                if name.startswith('__'):
+                                    continue
+                                result = gestures_dict[name]
+                                # Check for direction in metadata to create specific gesture name
+                                if hasattr(result, 'metadata') and result.metadata:
+                                    direction = result.metadata.get('direction', '')
+                                    # Only use direction if it's a simple string like 'in', 'out', 'up', 'down', 'left', 'right'
+                                    if isinstance(direction, str) and direction in ('in', 'out', 'up', 'down', 'left', 'right'):
+                                        # Create directional gesture name like zoom_in, swipe_up
+                                        # But avoid duplication like swipe_up_up
+                                        if not name.endswith(f'_{direction}'):
+                                            return f"{name}_{direction}"
+                                return name
+                            return ""
+                        
                         # Check Bimanual
                         bi_gests = all_gestures.get('bimanual', {})
                         if bi_gests:
-                            gesture_name = next(iter(bi_gests))
+                            gesture_name = get_gesture_with_direction(bi_gests)
                         else:
                             # Check Right
                             r_gests = all_gestures.get('right', {})
                             if r_gests:
-                                gesture_name = next(iter(r_gests))
+                                gesture_name = get_gesture_with_direction(r_gests)
                             else:
                                 # Check Left
                                 l_gests = all_gestures.get('left', {})
                                 if l_gests:
-                                    gesture_name = next(iter(l_gests))
+                                    gesture_name = get_gesture_with_direction(l_gests)
                         
                         # Quit Gesture Logic (Thumbs Down held)
                         is_thumbs_down = 'thumbs_down' in all_gestures.get('right', {}) or \
@@ -569,7 +602,51 @@ class HANDSApplication:
                     # No window, just sleep briefly to avoid busy loop
                     time.sleep(0.01)
                 
-                key = 255 # Default to no key pressed since we don't have cv2.waitKey
+                # Process keyboard input from PyQt
+                if self.key_queue:
+                    try:
+                        from PyQt6.QtCore import Qt
+                        while True:
+                            key = self.key_queue.get_nowait()
+                            # Map Qt keys to actions
+                            if key == Qt.Key.Key_Q:
+                                self.running = False
+                            elif key == Qt.Key.Key_P:
+                                self.paused = not self.paused
+                                if self.system_ctrl:
+                                    self.system_ctrl.toggle_pause()
+                                print(f"{'⏸ PAUSED' if self.paused else '▶ RESUMED'}")
+                            elif key == Qt.Key.Key_D:
+                                self.show_debug = not self.show_debug
+                            elif key == Qt.Key.Key_F:
+                                self.show_fps = not self.show_fps
+                            elif key == Qt.Key.Key_H:
+                                self.print_controls()
+                            elif key == Qt.Key.Key_Z:
+                                self.visual.show_gesture_debug['zoom'] = not self.visual.show_gesture_debug['zoom']
+                                print(f"Zoom debug: {'ON' if self.visual.show_gesture_debug['zoom'] else 'OFF'}")
+                            elif key == Qt.Key.Key_X:
+                                self.visual.show_gesture_debug['pinch'] = not self.visual.show_gesture_debug['pinch']
+                                print(f"Pinch debug: {'ON' if self.visual.show_gesture_debug['pinch'] else 'OFF'}")
+                            elif key == Qt.Key.Key_I:
+                                self.visual.show_gesture_debug['pointing'] = not self.visual.show_gesture_debug['pointing']
+                                print(f"Pointing debug: {'ON' if self.visual.show_gesture_debug['pointing'] else 'OFF'}")
+                            elif key == Qt.Key.Key_S:
+                                self.visual.show_gesture_debug['swipe'] = not self.visual.show_gesture_debug['swipe']
+                                print(f"Swipe debug: {'ON' if self.visual.show_gesture_debug['swipe'] else 'OFF'}")
+                            elif key == Qt.Key.Key_O:
+                                self.visual.show_gesture_debug['open_hand'] = not self.visual.show_gesture_debug['open_hand']
+                                print(f"Open hand debug: {'ON' if self.visual.show_gesture_debug['open_hand'] else 'OFF'}")
+                            elif key == Qt.Key.Key_T:
+                                self.visual.show_gesture_debug['thumbs'] = not self.visual.show_gesture_debug['thumbs']
+                                print(f"Thumbs debug: {'ON' if self.visual.show_gesture_debug['thumbs'] else 'OFF'}")
+                    except queue.Empty:
+                        pass
+                    except Exception as e:
+                        print(f"⚠ Keyboard processing error: {e}")
+                
+                # Old cv2.waitKey code removed - keyboard handled via PyQt now
+                key = 255 # Default to no key pressed
                 # Only process if a key was pressed
                 if key != 255:
                     # Normalize to lowercase character when possible
@@ -618,20 +695,37 @@ class HANDSApplication:
         """Clean up resources."""
         print("\n🧹 Cleaning up...")
         
+        # Signal GUI to quit if present
+        if self.status_queue:
+            try:
+                # Send shutdown sentinel
+                self.status_queue.put(('shutdown', 'shutdown'), timeout=0.5)
+            except Exception as e:
+                print(f"⚠ Could not send shutdown signal: {e}")
+        
+        # Small delay to let GUI process shutdown
+        try:
+            time.sleep(0.2)
+        except:
+            pass
+        
         if self.cap:
-            self.cap.release()
+            try:
+                self.cap.release()
+            except Exception as e:
+                print(f"⚠ Error releasing camera: {e}")
         
         if self.hand_landmarker:
-            self.hand_landmarker.close()
+            try:
+                self.hand_landmarker.close()
+            except Exception as e:
+                print(f"⚠ Error closing hand landmarker: {e}")
         
         if self.hands:
-            self.hands.close()
-        
-        try:
-            # cv2.destroyAllWindows() # Not needed anymore
-            pass
-        except Exception:
-            pass
+            try:
+                self.hands.close()
+            except Exception as e:
+                print(f"⚠ Error closing hands: {e}")
         
         print("✓ HANDS application stopped\n")
     
@@ -698,12 +792,14 @@ def main():
     
     status_queue = None
     frame_queue = None
+    key_queue = None
     
     if status_enabled:
         status_queue = queue.Queue()
         # Only create frame queue if we need to show camera
         if visual_mode in ['full', 'debug']:
             frame_queue = queue.Queue(maxsize=2)
+            key_queue = queue.Queue()  # For keyboard input from PyQt
     
     # Create application
     try:
@@ -716,6 +812,9 @@ def main():
         if frame_queue:
             app.set_frame_queue(frame_queue)
         
+        if key_queue:
+            app.set_key_queue(key_queue)
+        
         if status_enabled:
             # Run App logic in a separate thread
             # This allows the main thread to run the PyQt GUI (required for some OS/frameworks)
@@ -725,7 +824,7 @@ def main():
             
             # Run GUI in main thread
             from source_code.gui.status_indicator import run_gui
-            run_gui(config, status_queue, frame_queue)
+            run_gui(config, status_queue, frame_queue, key_queue)
         else:
             # Run App in main thread (standard mode)
             # Note: Without GUI, we can't show camera if headless.

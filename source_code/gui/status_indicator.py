@@ -13,9 +13,10 @@ class StatusSignals(QObject):
     update_frame = pyqtSignal(object)    # frame (numpy array)
 
 class CameraWindow(QWidget):
-    def __init__(self, config):
+    def __init__(self, config, key_queue=None):
         super().__init__()
         self.config = config
+        self.key_queue = key_queue  # Queue to send keyboard events to main thread
         self.initUI()
         
     def initUI(self):
@@ -51,6 +52,17 @@ class CameraWindow(QWidget):
     def resizeEvent(self, event):
         self.image_label.resize(self.size())
         super().resizeEvent(event)
+    
+    def keyPressEvent(self, event):
+        """Handle keyboard shortcuts."""
+        if self.key_queue:
+            try:
+                key = event.key()
+                # Send the Qt key code to the queue
+                self.key_queue.put_nowait(key)
+            except:
+                pass
+        super().keyPressEvent(event)
 
 
 class StatusIndicator(QWidget):
@@ -84,6 +96,9 @@ class StatusIndicator(QWidget):
         self.sticker_cache = {}
         self.stickers_enabled = False
         
+        # Track gestures that have no stickers (to avoid repeated warnings)
+        self._warned_gestures = set()
+        
         # Color map: {color_name: QColor}
         self.color_map = {}
         
@@ -100,6 +115,7 @@ class StatusIndicator(QWidget):
         
         if not sticker_paths:
             self.stickers_enabled = False
+            print("⚠ No sticker paths configured")
             return
         
         # Resolve base path (relative to config file or absolute)
@@ -110,8 +126,11 @@ class StatusIndicator(QWidget):
         else:
             stickers_base = str(Path(self.config_path).parent / 'stickers')
         
+        print(f"🔍 Loading stickers from: {stickers_base}")
+        
         self.sticker_cache.clear()
         loaded_count = 0
+        failed_stickers = []
         
         for gesture_name, filename_entry in sticker_paths.items():
             # Handle [value, description] format from config
@@ -134,10 +153,21 @@ class StatusIndicator(QWidget):
                 if not pixmap.isNull():
                     self.sticker_cache[gesture_name] = pixmap
                     loaded_count += 1
+                else:
+                    failed_stickers.append(f"{gesture_name}: invalid image")
+            else:
+                failed_stickers.append(f"{gesture_name}: {full_path}")
         
         self.stickers_enabled = loaded_count > 0
         if loaded_count > 0:
-            print(f"✓ Loaded {loaded_count} gesture stickers")
+            print(f"✓ Loaded {loaded_count} gesture stickers: {list(self.sticker_cache.keys())}")
+        else:
+            print(f"⚠ No stickers loaded!")
+        
+        if failed_stickers:
+            print(f"⚠ Failed to load {len(failed_stickers)} stickers:")
+            for fail in failed_stickers[:10]:  # Show first 10
+                print(f"  - {fail}")
         
     def initUI(self):
         """Initialize the UI with window flags and positioning."""
@@ -195,20 +225,22 @@ class StatusIndicator(QWidget):
         
         # Try to draw sticker if available for current gesture
         sticker_drawn = False
-        if self.stickers_enabled and self.current_gesture and self.current_gesture in self.sticker_cache:
-            pixmap = self.sticker_cache[self.current_gesture]
-            if not pixmap.isNull():
-                # Scale sticker to fit widget size
-                scaled = pixmap.scaled(
-                    self.width(), self.height(),
-                    Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation
-                )
-                # Center the scaled pixmap
-                x_offset = (self.width() - scaled.width()) // 2
-                y_offset = (self.height() - scaled.height()) // 2
-                painter.drawPixmap(x_offset, y_offset, scaled)
-                sticker_drawn = True
+        if self.stickers_enabled and self.current_gesture:
+            # Check if we have a sticker for this gesture
+            if self.current_gesture in self.sticker_cache:
+                pixmap = self.sticker_cache[self.current_gesture]
+                if not pixmap.isNull():
+                    # Scale sticker to fit widget size
+                    scaled = pixmap.scaled(
+                        self.width(), self.height(),
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation
+                    )
+                    # Center the scaled pixmap
+                    x_offset = (self.width() - scaled.width()) // 2
+                    y_offset = (self.height() - scaled.height()) // 2
+                    painter.drawPixmap(x_offset, y_offset, scaled)
+                    sticker_drawn = True
         
         if not sticker_drawn:
             # Draw colored circle as fallback
@@ -261,7 +293,13 @@ class StatusIndicator(QWidget):
             'pointing': '👆',
             'pinch': '🤏',
             'zoom': '🤌',
+            'zoom_in': '🔍+',
+            'zoom_out': '🔍-',
             'swipe': '👋',
+            'swipe_up': '👋↑',
+            'swipe_down': '👋↓',
+            'swipe_left': '👋←',
+            'swipe_right': '👋→',
             'open_hand': '✋',
             'thumbs_up': '👍',
             'thumbs_down': '👎',
@@ -283,7 +321,17 @@ class StatusIndicator(QWidget):
             self.current_gesture = 'thumbs_down'  # Use thumbs_down sticker
         else:
             self.current_text = emoji_map.get(text, text[:2].upper() if text else '')
-            self.current_gesture = text if text in emoji_map else None
+            # Set current_gesture for sticker lookup - use the text directly
+            # The sticker cache uses gesture names as keys
+            self.current_gesture = text if text else None
+        
+        # Debug: Log gesture and sticker lookup result (only once per unique gesture)
+        if self.current_gesture:
+            sticker_found = self.current_gesture in self.sticker_cache
+            if not sticker_found and self.stickers_enabled:
+                if self.current_gesture not in self._warned_gestures:
+                    self._warned_gestures.add(self.current_gesture)
+                    print(f"🔍 Gesture '{self.current_gesture}' has no sticker (available: {list(self.sticker_cache.keys())[:5]}...)")
         
         self.update()  # Trigger repaint
     
@@ -315,7 +363,7 @@ class StatusIndicator(QWidget):
         return False
 
 
-def run_gui(config, status_queue, frame_queue=None):
+def run_gui(config, status_queue, frame_queue=None, key_queue=None):
     """
     Run the status indicator GUI.
     
@@ -323,6 +371,7 @@ def run_gui(config, status_queue, frame_queue=None):
         config: Config instance
         status_queue: Queue for receiving status updates from main app
         frame_queue: Optional queue for receiving camera frames
+        key_queue: Optional queue for sending keyboard events to main app
     """
     app = QApplication(sys.argv)
     
@@ -333,7 +382,7 @@ def run_gui(config, status_queue, frame_queue=None):
     # Camera Window (Optional)
     camera_window = None
     if frame_queue is not None:
-        camera_window = CameraWindow(config)
+        camera_window = CameraWindow(config, key_queue)
         camera_window.show()
     
     signals = StatusSignals()
@@ -348,6 +397,22 @@ def run_gui(config, status_queue, frame_queue=None):
         try:
             while True:
                 state, text = status_queue.get_nowait()
+                
+                # Check for shutdown sentinel
+                if state == 'shutdown' and text == 'shutdown':
+                    print("🛑 Shutdown signal received, closing GUI...")
+                    try:
+                        # Use QApplication.instance() to safely get the app instance
+                        app_instance = QApplication.instance()
+                        if app_instance:
+                            app_instance.quit()
+                    except Exception as e:
+                        print(f"⚠ Error during quit: {e}")
+                        # Force exit if quit fails
+                        import sys
+                        sys.exit(0)
+                    return
+                
                 signals.update_state.emit(state, text)
         except queue.Empty:
             pass

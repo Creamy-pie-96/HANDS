@@ -313,9 +313,21 @@ class VisualFeedback:
             cv2.line(frame, p1, p2, self.colors.pinch, 2)
         
         # Zoom: Simple triangle NO animations for FPS
-        if 'zoom' in gestures:
-            gesture_data = gestures['zoom']
-            zoom_type = gesture_data.metadata.get('zoom_type', 'in')
+        # Check for any zoom gesture (zoom_in, zoom_out)
+        zoom_gesture = None
+        for name, result in gestures.items():
+            if name.startswith('zoom'):
+                zoom_gesture = result
+                break
+        
+        if zoom_gesture:
+            # Extract direction from gesture name or metadata
+            if 'zoom_in' in gestures:
+                zoom_type = 'in'
+            elif 'zoom_out' in gestures:
+                zoom_type = 'out'
+            else:
+                zoom_type = zoom_gesture.metadata.get('direction', 'in')
             
             thumb_pos = metrics.tip_positions['thumb']
             index_pos = metrics.tip_positions['index']
@@ -773,11 +785,22 @@ class VisualFeedback:
     
     def _get_gesture_color(self, gesture_name):
         """Get color for gesture type."""
+        # Extract base gesture name for directional gestures
+        base_name = gesture_name
+        if '_' in gesture_name:
+            # Handle directional gestures: swipe_up, zoom_in, thumbs_up_moving_up, etc.
+            parts = gesture_name.split('_')
+            if parts[0] in ['swipe', 'zoom']:
+                base_name = parts[0]
+            elif parts[0] == 'thumbs':
+                base_name = 'thumbs'
+        
         color_map = {
             'pinch': self.colors.pinch,
             'zoom': self.colors.zoom,
             'pointing': self.colors.pointing,
             'swipe': self.colors.swipe,
             'open_hand': self.colors.open_hand,
+            'thumbs': self.colors.accent,  # Thumbs gestures use accent color
         }
-        return color_map.get(gesture_name, self.colors.accent)
+        return color_map.get(base_name, self.colors.accent)
