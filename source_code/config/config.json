@@ -1,8 +1,30 @@
 {
+  "gestures_enabled": {
+    "_comment": [
+      "Enable/disable individual gestures. Disabled gestures still show detection (with red dot indicator) but don't trigger actions."
+    ],
+    "pointing": [false, "Enable pointing gesture for cursor control"],
+    "pinch": [true, "Enable pinch gesture for click/drag"],
+    "zoom_in": [true, "Enable zoom-in gesture (spread fingers)"],
+    "zoom_out": [true, "Enable zoom-out gesture (pinch fingers)"],
+    "swipe_left": [true, "Enable swipe-left gesture (workspace switch left)"],
+    "swipe_right": [true, "Enable swipe-right gesture (workspace switch right)"],
+    "swipe_up": [true, "Enable swipe-up gesture (scroll up)"],
+    "swipe_down": [true, "Enable swipe-down gesture (scroll down)"],
+    "thumbs_up": [true, "Enable static thumbs-up gesture (reserved for future use)"],
+    "thumbs_down": [true, "Enable static thumbs-down gesture (quit app when held)"],
+    "thumbs_up_moving_up": [true, "Enable thumbs-up moving upward (volume up)"],
+    "thumbs_up_moving_down": [true, "Enable thumbs-up moving downward (volume down)"],
+    "thumbs_down_moving_up": [true, "Enable thumbs-down moving upward (brightness up)"],
+    "thumbs_down_moving_down": [true, "Enable thumbs-down moving downward (brightness down)"],
+    "open_hand": [true, "Enable open hand gesture (pause detection)"],
+    "pan": [true, "Enable bimanual pan gesture (scroll with two hands)"],
+    "precision_cursor": [true, "Enable bimanual precision cursor (fine cursor control)"]
+  },
   "gesture_thresholds": {
     "pinch": {
       "threshold_rel": [
-        0.25,
+        0.2,
         "Maximum distance between thumb and index fingertips to trigger pinch (normalized 0-1)"
       ],
       "hold_frames": [
@@ -10,17 +32,17 @@
         "Number of consecutive frames pinch must be held before triggering"
       ],
       "cooldown_seconds": [
-        0.6,
+        0.4,
         "Minimum time between pinch detections to prevent double-triggering"
       ]
     },
     "pointing": {
       "min_extension_ratio": [
-        0.1,
+        1.01,
         "Minimum distance index finger tip must be from palm to count as pointing"
       ],
       "max_speed": [
-        10.0,
+        1.0,
         "Maximum hand velocity allowed for stable pointing (prevents detection during fast movement)"
       ],
       "max_extra_fingers": [
@@ -208,28 +230,6 @@
         "How long pinch must be held to start drag operation (seconds)"
       ]
     },
-    "scroll": {
-      "sensitivity": [
-        30,
-        "Scroll amount multiplier (higher=faster scrolling)"
-      ],
-      "speed_neutral": [
-        1.0,
-        "Neutral gesture velocity where no speed modulation is applied"
-      ],
-      "speed_factor": [
-        0.2,
-        "Max influence of velocity on scroll rate (0.2 = \u00b120% adjustment)"
-      ],
-      "horizontal_enabled": [
-        true,
-        "Whether horizontal scrolling is enabled"
-      ],
-      "vertical_enabled": [
-        true,
-        "Whether vertical scrolling is enabled"
-      ]
-    },
     "zoom": {
       "sensitivity": [
         1.9,
@@ -241,12 +241,165 @@
       ],
       "speed_factor": [
         0.2,
-        "Max influence of velocity on zoom rate (0.2 = \u00b120% adjustment)"
+        "Max influence of velocity on zoom rate (0.2 = ±20% adjustment)"
+      ],
+      "base_delay": [
+        0.1,
+        "Base delay between zoom actions in seconds (before velocity modulation)"
       ],
       "use_system_zoom": [
         true,
         "Whether to use system-level zoom (Ctrl+Plus/Minus)"
       ]
+    },
+    "swipe": {
+      "_comment": "swipe_left/right: workspace switch, swipe_up/down: scroll",
+      "swipe_left": {
+        "sensitivity": [
+          1.0,
+          "Swipe left action sensitivity (workspace switch left)"
+        ],
+        "speed_neutral": [
+          1.0,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.3,
+          "Max influence of velocity on action rate (±30% adjustment)"
+        ],
+        "base_delay": [
+          0.3,
+          "Base delay between workspace switches (seconds)"
+        ]
+      },
+      "swipe_right": {
+        "sensitivity": [
+          1.0,
+          "Swipe right action sensitivity (workspace switch right)"
+        ],
+        "speed_neutral": [
+          1.0,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.3,
+          "Max influence of velocity on action rate (±30% adjustment)"
+        ],
+        "base_delay": [
+          0.3,
+          "Base delay between workspace switches (seconds)"
+        ]
+      },
+      "swipe_up": {
+        "sensitivity": [
+          5.0,
+          "Swipe up action sensitivity (scroll up) - higher = faster scroll"
+        ],
+        "speed_neutral": [
+          1.0,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on scroll rate (±40% adjustment)"
+        ],
+        "base_delay": [
+          0.05,
+          "Base delay between scroll actions (seconds) - lower = smoother scroll"
+        ]
+      },
+      "swipe_down": {
+        "sensitivity": [
+          5.0,
+          "Swipe down action sensitivity (scroll down) - higher = faster scroll"
+        ],
+        "speed_neutral": [
+          1.0,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on scroll rate (±40% adjustment)"
+        ],
+        "base_delay": [
+          0.05,
+          "Base delay between scroll actions (seconds) - lower = smoother scroll"
+        ]
+      }
+    },
+    "thumbs_moving": {
+      "thumbs_up_moving_up": {
+        "sensitivity": [
+          1.0,
+          "Thumbs up moving up action sensitivity (volume up)"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate (±40% adjustment)"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "thumbs_up_moving_down": {
+        "sensitivity": [
+          1.0,
+          "Thumbs up moving down action sensitivity (volume down)"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate (±40% adjustment)"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "thumbs_down_moving_up": {
+        "sensitivity": [
+          1.0,
+          "Thumbs down moving up action sensitivity (brightness up)"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate (±40% adjustment)"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "thumbs_down_moving_down": {
+        "sensitivity": [
+          1.0,
+          "Thumbs down moving down action sensitivity (brightness down)"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate (±40% adjustment)"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      }
     }
   },
   "visual_feedback": {
@@ -525,11 +678,11 @@
       "Camera device index (0=default, 1=second camera, etc.)"
     ],
     "width": [
-      1280,
+      1920,
       "Camera capture width in pixels"
     ],
     "height": [
-      720,
+      1080,
       "Camera capture height in pixels"
     ],
     "fps": [
@@ -573,11 +726,11 @@
   },
   "display": {
     "window_width": [
-      1280,
+      1920,
       "Application window width in pixels"
     ],
     "window_height": [
-      720,
+      1080,
       "Application window height in pixels"
     ],
     "flip_horizontal": [
@@ -588,14 +741,18 @@
       30,
       "Update FPS calculation every N frames"
     ],
+    "show_camera_window": [
+      true,
+      "Show the camera preview window (false=run headless with just status indicator)"
+    ],
     "visual_mode": [
       "full",
-      "Visual feedback mode: 'full' (OpenCV window + Status), 'minimal' (Status only), 'debug' (Full + Console)"
+      "Visual feedback mode: 'full' (OpenCV window + Status), 'minimal' (Status only), 'debug' (Full + Console). Note: show_camera_window overrides this for camera display."
     ],
     "status_indicator": {
       "enabled": [
         true,
-        "Enable the always-on-top status indicator"
+        "Enable the always-on-top status indicator (can run without camera window)"
       ],
       "size": [
         64,

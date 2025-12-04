@@ -7,9 +7,9 @@ Uses pynput for reliable cross-platform input control.
 
 import time
 import threading
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Dict, Any
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import numpy as np
 
 try:
@@ -28,6 +28,140 @@ except ImportError:
     print("⚠ screeninfo not available. Install with: pip install screeninfo")
 
 from source_code.utils.math_utils import EWMA
+
+
+@dataclass
+class VelocitySensitivityConfig:
+    """
+    Configuration for velocity-based sensitivity modulation.
+    
+    This is the core algorithm used to adjust action rates based on gesture velocity.
+    Formula:
+        M = 1.0 + speed_factor * (velocity_norm - speed_neutral)
+        M_clamped = clamp(M, 1 - speed_factor, 1 + speed_factor)
+        effective_sensitivity = base_sensitivity * M_clamped
+        min_delay = base_delay / max(0.05, effective_sensitivity)
+    
+    Attributes:
+        base_sensitivity: Base sensitivity multiplier for the action
+        speed_neutral: Velocity at which no modulation occurs (velocity_norm == neutral → M=1)
+        speed_factor: How much velocity affects the rate (±speed_factor from neutral)
+        base_delay: Base delay between actions in seconds
+    """
+    base_sensitivity: float = 1.0
+    speed_neutral: float = 1.0
+    speed_factor: float = 0.2
+    base_delay: float = 0.5
+
+
+class VelocitySensitivity:
+    """
+    Reusable velocity-based sensitivity calculator.
+    
+    Implements the sophisticated velocity modulation formula that adjusts
+    action rates based on gesture velocity. Faster gestures = faster actions.
+    
+    Used for: swipe, zoom, thumbs_moving_up/down, and any other velocity-dependent gesture.
+    """
+    
+    def __init__(self, config: VelocitySensitivityConfig):
+        """
+        Initialize velocity sensitivity calculator.
+        
+        Args:
+            config: VelocitySensitivityConfig with modulation parameters
+        """
+        self.config = config
+        self._last_action_time = 0.0
+    
+    @classmethod
+    def from_dict(cls, params: Dict[str, Any]) -> 'VelocitySensitivity':
+        """
+        Create VelocitySensitivity from a dictionary of parameters.
+        
+        Args:
+            params: Dict with keys: sensitivity, speed_neutral, speed_factor, base_delay
+        
+        Returns:
+            VelocitySensitivity instance
+        """
+        config = VelocitySensitivityConfig(
+            base_sensitivity=float(params.get('sensitivity', 1.0)),
+            speed_neutral=float(params.get('speed_neutral', 1.0)),
+            speed_factor=float(params.get('speed_factor', 0.2)),
+            base_delay=float(params.get('base_delay', 0.5))
+        )
+        return cls(config)
+    
+    def calculate_effective_sensitivity(self, velocity_norm: float) -> float:
+        """
+        Calculate effective sensitivity based on current velocity.
+        
+        Args:
+            velocity_norm: Normalized gesture velocity
+        
+        Returns:
+            Effective sensitivity value (base_sensitivity * modulation)
+        """
+        m = 1.0 + self.config.speed_factor * (velocity_norm - self.config.speed_neutral)
+        m_clamped = max(1.0 - self.config.speed_factor, min(1.0 + self.config.speed_factor, m))
+        return self.config.base_sensitivity * m_clamped
+    
+    def calculate_min_delay(self, velocity_norm: float) -> float:
+        """
+        Calculate minimum delay between actions based on velocity.
+        
+        Args:
+            velocity_norm: Normalized gesture velocity
+        
+        Returns:
+            Minimum delay in seconds
+        """
+        s_eff = self.calculate_effective_sensitivity(velocity_norm)
+        return self.config.base_delay / max(0.05, s_eff)
+    
+    def should_act(self, velocity_norm: float) -> bool:
+        """
+        Check if enough time has passed since last action for velocity-modulated rate.
+        
+        Args:
+            velocity_norm: Normalized gesture velocity
+        
+        Returns:
+            True if action should be performed, False if rate-limited
+        """
+        now = time.time()
+        min_delay = self.calculate_min_delay(velocity_norm)
+        
+        if now - self._last_action_time < min_delay:
+            return False
+        
+        return True
+    
+    def record_action(self):
+        """Record that an action was performed (for rate limiting)."""
+        self._last_action_time = time.time()
+    
+    def try_act(self, velocity_norm: float) -> bool:
+        """
+        Check if action is allowed and record it if so.
+        
+        Combines should_act() and record_action() for convenience.
+        
+        Args:
+            velocity_norm: Normalized gesture velocity
+        
+        Returns:
+            True if action was allowed (and recorded), False if rate-limited
+        """
+        if self.should_act(velocity_norm):
+            self.record_action()
+            return True
+        return False
+    
+    def reset(self):
+        """Reset the last action time (e.g., when gesture ends)."""
+        self._last_action_time = 0.0
 
 
 @dataclass
@@ -70,7 +204,7 @@ class SystemController:
         
         # Load configuration
         if config:
-            from source_code.config.config_manager import get_system_control
+            from source_code.config.config_manager import get_system_control, get_velocity_sensitivity_config
             self.cursor_smoothing = get_system_control('cursor', 'smoothing_factor', 0.3)
             self.cursor_speed = get_system_control('cursor', 'speed_multiplier', 1.5)
             self.precision_damping = get_system_control('cursor', 'precision_damping', 0.3)
@@ -80,14 +214,24 @@ class SystemController:
             self.screen_bounds_padding = get_system_control('cursor', 'screen_bounds_padding', 10)
             self.fallback_width = get_system_control('cursor', 'fallback_screen_width', 1920)
             self.fallback_height = get_system_control('cursor', 'fallback_screen_height', 1080)
-            self.scroll_sensitivity = get_system_control('scroll', 'sensitivity', 30)
-            self.scroll_speed_neutral = get_system_control('scroll', 'speed_neutral', 1.0)
-            self.scroll_speed_factor = get_system_control('scroll', 'speed_factor', 0.2)
-            self.zoom_sensitivity = get_system_control('zoom', 'sensitivity', 5)
-            self.zoom_speed_neutral = get_system_control('zoom', 'speed_neutral', 1.0)
-            self.zoom_speed_factor = get_system_control('zoom', 'speed_factor', 0.2)
             self.double_click_timeout = get_system_control('click', 'double_click_timeout', 0.5)
             self.drag_hold_duration = get_system_control('click', 'drag_hold_duration', 1.0)
+            
+            # Initialize velocity sensitivity for each velocity-dependent gesture type
+            # Each uses the reusable VelocitySensitivity calculator
+            # Note: Scroll uses swipe_up/swipe_down sensitivity (scroll = swipe up/down)
+            #       Workspace switch uses swipe_left/swipe_right sensitivity
+            self.velocity_sensitivity = {
+                'zoom': VelocitySensitivity.from_dict(get_velocity_sensitivity_config('zoom')),
+                'swipe_left': VelocitySensitivity.from_dict(get_velocity_sensitivity_config('swipe_left')),
+                'swipe_right': VelocitySensitivity.from_dict(get_velocity_sensitivity_config('swipe_right')),
+                'swipe_up': VelocitySensitivity.from_dict(get_velocity_sensitivity_config('swipe_up')),
+                'swipe_down': VelocitySensitivity.from_dict(get_velocity_sensitivity_config('swipe_down')),
+                'thumbs_up_moving_up': VelocitySensitivity.from_dict(get_velocity_sensitivity_config('thumbs_up_moving_up')),
+                'thumbs_up_moving_down': VelocitySensitivity.from_dict(get_velocity_sensitivity_config('thumbs_up_moving_down')),
+                'thumbs_down_moving_up': VelocitySensitivity.from_dict(get_velocity_sensitivity_config('thumbs_down_moving_up')),
+                'thumbs_down_moving_down': VelocitySensitivity.from_dict(get_velocity_sensitivity_config('thumbs_down_moving_down')),
+            }
         else:
             self.cursor_smoothing = 0.3
             self.cursor_speed = 1.5
@@ -98,14 +242,26 @@ class SystemController:
             self.screen_bounds_padding = 10
             self.fallback_width = 1920
             self.fallback_height = 1080
-            self.scroll_sensitivity = 30
-            self.scroll_speed_neutral = 1.0
-            self.scroll_speed_factor = 0.2
-            self.zoom_sensitivity = 5
-            self.zoom_speed_neutral = 1.0
-            self.zoom_speed_factor = 0.2
             self.double_click_timeout = 0.5
             self.drag_hold_duration = 1.0
+
+            # Default velocity sensitivity configurations
+            # Note: swipe_up/down control scroll, swipe_left/right control workspace switch
+            scroll_config = VelocitySensitivityConfig(base_sensitivity=5.0, speed_neutral=1.0, speed_factor=0.3, base_delay=0.05)
+            workspace_config = VelocitySensitivityConfig(base_sensitivity=1.0, speed_neutral=1.0, speed_factor=0.3, base_delay=0.3)
+            zoom_config = VelocitySensitivityConfig(base_sensitivity=2.0, speed_neutral=1.0, speed_factor=0.2, base_delay=0.1)
+            thumbs_config = VelocitySensitivityConfig(base_sensitivity=1.0, speed_neutral=0.5, speed_factor=0.4, base_delay=0.15)
+            self.velocity_sensitivity = {
+                'zoom': VelocitySensitivity(zoom_config),
+                'swipe_left': VelocitySensitivity(workspace_config),
+                'swipe_right': VelocitySensitivity(workspace_config),
+                'swipe_up': VelocitySensitivity(scroll_config),
+                'swipe_down': VelocitySensitivity(scroll_config),
+                'thumbs_up_moving_up': VelocitySensitivity(thumbs_config),
+                'thumbs_up_moving_down': VelocitySensitivity(thumbs_config),
+                'thumbs_down_moving_up': VelocitySensitivity(thumbs_config),
+                'thumbs_down_moving_down': VelocitySensitivity(thumbs_config),
+            }
         
         # Get screen dimensions
         self.screen = self._get_screen_bounds()
@@ -125,12 +281,6 @@ class SystemController:
         
         # Current cursor position (normalized)
         self.current_norm_pos = (0.5, 0.5)
-        # Last time a zoom keypress was issued (rate-limiting)
-        self._last_zoom_time = 0.0
-        # Last time a scroll action was issued (rate-limiting)
-        self._last_scroll_time = 0.0
-        # Current gesture velocity for velocity-modulated delays (set by caller)
-        self._current_gesture_velocity = 0.0
     def _get_screen_bounds(self) -> ScreenBounds:
         """Get screen dimensions."""
         if SCREENINFO_AVAILABLE:
@@ -270,6 +420,10 @@ class SystemController:
         """
         Perform scroll action with velocity-modulated rate-limiting.
         
+        Scrolling is triggered by swipe gestures:
+        - swipe_up → scroll up (dy < 0)
+        - swipe_down → scroll down (dy > 0)
+        
         Args:
             dx: Horizontal scroll amount
             dy: Vertical scroll amount (positive = down, negative = up)
@@ -282,29 +436,19 @@ class SystemController:
             if dx == 0 and dy == 0:
                 return
             
-            now = time.time()
+            # Determine which swipe direction sensitivity to use
+            # swipe_up triggers scroll up (dy < 0), swipe_down triggers scroll down (dy > 0)
+            if dy != 0:
+                gesture_name = 'swipe_down' if dy > 0 else 'swipe_up'
+            else:
+                gesture_name = 'swipe_right' if dx > 0 else 'swipe_left'
             
-            # Velocity modulation formula:
-            # M = 1.0 + V_factor * (V_norm - V_neutral)
-            # M_clamped = clamp(M, 1 - V_factor, 1 + V_factor)
-            # S_eff = sensitivity * M_clamped
-            # min_delay = 0.5 / max(0.05, S_eff)
-            v_factor = float(getattr(self, 'scroll_speed_factor', 0.2))
-            v_neutral = float(getattr(self, 'scroll_speed_neutral', 1.0))
-            sensitivity = float(getattr(self, 'scroll_sensitivity', 30.0) or 30.0)
-            
-            m = 1.0 + v_factor * (velocity_norm - v_neutral)
-            m_clamped = max(1.0 - v_factor, min(1.0 + v_factor, m))
-            s_eff = sensitivity * m_clamped
-            
-            base_delay = 0.5
-            min_delay = base_delay / max(0.05, s_eff)
-            
-            if now - self._last_scroll_time < min_delay:
+            # Use the appropriate swipe sensitivity for rate limiting
+            sensitivity = self.velocity_sensitivity.get(gesture_name)
+            if sensitivity and not sensitivity.try_act(velocity_norm):
                 return
             
             self.mouse.scroll(dx, dy)
-            self._last_scroll_time = now
         except Exception as e:
             print(f"⚠ Error scrolling: {e}")
     
@@ -319,25 +463,9 @@ class SystemController:
         if self.paused:
             return
 
-        # Velocity modulation formula:
-        # M = 1.0 + V_factor * (V_norm - V_neutral)
-        # M_clamped = clamp(M, 1 - V_factor, 1 + V_factor)
-        # S_eff = sensitivity * M_clamped
-        # min_delay = 0.5 / max(0.05, S_eff)
         try:
-            now = time.time()
-            v_factor = float(getattr(self, 'zoom_speed_factor', 0.2))
-            v_neutral = float(getattr(self, 'zoom_speed_neutral', 1.0))
-            sensitivity = float(getattr(self, 'zoom_sensitivity', 1.0) or 1.0)
-            
-            m = 1.0 + v_factor * (velocity_norm - v_neutral)
-            m_clamped = max(1.0 - v_factor, min(1.0 + v_factor, m))
-            s_eff = sensitivity * m_clamped
-            
-            base_delay = 0.5
-            min_delay = base_delay / max(0.05, s_eff)
-
-            if now - self._last_zoom_time < min_delay:
+            # Use the VelocitySensitivity calculator for rate limiting
+            if not self.velocity_sensitivity['zoom'].try_act(velocity_norm):
                 return
 
             with self.keyboard.pressed(Key.ctrl):
@@ -350,8 +478,6 @@ class SystemController:
                 else:
                     self.keyboard.press('-')
                     self.keyboard.release('-')
-
-            self._last_zoom_time = now
         except Exception as e:
             print(f"⚠ Error zooming: {e}")
     
@@ -383,6 +509,205 @@ class SystemController:
                     self.keyboard.release(arrow_key)
         except Exception as e:
             print(f"⚠ Error switching workspace: {e}")
+    
+    def get_velocity_sensitivity(self, gesture_name: str) -> Optional[VelocitySensitivity]:
+        """
+        Get the VelocitySensitivity calculator for a specific gesture.
+        
+        Args:
+            gesture_name: Name of the gesture (e.g., 'swipe_left', 'zoom', 'thumbs_up_moving_up')
+        
+        Returns:
+            VelocitySensitivity instance or None if not found
+        """
+        return self.velocity_sensitivity.get(gesture_name)
+    
+    def get_base_sensitivity(self, gesture_name: str, default: float = 1.0) -> float:
+        """
+        Get the base sensitivity value for a gesture.
+        
+        This returns the raw sensitivity multiplier from the velocity sensitivity config,
+        useful for scaling actions like scroll amount.
+        
+        Args:
+            gesture_name: Name of the gesture (e.g., 'swipe_up', 'swipe_down')
+            default: Default value if gesture not found
+        
+        Returns:
+            Base sensitivity value (float)
+        """
+        sensitivity = self.velocity_sensitivity.get(gesture_name)
+        if sensitivity:
+            return sensitivity.config.base_sensitivity
+        return default
+    
+    def perform_velocity_action(self, gesture_name: str, velocity_norm: float, action_callback) -> bool:
+        """
+        Perform an action with velocity-based rate limiting.
+        
+        This is the generic method for any velocity-dependent gesture.
+        Uses the VelocitySensitivity calculator to determine if enough time
+        has passed since the last action.
+        
+        Args:
+            gesture_name: Name of the gesture for config lookup
+            velocity_norm: Normalized gesture velocity
+            action_callback: Function to call if action is allowed (no args)
+        
+        Returns:
+            True if action was performed, False if rate-limited
+        """
+        if self.paused:
+            return False
+        
+        sensitivity = self.velocity_sensitivity.get(gesture_name)
+        if sensitivity is None:
+            # No config for this gesture - just perform the action
+            action_callback()
+            return True
+        
+        if sensitivity.try_act(velocity_norm):
+            action_callback()
+            return True
+        
+        return False
+    
+    def swipe(self, direction: str, velocity_norm: float = 1.0) -> bool:
+        """
+        Perform swipe action with velocity-modulated rate-limiting.
+        
+        Swipe actions trigger workspace switches or navigation:
+        - swipe_left/right: Switch workspace left/right
+        - swipe_up/down: Can be configured for various actions
+        
+        Args:
+            direction: 'left', 'right', 'up', or 'down'
+            velocity_norm: Normalized gesture velocity
+        
+        Returns:
+            True if action was performed, False if rate-limited
+        """
+        gesture_name = f'swipe_{direction}'
+        return self.perform_velocity_action(
+            gesture_name,
+            velocity_norm,
+            lambda: self.workspace_switch(direction)
+        )
+    
+    def thumbs_action(self, gesture_name: str, velocity_norm: float = 1.0, action_callback=None) -> bool:
+        """
+        Perform thumbs gesture action with velocity-modulated rate-limiting.
+        
+        Thumbs gestures with movement (thumbs_up_moving_up, etc.) use velocity
+        to control action rate. Static thumbs_up/thumbs_down don't use this.
+        
+        Args:
+            gesture_name: Full gesture name (e.g., 'thumbs_up_moving_up')
+            velocity_norm: Normalized gesture velocity
+            action_callback: Optional custom action. If None, uses default volume/brightness.
+        
+        Returns:
+            True if action was performed, False if rate-limited
+        """
+        if action_callback is None:
+            # Default actions for thumbs gestures
+            action_map = {
+                'thumbs_up_moving_up': lambda: self._volume_change(+5),
+                'thumbs_up_moving_down': lambda: self._volume_change(-5),
+                'thumbs_down_moving_up': lambda: self._brightness_change(+5),
+                'thumbs_down_moving_down': lambda: self._brightness_change(-5),
+            }
+            action_callback = action_map.get(gesture_name, lambda: None)
+        
+        return self.perform_velocity_action(gesture_name, velocity_norm, action_callback)
+    
+    def _volume_change(self, delta: int):
+        """Change system volume using media keys or platform-specific methods."""
+        try:
+            # Use XF86 media keys - works on most Linux desktops
+            if delta > 0:
+                self.keyboard.press(Key.media_volume_up)
+                self.keyboard.release(Key.media_volume_up)
+            else:
+                self.keyboard.press(Key.media_volume_down)
+                self.keyboard.release(Key.media_volume_down)
+        except Exception:
+            # Fallback: try pactl on Linux
+            try:
+                import subprocess
+                if delta > 0:
+                    subprocess.run(['pactl', 'set-sink-volume', '@DEFAULT_SINK@', '+5%'], 
+                                 capture_output=True, timeout=1)
+                else:
+                    subprocess.run(['pactl', 'set-sink-volume', '@DEFAULT_SINK@', '-5%'], 
+                                 capture_output=True, timeout=1)
+            except Exception:
+                pass  # Volume control not available
+    
+    def _brightness_change(self, delta: int):
+        """Change screen brightness using platform-specific methods.
+        
+        On Linux, tries (in order):
+        1. brightnessctl - works on most systems
+        2. xbacklight - legacy X11 method
+        3. DBus - GNOME/KDE brightness interface
+        """
+        import subprocess
+        import shutil
+        
+        # Method 1: brightnessctl (most common on modern Linux)
+        if shutil.which('brightnessctl'):
+            try:
+                if delta > 0:
+                    result = subprocess.run(['brightnessctl', 'set', '+5%'], 
+                                           capture_output=True, timeout=1)
+                else:
+                    result = subprocess.run(['brightnessctl', 'set', '5%-'], 
+                                           capture_output=True, timeout=1)
+                if result.returncode == 0:
+                    return  # Success
+                else:
+                    print(f"⚠ brightnessctl failed: {result.stderr.decode()}")
+            except subprocess.TimeoutExpired:
+                print("⚠ brightnessctl timed out")
+        
+        # Method 2: xbacklight (legacy X11)
+        if shutil.which('xbacklight'):
+            try:
+                if delta > 0:
+                    result = subprocess.run(['xbacklight', '-inc', '5'], 
+                                           capture_output=True, timeout=1)
+                else:
+                    result = subprocess.run(['xbacklight', '-dec', '5'], 
+                                           capture_output=True, timeout=1)
+                if result.returncode == 0:
+                    return  # Success
+                else:
+                    print(f"⚠ xbacklight failed: {result.stderr.decode()}")
+            except subprocess.TimeoutExpired:
+                print("⚠ xbacklight timed out")
+        
+        # Method 3: DBus (GNOME/KDE) - requires python-dbus
+        try:
+            import dbus
+            bus = dbus.SessionBus()
+            # Try GNOME
+            try:
+                brightness_proxy = bus.get_object('org.gnome.SettingsDaemon.Power',
+                    '/org/gnome/SettingsDaemon/Power')
+                brightness_iface = dbus.Interface(brightness_proxy,
+                    'org.gnome.SettingsDaemon.Power.Screen')
+                current = brightness_iface.GetPercentage()
+                new_val = max(5, min(100, current + (5 if delta > 0 else -5)))
+                brightness_iface.SetPercentage(new_val)
+                return
+            except dbus.DBusException as e:
+                print(f"⚠ DBus brightness failed: {e}")
+        except ImportError:
+            pass
+        
+        # No brightness control method available
+        print("⚠ No brightness control method available. Install brightnessctl: sudo apt install brightnessctl")
     
     def handle_pinch_gesture(self, pinch_detected: bool):
         """

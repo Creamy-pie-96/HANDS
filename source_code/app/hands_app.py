@@ -23,7 +23,7 @@ from pathlib import Path
 from source_code.detectors.bimanual_gestures import ComprehensiveGestureManager
 from source_code.utils.system_controller import SystemController
 from source_code.utils.visual_feedback import VisualFeedback
-from source_code.config.config_manager import config
+from source_code.config.config_manager import config, is_gesture_enabled
 
 # MediaPipe setup
 mp_hands = mp.solutions.hands
@@ -260,7 +260,7 @@ class HANDSApplication:
         # Priority: Bimanual > Right hand > Left hand
         
         # BIMANUAL GESTURES (highest priority)
-        if 'precision_cursor' in bimanual:
+        if 'precision_cursor' in bimanual and is_gesture_enabled('precision_cursor'):
             # Precision cursor mode with damping
             data = bimanual['precision_cursor'].metadata
             cursor_pos = data.get('cursor_pos')
@@ -269,15 +269,20 @@ class HANDSApplication:
                 self.system_ctrl.move_cursor(cursor_pos[0], cursor_pos[1], precision_mode=True)
             return
         
-        if 'pan' in bimanual:
+        if 'pan' in bimanual and is_gesture_enabled('pan'):
             # Pan/scroll gesture
             data = bimanual['pan'].metadata
             velocity = data.get('velocity', (0, 0))
-            # Convert to scroll
-            scroll_x = int(velocity[0] * self.system_ctrl.scroll_sensitivity)
-            scroll_y = int(velocity[1] * self.system_ctrl.scroll_sensitivity)
+            # Use correct swipe sensitivity based on direction
+            # Horizontal: swipe_right for +X, swipe_left for -X
+            # Vertical: swipe_down for +Y, swipe_up for -Y
+            sens_x = self.system_ctrl.get_base_sensitivity(
+                'swipe_right' if velocity[0] >= 0 else 'swipe_left', 3.0)
+            sens_y = self.system_ctrl.get_base_sensitivity(
+                'swipe_down' if velocity[1] >= 0 else 'swipe_up', 3.0)
+            scroll_x = int(velocity[0] * sens_x)
+            scroll_y = int(velocity[1] * sens_y)
             # Compute velocity magnitude for modulation
-            # import numpy as np  # Removed redundant local import
             velocity_norm = float(np.hypot(velocity[0], velocity[1]))
             self.system_ctrl.scroll(scroll_x, -scroll_y, velocity_norm=velocity_norm)  # Invert Y for natural scrolling
             return
@@ -285,7 +290,7 @@ class HANDSApplication:
         # SINGLE HAND GESTURES
         
         # Pointing: Move cursor
-        if 'pointing' in right_gestures:
+        if 'pointing' in right_gestures and is_gesture_enabled('pointing'):
             data = right_gestures['pointing'].metadata
             cursor_pos = data.get('tip_position')
             if cursor_pos:
@@ -293,7 +298,7 @@ class HANDSApplication:
                 self.system_ctrl.move_cursor(cursor_pos[0], cursor_pos[1])
         
         # Pinch: Click/drag
-        if 'pinch' in right_gestures:
+        if 'pinch' in right_gestures and is_gesture_enabled('pinch'):
             self.system_ctrl.handle_pinch_gesture(True)
         else:
             self.system_ctrl.handle_pinch_gesture(False)
@@ -302,6 +307,9 @@ class HANDSApplication:
         # Handle both zoom_in and zoom_out
         for gesture_name, gesture_result in right_gestures.items():
             if gesture_name.startswith('zoom_'):
+                # Check if this specific zoom direction is enabled
+                if not is_gesture_enabled(gesture_name):
+                    continue
                 data = gesture_result.metadata
                 direction = data.get('direction')
                 # Get EWMA velocity for modulation
@@ -316,6 +324,9 @@ class HANDSApplication:
         # Handle all swipe directions
         for gesture_name, gesture_result in right_gestures.items():
             if gesture_name.startswith('swipe_'):
+                # Check if this specific swipe direction is enabled
+                if not is_gesture_enabled(gesture_name):
+                    continue
                 data = gesture_result.metadata
                 direction = data.get('direction')
                 # Get EWMA velocity for modulation
@@ -323,19 +334,33 @@ class HANDSApplication:
                 velocity_norm = float(np.hypot(ewma_velocity[0], ewma_velocity[1]))
                 
                 if direction in ['up', 'down']:
-                    # Scroll
-                    scroll_amount = self.system_ctrl.scroll_sensitivity
+                    # Scroll - use swipe_up/swipe_down sensitivity as scroll amount
+                    gesture_key = f'swipe_{direction}'
+                    scroll_amount = int(self.system_ctrl.get_base_sensitivity(gesture_key, 3.0))
                     if direction == 'up':
                         self.system_ctrl.scroll(0, scroll_amount, velocity_norm=velocity_norm)
                     else:
                         self.system_ctrl.scroll(0, -scroll_amount, velocity_norm=velocity_norm)
                 elif direction in ['left', 'right']:
                     # Workspace switch
-                    self.system_ctrl.workspace_switch(direction)
+                    self.system_ctrl.swipe(direction, velocity_norm)
+                break
+        
+        # Thumbs gestures: Volume and Brightness control
+        # Handle moving thumbs gestures
+        for gesture_name, gesture_result in right_gestures.items():
+            if gesture_name.startswith('thumbs_') and 'moving' in gesture_name:
+                # Check if this specific thumbs gesture is enabled
+                if not is_gesture_enabled(gesture_name):
+                    continue
+                data = gesture_result.metadata
+                # Get velocity for modulation
+                velocity = abs(data.get('ewma_velocity', 0.5))
+                self.system_ctrl.thumbs_action(gesture_name, velocity_norm=velocity)
                 break
         
         # Open hand: Pause/unpause
-        if 'open_hand' in right_gestures or 'open_hand' in left_gestures:
+        if ('open_hand' in right_gestures or 'open_hand' in left_gestures) and is_gesture_enabled('open_hand'):
             # Toggle pause on open hand
             # Note: This is checked once per detection to avoid rapid toggling
             pass  # Handled in keyboard input 'p'
@@ -527,19 +552,26 @@ class HANDSApplication:
                             return name
                         return ""
                     
+                    def check_gesture_disabled(gesture_name: str) -> bool:
+                        """Check if a gesture is disabled in config."""
+                        if not gesture_name:
+                            return False
+                        # For directional gestures like zoom_in, swipe_up, etc.
+                        return not is_gesture_enabled(gesture_name)
+                    
                     # Build per-hand status data
                     hands_data = {
-                        'left': {'detected': False, 'state': 'hidden', 'gesture': ''},
-                        'right': {'detected': False, 'state': 'hidden', 'gesture': ''}
+                        'left': {'detected': False, 'state': 'hidden', 'gesture': '', 'disabled': False},
+                        'right': {'detected': False, 'state': 'hidden', 'gesture': '', 'disabled': False}
                     }
                     
                     # Check for special states (paused, dry_run)
                     if not self.enable_system_control:
                         # Dry-run mode - show on right indicator only
-                        hands_data['right'] = {'detected': True, 'state': 'red', 'gesture': 'dry_run'}
+                        hands_data['right'] = {'detected': True, 'state': 'red', 'gesture': 'dry_run', 'disabled': False}
                     elif self.paused:
                         # Paused - show on right indicator only
-                        hands_data['right'] = {'detected': True, 'state': 'red', 'gesture': 'paused'}
+                        hands_data['right'] = {'detected': True, 'state': 'red', 'gesture': 'paused', 'disabled': False}
                     else:
                         # Process left hand - always show what LEFT hand is doing
                         if left_landmarks:
@@ -549,7 +581,9 @@ class HANDSApplication:
                             # Get left hand gesture (individual, not bimanual)
                             l_gests = all_gestures.get('left', {})
                             if l_gests:
-                                hands_data['left']['gesture'] = get_gesture_with_direction(l_gests)
+                                gesture_name = get_gesture_with_direction(l_gests)
+                                hands_data['left']['gesture'] = gesture_name
+                                hands_data['left']['disabled'] = check_gesture_disabled(gesture_name)
                             
                             # Check for thumbs down quit gesture on left
                             if 'thumbs_down' in l_gests:
@@ -563,6 +597,7 @@ class HANDSApplication:
                                     remaining = int(self.quit_hold_duration - elapsed + 0.9)
                                     hands_data['left']['gesture'] = f"exit_{remaining}"
                                     hands_data['left']['state'] = 'red'
+                                    hands_data['left']['disabled'] = False  # Quit gesture is always enabled
                         
                         # Process right hand - always show what RIGHT hand is doing
                         if right_landmarks:
@@ -572,7 +607,9 @@ class HANDSApplication:
                             # Get right hand gesture (individual, not bimanual)
                             r_gests = all_gestures.get('right', {})
                             if r_gests:
-                                hands_data['right']['gesture'] = get_gesture_with_direction(r_gests)
+                                gesture_name = get_gesture_with_direction(r_gests)
+                                hands_data['right']['gesture'] = gesture_name
+                                hands_data['right']['disabled'] = check_gesture_disabled(gesture_name)
                             
                             # Check for thumbs down quit gesture on right
                             if 'thumbs_down' in r_gests:
@@ -586,6 +623,7 @@ class HANDSApplication:
                                     remaining = int(self.quit_hold_duration - elapsed + 0.9)
                                     hands_data['right']['gesture'] = f"exit_{remaining}"
                                     hands_data['right']['state'] = 'red'
+                                    hands_data['right']['disabled'] = False  # Quit gesture is always enabled
                         
                         # NOTE: Bimanual gestures are detected and used for system control,
                         # but the status indicators show individual hand gestures.
@@ -805,20 +843,34 @@ def main():
         Config(args.config)
     
     # Create and run application
-    # Check visual mode and status indicator setting
+    # Check display settings
+    # show_camera_window: explicit control over camera preview window
+    # status_indicator.enabled: explicit control over floating status indicator
+    # visual_mode: legacy/fallback (full/minimal/debug)
+    
+    show_camera = config.get('display', 'show_camera_window', default=True)
     visual_mode = config.get('display', 'visual_mode', default='full')
     status_enabled = config.get('display', 'status_indicator', 'enabled', default=True)
+    
+    # Fallback: if show_camera_window not set, use visual_mode
+    if show_camera is None:
+        show_camera = visual_mode in ['full', 'debug']
     
     status_queue = None
     frame_queue = None
     key_queue = None
     
+    # Status indicator always runs if enabled (independent of camera window)
     if status_enabled:
         status_queue = queue.Queue()
-        # Only create frame queue if we need to show camera
-        if visual_mode in ['full', 'debug']:
-            frame_queue = queue.Queue(maxsize=2)
-            key_queue = queue.Queue()  # For keyboard input from PyQt
+    
+    # Camera window only if show_camera is True
+    if show_camera:
+        frame_queue = queue.Queue(maxsize=2)
+        key_queue = queue.Queue()  # For keyboard input from PyQt
+    
+    # Print display mode info
+    print(f"📺 Display mode: camera_window={show_camera}, status_indicator={status_enabled}")
     
     # Create application
     try:
@@ -834,21 +886,19 @@ def main():
         if key_queue:
             app.set_key_queue(key_queue)
         
-        if status_enabled:
-            # Run App logic in a separate thread
-            # This allows the main thread to run the PyQt GUI (required for some OS/frameworks)
+        # Decide how to run based on what GUI elements are needed
+        if status_enabled or show_camera:
+            # Need PyQt GUI - run app in thread, GUI in main thread
             app_thread = threading.Thread(target=app.run)
             app_thread.daemon = True
             app_thread.start()
             
-            # Run GUI in main thread
+            # Run GUI in main thread (required for PyQt on some platforms)
             from source_code.gui.status_indicator import run_gui
             run_gui(config, status_queue, frame_queue, key_queue)
         else:
-            # Run App in main thread (standard mode)
-            # Note: Without GUI, we can't show camera if headless.
-            # But if user wants full mode without status indicator, they might expect cv2.imshow
-            # We'll assume status_indicator.enabled=False means legacy mode or headless
+            # No GUI needed - run app directly (headless mode)
+            print("🖥️ Running in headless mode (no camera window, no status indicator)")
             app.run()
             
     except KeyboardInterrupt:

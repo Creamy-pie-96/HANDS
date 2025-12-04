@@ -392,6 +392,120 @@ def get_bimanual_setting(param_name: str, default=None):
     return config.get('bimanual_gestures', param_name, default=default)
 
 
+def get_velocity_sensitivity_config(gesture_name: str) -> dict:
+    """
+    Get velocity sensitivity configuration for a specific gesture.
+    
+    Returns a dict with keys: sensitivity, speed_neutral, speed_factor, base_delay
+    
+    Gesture names and their actions:
+    - zoom: System zoom in/out (Ctrl+Plus/Minus)
+    - swipe_left: Workspace switch left
+    - swipe_right: Workspace switch right  
+    - swipe_up: Scroll up
+    - swipe_down: Scroll down
+    - thumbs_up_moving_up: Volume up (thumbs up + moving up)
+    - thumbs_up_moving_down: Volume down (thumbs up + moving down)
+    - thumbs_down_moving_up: Brightness up (thumbs down + moving up)
+    - thumbs_down_moving_down: Brightness down (thumbs down + moving down)
+    
+    Args:
+        gesture_name: Name of the gesture
+    
+    Returns:
+        Dict with sensitivity, speed_neutral, speed_factor, base_delay
+    """
+    # Default values
+    defaults = {
+        'sensitivity': 1.0,
+        'speed_neutral': 1.0,
+        'speed_factor': 0.2,
+        'base_delay': 0.5
+    }
+    
+    # Determine config path based on gesture name
+    if gesture_name == 'zoom':
+        # Direct category under system_control
+        return {
+            'sensitivity': get_system_control('zoom', 'sensitivity', defaults['sensitivity']),
+            'speed_neutral': get_system_control('zoom', 'speed_neutral', defaults['speed_neutral']),
+            'speed_factor': get_system_control('zoom', 'speed_factor', defaults['speed_factor']),
+            'base_delay': get_system_control('zoom', 'base_delay', defaults['base_delay']),
+        }
+    elif gesture_name.startswith('swipe_'):
+        # Under system_control.swipe.<gesture_name>
+        # swipe_up/down = scroll, swipe_left/right = workspace switch
+        swipe_config = config.get('system_control', 'swipe', gesture_name, default={})
+        if isinstance(swipe_config, dict):
+            return {
+                'sensitivity': _unwrap_value(swipe_config.get('sensitivity', defaults['sensitivity'])),
+                'speed_neutral': _unwrap_value(swipe_config.get('speed_neutral', defaults['speed_neutral'])),
+                'speed_factor': _unwrap_value(swipe_config.get('speed_factor', defaults['speed_factor'])),
+                'base_delay': _unwrap_value(swipe_config.get('base_delay', defaults['base_delay'])),
+            }
+        return defaults
+    elif gesture_name.startswith('thumbs_'):
+        # Under system_control.thumbs_moving.<gesture_name>
+        thumbs_config = config.get('system_control', 'thumbs_moving', gesture_name, default={})
+        if isinstance(thumbs_config, dict):
+            return {
+                'sensitivity': _unwrap_value(thumbs_config.get('sensitivity', defaults['sensitivity'])),
+                'speed_neutral': _unwrap_value(thumbs_config.get('speed_neutral', defaults['speed_neutral'])),
+                'speed_factor': _unwrap_value(thumbs_config.get('speed_factor', defaults['speed_factor'])),
+                'base_delay': _unwrap_value(thumbs_config.get('base_delay', defaults['base_delay'])),
+            }
+        return defaults
+    else:
+        # Unknown gesture, return defaults
+        return defaults
+
+
+def _unwrap_value(value):
+    """Unwrap [value, description] format to just value."""
+    if isinstance(value, list) and len(value) >= 1:
+        return value[0]
+    return value
+
+
+def is_gesture_enabled(gesture_name: str) -> bool:
+    """
+    Check if a gesture is enabled.
+    
+    Looks up the gesture in the 'gestures_enabled' section.
+    If not found, defaults to True (enabled).
+    
+    Args:
+        gesture_name: Name of the gesture (e.g., 'pinch', 'zoom_in', 'swipe_up')
+    
+    Returns:
+        True if gesture is enabled, False if disabled
+    """
+    return config.get('gestures_enabled', gesture_name, default=True)
+
+
+def get_all_gestures_enabled() -> dict:
+    """
+    Get the enabled/disabled status of all gestures.
+    
+    Returns:
+        Dict mapping gesture names to their enabled status (bool)
+    """
+    gestures_config = config.get('gestures_enabled', default={})
+    if not isinstance(gestures_config, dict):
+        return {}
+    
+    result = {}
+    for gesture_name, value in gestures_config.items():
+        if gesture_name.startswith('_'):  # Skip comments
+            continue
+        # Unwrap [value, description] format
+        if isinstance(value, list) and len(value) >= 1:
+            result[gesture_name] = bool(value[0])
+        else:
+            result[gesture_name] = bool(value)
+    return result
+
+
 if __name__ == "__main__":
     # Test configuration loading
     print("\n=== Configuration Test ===\n")
@@ -399,11 +513,20 @@ if __name__ == "__main__":
     print("Gesture Thresholds:")
     print(f"  Pinch threshold: {get_gesture_threshold('pinch', 'threshold_rel')}")
     print(f"  Zoom scale threshold: {get_gesture_threshold('zoom', 'scale_threshold')}")
-    print(f"  Swipe velocity: {get_gesture_threshold('swipe', 'velocity_threshold')}")
+    print(f"  Swipe velocity: {get_gesture_threshold('swipe', 'velocity_threshold_x')}")
     
     print("\nSystem Control:")
     print(f"  Cursor smoothing: {get_system_control('cursor', 'smoothing_factor')}")
-    print(f"  Scroll sensitivity: {get_system_control('scroll', 'sensitivity')}")
+    print(f"  Zoom sensitivity: {get_system_control('zoom', 'sensitivity')}")
+    
+    print("\nVelocity Sensitivity (Gesture → Action):")
+    print(f"  zoom (zoom in/out): {get_velocity_sensitivity_config('zoom')}")
+    print(f"  swipe_left (workspace left): {get_velocity_sensitivity_config('swipe_left')}")
+    print(f"  swipe_right (workspace right): {get_velocity_sensitivity_config('swipe_right')}")
+    print(f"  swipe_up (scroll up): {get_velocity_sensitivity_config('swipe_up')}")
+    print(f"  swipe_down (scroll down): {get_velocity_sensitivity_config('swipe_down')}")
+    print(f"  thumbs_up_moving_up (volume up): {get_velocity_sensitivity_config('thumbs_up_moving_up')}")
+    print(f"  thumbs_down_moving_down (brightness down): {get_velocity_sensitivity_config('thumbs_down_moving_down')}")
     
     print("\nCamera:")
     print(f"  Resolution: {config.get('camera', 'width')}x{config.get('camera', 'height')}")

@@ -95,6 +95,7 @@ class HandIndicator(QWidget):
     
     Shows a gesture sticker or fallback colored circle with emoji.
     Automatically hides when no hand is detected.
+    Shows a small red dot when the displayed gesture is disabled.
     """
     
     def __init__(self, hand_label: str, config, sticker_cache: dict, color_map: dict, debug: bool = False):
@@ -120,6 +121,7 @@ class HandIndicator(QWidget):
         self.current_text = ""
         self.current_gesture = None
         self.is_detected = False
+        self.is_disabled = False  # NEW: Track if current gesture is disabled
         
         # Track warned gestures (avoid repeated debug logs)
         self._warned_gestures = set()
@@ -227,17 +229,30 @@ class HandIndicator(QWidget):
                 font.setStyleHint(QFont.StyleHint.SansSerif)
                 painter.setFont(font)
                 painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, self.current_text)
+        
+        # Draw disabled indicator (small red dot in bottom-right corner)
+        if self.is_disabled:
+            dot_size = max(8, self.width() // 5)  # At least 8px, or 1/5 of indicator size
+            dot_x = self.width() - dot_size - 2  # 2px padding from edge
+            dot_y = self.height() - dot_size - 2
+            
+            # Draw red dot with black outline for visibility
+            painter.setPen(QColor(0, 0, 0))
+            painter.setBrush(QBrush(QColor(255, 50, 50)))  # Bright red
+            painter.drawEllipse(dot_x, dot_y, dot_size, dot_size)
     
-    def update_state(self, state: str, gesture: str):
+    def update_state(self, state: str, gesture: str, disabled: bool = False):
         """
         Update the indicator state.
         
         Args:
             state: 'red', 'yellow', 'blue', or 'hidden'
             gesture: Gesture name for sticker lookup
+            disabled: If True, show a red dot to indicate gesture is disabled
         """
         if state == 'hidden':
             self.is_detected = False
+            self.is_disabled = False
             if self.isVisible():
                 self.hide()
                 if self.debug:
@@ -250,6 +265,7 @@ class HandIndicator(QWidget):
             self.show()
         
         self.is_detected = True
+        self.is_disabled = disabled  # Track disabled state
         self.current_color = self.color_map.get(state, QColor(100, 100, 100))
         
         # Handle exit countdown (e.g., "exit_3")
@@ -264,8 +280,9 @@ class HandIndicator(QWidget):
         # Debug logging
         if self.debug:
             sticker_found = self.current_gesture in self.sticker_cache if self.current_gesture else False
+            disabled_str = " [DISABLED]" if disabled else ""
             if was_hidden:
-                print(f"[{self.hand_label.upper()}] Shown: state={state}, gesture={gesture}, sticker={'YES' if sticker_found else 'NO'}")
+                print(f"[{self.hand_label.upper()}] Shown: state={state}, gesture={gesture}{disabled_str}, sticker={'YES' if sticker_found else 'NO'}")
             elif self.current_gesture and not sticker_found:
                 if self.current_gesture not in self._warned_gestures:
                     self._warned_gestures.add(self.current_gesture)
@@ -461,15 +478,19 @@ class DualHandIndicator:
         Args:
             hands_data: Dict with structure:
                 {
-                    'left': {'detected': bool, 'state': str, 'gesture': str},
-                    'right': {'detected': bool, 'state': str, 'gesture': str}
+                    'left': {'detected': bool, 'state': str, 'gesture': str, 'disabled': bool},
+                    'right': {'detected': bool, 'state': str, 'gesture': str, 'disabled': bool}
                 }
         """
         # Update right hand
         if self.right_indicator:
             right_data = hands_data.get('right', {})
             if right_data.get('detected', False):
-                self.right_indicator.update_state(right_data.get('state', 'blue'), right_data.get('gesture', ''))
+                self.right_indicator.update_state(
+                    right_data.get('state', 'blue'),
+                    right_data.get('gesture', ''),
+                    right_data.get('disabled', False)
+                )
             else:
                 self.right_indicator.update_state('hidden', '')
         
@@ -477,7 +498,11 @@ class DualHandIndicator:
         if self.left_indicator:
             left_data = hands_data.get('left', {})
             if left_data.get('detected', False):
-                self.left_indicator.update_state(left_data.get('state', 'blue'), left_data.get('gesture', ''))
+                self.left_indicator.update_state(
+                    left_data.get('state', 'blue'),
+                    left_data.get('gesture', ''),
+                    left_data.get('disabled', False)
+                )
             else:
                 self.left_indicator.update_state('hidden', '')
     
