@@ -61,6 +61,12 @@ for arg in "$@"; do
         esac
 done
 
+# Change to project root directory (required for Python module imports)
+cd "$PROJECT_ROOT" || {
+    echo "❌ Failed to change to project directory: $PROJECT_ROOT"
+    exit 1
+}
+
 # Check if venv exists
 if [ ! -d ".venv" ]; then
     echo "❌ Virtual environment not found in $(pwd)!"
@@ -290,8 +296,8 @@ if [ "$PAUSE_FLAG" = true ] || [ "$EXIT_FLAG" = true ] || [ "$STATUS_FLAG" = tru
         fi
     fi
 
-    # If the invocation was control-only (no non-control args), exit after running control
-    if [ ${#NEWARGS[@]} -eq 0 ]; then
+    # If the invocation was control-only (no non-control args) AND --start was not specified, exit after running control
+    if [ ${#NEWARGS[@]} -eq 0 ] && [ "$START_FLAG" != true ]; then
         echo "Control-only invocation detected; exiting after app_control." 
         exit 0
     fi
