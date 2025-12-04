@@ -701,50 +701,7 @@ class HANDSApplication:
                         pass
                     except Exception as e:
                         print(f"⚠ Keyboard processing error: {e}")
-                
-                # Old cv2.waitKey code removed - keyboard handled via PyQt now
-                key = 255 # Default to no key pressed
-                # Only process if a key was pressed
-                if key != 255:
-                    # Normalize to lowercase character when possible
-                    try:
-                        k = chr(key).lower()
-                    except Exception:
-                        k = None
-
-                    if k == 'q':
-                        self.running = False
-                    elif k == 'p':
-                        self.paused = not self.paused
-                        if self.system_ctrl:
-                            self.system_ctrl.toggle_pause()
-                        print(f"{'⏸ PAUSED' if self.paused else '▶ RESUMED'}")
-                    elif k == 'd':
-                        self.show_debug = not self.show_debug
-                    elif k == 'f':
-                        self.show_fps = not self.show_fps
-                    elif k == 'h':
-                        self.print_controls()
-                    # Gesture debug toggles
-                    elif k == 'z':
-                        self.visual.show_gesture_debug['zoom'] = not self.visual.show_gesture_debug['zoom']
-                        print(f"Zoom debug: {'ON' if self.visual.show_gesture_debug['zoom'] else 'OFF'}")
-                    elif k == 'x':
-                        self.visual.show_gesture_debug['pinch'] = not self.visual.show_gesture_debug['pinch']
-                        print(f"Pinch debug: {'ON' if self.visual.show_gesture_debug['pinch'] else 'OFF'}")
-                    elif k == 'i':
-                        self.visual.show_gesture_debug['pointing'] = not self.visual.show_gesture_debug['pointing']
-                        print(f"Pointing debug: {'ON' if self.visual.show_gesture_debug['pointing'] else 'OFF'}")
-                    elif k == 's':
-                        self.visual.show_gesture_debug['swipe'] = not self.visual.show_gesture_debug['swipe']
-                        print(f"Swipe debug: {'ON' if self.visual.show_gesture_debug['swipe'] else 'OFF'}")
-                    elif k == 'o':
-                        self.visual.show_gesture_debug['open_hand'] = not self.visual.show_gesture_debug['open_hand']
-                        print(f"Open hand debug: {'ON' if self.visual.show_gesture_debug['open_hand'] else 'OFF'}")
-                    elif k == 't':
-                        self.visual.show_gesture_debug['thumbs'] = not self.visual.show_gesture_debug['thumbs']
-                        print(f"Thumbs debug: {'ON' if self.visual.show_gesture_debug['thumbs'] else 'OFF'}")
-        
+                        
         finally:
             self.cleanup()
     
