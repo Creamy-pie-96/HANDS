@@ -599,46 +599,125 @@
       ],
       "size": [
         64,
-        "Size of the status indicator in pixels"
+        "Size of each status indicator in pixels"
       ],
       "opacity": [
         0.8,
-        "Opacity of the status indicator (0.0 - 1.0)"
+        "Opacity of the status indicators (0.0 - 1.0)"
       ],
-      "position": [
-        "top-right",
-        "Position on screen: 'top-right', 'top-left', 'bottom-right', 'bottom-left'"
+      "debug": [
+        false,
+        "Enable debug logging for status indicator (prints gesture updates to console)"
       ],
-      "margin_x": [
-        20,
-        "Horizontal margin from screen edge"
-      ],
-      "margin_y": [
-        20,
-        "Vertical margin from screen edge"
-      ],
+      "right_hand": {
+        "enabled": [
+          true,
+          "Show indicator for right hand"
+        ],
+        "position": [
+          "top-right",
+          "Position: 'top-right', 'top-left', 'bottom-right', 'bottom-left'"
+        ],
+        "margin_x": [
+          20,
+          "Horizontal margin from screen edge"
+        ],
+        "margin_y": [
+          20,
+          "Vertical margin from screen edge"
+        ]
+      },
+      "left_hand": {
+        "enabled": [
+          true,
+          "Show indicator for left hand (only visible when left hand detected)"
+        ],
+        "position": [
+          "top-right",
+          "Position: 'top-right', 'top-left', 'bottom-right', 'bottom-left'"
+        ],
+        "margin_x": [
+          90,
+          "Horizontal margin from screen edge (offset from right indicator)"
+        ],
+        "margin_y": [
+          20,
+          "Vertical margin from screen edge"
+        ]
+      },
       "stickers_base_path": [
         "../gui/stickers",
         "Base directory for gesture sticker images (relative to config or absolute path)"
       ],
       "stickers": {
-        "pointing": ["pointing.png", "Sticker for pointing gesture"],
-        "pinch": ["pinch.png", "Sticker for pinch gesture"],
-        "zoom": ["zoom_in.png", "Sticker for zoom gesture (fallback)"],
-        "zoom_in": ["zoom_in.png", "Sticker for zoom in gesture"],
-        "zoom_out": ["zoom_out.png", "Sticker for zoom out gesture"],
-        "swipe": ["swipe_up.png", "Sticker for swipe gesture (fallback)"],
-        "swipe_up": ["swipe_up.png", "Sticker for swipe up gesture"],
-        "swipe_down": ["swipe_down.png", "Sticker for swipe down gesture"],
-        "swipe_left": ["swipe_left.png", "Sticker for swipe left gesture"],
-        "swipe_right": ["swipe_right.png", "Sticker for swipe right gesture"],
-        "open_hand": ["open_hand.png", "Sticker for open hand gesture"],
-        "thumbs_up": ["thumbs_up.png", "Sticker for static thumbs up gesture"],
-        "thumbs_down": ["thumbs_down.png", "Sticker for static thumbs down gesture"],
-        "thumbs_up_moving_up": ["thumbs_up_moving_up.png", "Sticker for thumbs up moving upward"],
-        "thumbs_up_moving_down": ["thumbs_up_moving_down.png", "Sticker for thumbs up moving downward"],
-        "thumbs_down_moving_up": ["thumbs_down_moving_up.png", "Sticker for thumbs down moving upward"],
-        "thumbs_down_moving_down": ["thumbs_down_moving_down.png", "Sticker for thumbs down moving downward"]
+        "pointing": [
+          "pointing.png",
+          "Sticker for pointing gesture"
+        ],
+        "pinch": [
+          "pinch.png",
+          "Sticker for pinch gesture"
+        ],
+        "zoom": [
+          "zoom_in.png",
+          "Sticker for zoom gesture (fallback)"
+        ],
+        "zoom_in": [
+          "zoom_in.png",
+          "Sticker for zoom in gesture"
+        ],
+        "zoom_out": [
+          "zoom_out.png",
+          "Sticker for zoom out gesture"
+        ],
+        "swipe": [
+          "swipe_up.png",
+          "Sticker for swipe gesture (fallback)"
+        ],
+        "swipe_up": [
+          "swipe_up.png",
+          "Sticker for swipe up gesture"
+        ],
+        "swipe_down": [
+          "swipe_down.png",
+          "Sticker for swipe down gesture"
+        ],
+        "swipe_left": [
+          "swipe_left.png",
+          "Sticker for swipe left gesture"
+        ],
+        "swipe_right": [
+          "swipe_right.png",
+          "Sticker for swipe right gesture"
+        ],
+        "open_hand": [
+          "open_hand.png",
+          "Sticker for open hand gesture"
+        ],
+        "thumbs_up": [
+          "thumbs_up.png",
+          "Sticker for static thumbs up gesture"
+        ],
+        "thumbs_down": [
+          "thumbs_down.png",
+          "Sticker for static thumbs down gesture"
+        ],
+        "thumbs_up_moving_up": [
+          "thumbs_up_moving_up.png",
+          "Sticker for thumbs up moving upward"
+        ],
+        "thumbs_up_moving_down": [
+          "thumbs_up_moving_down.png",
+          "Sticker for thumbs up moving downward"
+        ],
+        "thumbs_down_moving_up": [
+          "thumbs_down_moving_up.png",
+          "Sticker for thumbs down moving upward"
+        ],
+        "thumbs_down_moving_down": [
+          "thumbs_down_moving_down.png",
+          "Sticker for thumbs down moving downward"
+        ]
       },
       "colors": {
         "red": [

@@ -244,39 +244,57 @@ def is_finger_extended(
 
 
 class PinchDetector:
+    """
+    Detects pinch gesture (thumb and index finger close together).
+    Maintains per-hand state to support two-hand detection without interference.
+    """
 
     def __init__(self, thresh_rel: float = 0.055, hold_frames: int = 5, cooldown_s: float = 0.6):
         self.thresh_rel = thresh_rel
         self.hold_frames = hold_frames
         self.cooldown_s = cooldown_s
-        self._count = 0
-        self._last_time = -999.0
+        
+        # Per-hand state
+        self._hand_state = {
+            'left': self._create_hand_state(),
+            'right': self._create_hand_state()
+        }
     
-    def detect(self, metrics: HandMetrics) -> GestureResult:
+    def _create_hand_state(self):
+        return {'count': 0, 'last_time': -999.0}
+    
+    def _get_state(self, hand_label: str):
+        if hand_label not in self._hand_state:
+            self._hand_state[hand_label] = self._create_hand_state()
+        return self._hand_state[hand_label]
+    
+    def detect(self, metrics: HandMetrics, hand_label: str = 'right') -> GestureResult:
+        state = self._get_state(hand_label)
        
         dist_rel = metrics.tip_distances['index_thumb']
         now = time.time()
-        in_cooldown = now - self._last_time < self.cooldown_s
+        in_cooldown = now - state['last_time'] < self.cooldown_s
         
         # Always return full metadata for visual feedback
         base_metadata = {
             'dist_rel': dist_rel,
             'threshold': self.thresh_rel,
-            'hold_count': self._count,
+            'hold_count': state['count'],
             'hold_frames_needed': self.hold_frames,
             'in_cooldown': in_cooldown,
-            'cooldown_remaining': max(0.0, self.cooldown_s - (now - self._last_time))
+            'cooldown_remaining': max(0.0, self.cooldown_s - (now - state['last_time'])),
+            'hand_label': hand_label
         }
         
         if in_cooldown:
             return GestureResult(detected=False, gesture_name='pinch', metadata=base_metadata)
 
         if dist_rel <= self.thresh_rel:
-            self._count += 1
-            base_metadata['hold_count'] = self._count
-            if self._count >= self.hold_frames:
-                self._last_time = now
-                self._count = 0
+            state['count'] += 1
+            base_metadata['hold_count'] = state['count']
+            if state['count'] >= self.hold_frames:
+                state['last_time'] = now
+                state['count'] = 0
                 base_metadata['hold_count'] = 0
                 base_metadata['reason'] = 'pinch_completed'
                 return GestureResult(
@@ -288,7 +306,7 @@ class PinchDetector:
             else:
                 base_metadata['reason'] = 'holding'
         else:
-            self._count = 0
+            state['count'] = 0
             base_metadata['hold_count'] = 0
             base_metadata['reason'] = 'fingers_too_far'
 
@@ -296,6 +314,10 @@ class PinchDetector:
 
 
 class PointingDetector:
+    """
+    Detects pointing gesture (index finger extended).
+    Maintains per-hand state to support two-hand detection without interference.
+    """
     def __init__(
             self, 
             min_extension_ratio: float = 0.12, 
@@ -307,8 +329,24 @@ class PointingDetector:
         self.max_extra_fingers = int(max_extra_fingers)
         self.max_speed = float(max_speed)
         self.ewma_alpha = ewma_alpha
-        self.ewma_speed = EWMA(alpha=ewma_alpha)
-    def detect(self, metrics: HandMetrics) -> GestureResult:
+        
+        # Per-hand state
+        self._hand_state = {
+            'left': self._create_hand_state(),
+            'right': self._create_hand_state()
+        }
+    
+    def _create_hand_state(self):
+        return {'ewma_speed': EWMA(alpha=self.ewma_alpha)}
+    
+    def _get_state(self, hand_label: str):
+        if hand_label not in self._hand_state:
+            self._hand_state[hand_label] = self._create_hand_state()
+        return self._hand_state[hand_label]
+    
+    def detect(self, metrics: HandMetrics, hand_label: str = 'right') -> GestureResult:
+        state = self._get_state(hand_label)
+        
         index_tip = metrics.tip_positions['index']
         centroid = metrics.centroid
         # Normalize distance by hand size (diag_rel = hand_diag / img_diag)
@@ -317,7 +355,7 @@ class PointingDetector:
         distance = euclidean(index_tip, centroid) / (metrics.diag_rel + eps)
         
         raw_speed = float(np.hypot(metrics.velocity[0], metrics.velocity[1]))
-        smoothed_speed_arr = self.ewma_speed.update([raw_speed])
+        smoothed_speed_arr = state['ewma_speed'].update([raw_speed])
         speed = float(smoothed_speed_arr[0])
         
         direction = (index_tip[0] - centroid[0], index_tip[1] - centroid[1])
@@ -339,6 +377,7 @@ class PointingDetector:
             'index_extended': index_extended,
             'extra_fingers_count': extended_count,
             'max_extra_fingers': self.max_extra_fingers,
+            'hand_label': hand_label,
             'reason': None
         }
         
@@ -369,6 +408,7 @@ class PointingDetector:
 class SwipeDetector:
     """
     Detects continuous directional hand movements with axis-specific tuning.
+    Maintains per-hand state to support two-hand detection without interference.
     """
     def __init__(
         self,
@@ -390,14 +430,30 @@ class SwipeDetector:
         self.max_velocity_x = max_velocity_x
         self.max_velocity_y = max_velocity_y
         
-        self.confidence = 0.0
-        self.ewma_velocity = EWMA(alpha=ewma_alpha)
-        self.current_direction: Optional[str] = None
+        # Per-hand state
+        self._hand_state = {
+            'left': self._create_hand_state(),
+            'right': self._create_hand_state()
+        }
     
-    def detect(self, metrics: HandMetrics) -> GestureResult:
+    def _create_hand_state(self):
+        return {
+            'confidence': 0.0,
+            'ewma_velocity': EWMA(alpha=self.ewma_alpha),
+            'current_direction': None
+        }
+    
+    def _get_state(self, hand_label: str):
+        if hand_label not in self._hand_state:
+            self._hand_state[hand_label] = self._create_hand_state()
+        return self._hand_state[hand_label]
+    
+    def detect(self, metrics: HandMetrics, hand_label: str = 'right') -> GestureResult:
+        state = self._get_state(hand_label)
+        
         vx, vy = metrics.velocity
         
-        smoothed = self.ewma_velocity.update([vx, vy])
+        smoothed = state['ewma_velocity'].update([vx, vy])
         ewma_vx = float(smoothed[0])
         ewma_vy = float(smoothed[1])
         
@@ -414,68 +470,69 @@ class SwipeDetector:
         
         base_metadata = {
             'direction': detected_direction,
-            'current_direction': self.current_direction,
+            'current_direction': state['current_direction'],
             'raw_velocity': (vx, vy),
             'ewma_velocity': (ewma_vx, ewma_vy),
             'velocity_threshold_x': self.velocity_threshold_x,
             'velocity_threshold_y': self.velocity_threshold_y,
-            'confidence': self.confidence,
+            'confidence': state['confidence'],
             'confidence_threshold': self.confidence_threshold,
+            'hand_label': hand_label,
             'reason': None
         }
         
         if primary_velocity > max_velocity:
-            self.confidence = max(0.0, self.confidence - self.confidence_decay)
+            state['confidence'] = max(0.0, state['confidence'] - self.confidence_decay)
             base_metadata['reason'] = 'velocity_too_high'
-            base_metadata['confidence'] = self.confidence
+            base_metadata['confidence'] = state['confidence']
             
-            if self.confidence == 0.0:
-                self.current_direction = None
+            if state['confidence'] == 0.0:
+                state['current_direction'] = None
             
             return GestureResult(
-                detected=(self.confidence >= self.confidence_threshold),
+                detected=(state['confidence'] >= self.confidence_threshold),
                 gesture_name='swipe',
-                confidence=self.confidence,
+                confidence=state['confidence'],
                 metadata=base_metadata
             )
         
         if primary_velocity > velocity_threshold:
-            if self.current_direction is None:
-                self.current_direction = detected_direction
-                self.confidence = min(1.0, self.confidence + self.confidence_ramp_up)
+            if state['current_direction'] is None:
+                state['current_direction'] = detected_direction
+                state['confidence'] = min(1.0, state['confidence'] + self.confidence_ramp_up)
                 base_metadata['reason'] = 'swipe_started'
-            elif self.current_direction == detected_direction:
-                self.confidence = min(1.0, self.confidence + self.confidence_ramp_up)
+            elif state['current_direction'] == detected_direction:
+                state['confidence'] = min(1.0, state['confidence'] + self.confidence_ramp_up)
                 base_metadata['reason'] = 'swipe_sustained'
             else:
-                self.confidence = max(0.0, self.confidence - self.confidence_decay)
+                state['confidence'] = max(0.0, state['confidence'] - self.confidence_decay)
                 base_metadata['reason'] = 'direction_changed'
                 
-                if self.confidence == 0.0:
-                    self.current_direction = detected_direction
-                    self.confidence = min(1.0, self.confidence + self.confidence_ramp_up)
+                if state['confidence'] == 0.0:
+                    state['current_direction'] = detected_direction
+                    state['confidence'] = min(1.0, state['confidence'] + self.confidence_ramp_up)
                     base_metadata['reason'] = 'swipe_direction_switched'
         else:
-            self.confidence = max(0.0, self.confidence - self.confidence_decay)
+            state['confidence'] = max(0.0, state['confidence'] - self.confidence_decay)
             base_metadata['reason'] = 'movement_stopped'
             
-            if self.confidence == 0.0:
-                self.current_direction = None
+            if state['confidence'] == 0.0:
+                state['current_direction'] = None
         
-        base_metadata['current_direction'] = self.current_direction
-        base_metadata['confidence'] = self.confidence
+        base_metadata['current_direction'] = state['current_direction']
+        base_metadata['confidence'] = state['confidence']
         
-        is_detected = self.confidence >= self.confidence_threshold
+        is_detected = state['confidence'] >= self.confidence_threshold
         
         # Include direction in gesture name for consistency with other directional gestures
         gesture_name = 'swipe'
-        if is_detected and self.current_direction:
-            gesture_name = f'swipe_{self.current_direction}'
+        if is_detected and state['current_direction']:
+            gesture_name = f'swipe_{state["current_direction"]}'
         
         return GestureResult(
             detected=is_detected,
             gesture_name=gesture_name,
-            confidence=self.confidence,
+            confidence=state['confidence'],
             metadata=base_metadata
         )
 
@@ -484,6 +541,7 @@ class ZoomDetector:
     """
     Detects pinch-to-zoom using three fingers (thumb, index, middle).
     Tracks spread change between fingers with smoothing and confidence decay.
+    Maintains per-hand state to support two-hand detection without interference.
     """
     def __init__(
         self,
@@ -505,15 +563,28 @@ class ZoomDetector:
         self.max_velocity = max_velocity
         self.require_fingers_extended = require_fingers_extended
         
-        self.confidence = 0.0
-        self.prev_spread: Optional[float] = None
-        self.ewma_velocity = EWMA(alpha=ewma_alpha)
-        self.current_direction: Optional[str] = None
+        # Per-hand state
+        self._hand_state = {
+            'left': self._create_hand_state(),
+            'right': self._create_hand_state()
+        }
     
-    def detect(self, metrics: HandMetrics) -> GestureResult:
+    def _create_hand_state(self):
+        return {
+            'confidence': 0.0,
+            'prev_spread': None,
+            'ewma_velocity': EWMA(alpha=self.ewma_alpha),
+            'current_direction': None
+        }
+    
+    def _get_state(self, hand_label: str):
+        if hand_label not in self._hand_state:
+            self._hand_state[hand_label] = self._create_hand_state()
+        return self._hand_state[hand_label]
+    
+    def detect(self, metrics: HandMetrics, hand_label: str = 'right') -> GestureResult:
+        state = self._get_state(hand_label)
         
-        index_middle_dist = metrics.tip_distances.get('index_middle', 0.0)
-        spread = metrics.tip_distances.get('index_thumb', 0.0)
         index_middle_dist = metrics.tip_distances.get('index_middle', 0.0)
         spread = metrics.tip_distances.get('index_thumb', 0.0)
 
@@ -521,44 +592,45 @@ class ZoomDetector:
             'spread': spread,
             'finger_gap': index_middle_dist,
             'finger_gap_threshold': self.finger_gap_threshold,
-            'ewma_velocity': float(self.ewma_velocity.value) if self.ewma_velocity.value is not None else 0.0,
+            'ewma_velocity': float(state['ewma_velocity'].value) if state['ewma_velocity'].value is not None else 0.0,
             'velocity_threshold': self.velocity_threshold,
-            'confidence': self.confidence,
+            'confidence': state['confidence'],
             'confidence_threshold': self.confidence_threshold,
-            'direction': self.current_direction,
+            'direction': state['current_direction'],
+            'hand_label': hand_label,
             'reason': None
         }
 
         if index_middle_dist > self.finger_gap_threshold:
-            self.confidence = max(0.0, self.confidence - self.confidence_decay)
+            state['confidence'] = max(0.0, state['confidence'] - self.confidence_decay)
             base_metadata['reason'] = 'fingers_not_paired'
             
-            if self.confidence == 0.0:
-                self.prev_spread = None
-                self.ewma_velocity = EWMA(alpha=self.ewma_alpha)
-                self.current_direction = None
+            if state['confidence'] == 0.0:
+                state['prev_spread'] = None
+                state['ewma_velocity'] = EWMA(alpha=self.ewma_alpha)
+                state['current_direction'] = None
             
             return GestureResult(
-                detected=(self.confidence >= self.confidence_threshold),
+                detected=(state['confidence'] >= self.confidence_threshold),
                 gesture_name='zoom',
-                confidence=self.confidence,
+                confidence=state['confidence'],
                 metadata=base_metadata
             )
         
-        if self.prev_spread is None:
-            self.prev_spread = spread
+        if state['prev_spread'] is None:
+            state['prev_spread'] = spread
             base_metadata['reason'] = 'initializing'
             return GestureResult(
                 detected=False,
                 gesture_name='zoom',
-                confidence=self.confidence,
+                confidence=state['confidence'],
                 metadata=base_metadata
             )
         
-        delta_spread = spread - self.prev_spread
-        self.prev_spread = spread
+        delta_spread = spread - state['prev_spread']
+        state['prev_spread'] = spread
         
-        smoothed = self.ewma_velocity.update([delta_spread])
+        smoothed = state['ewma_velocity'].update([delta_spread])
         ewma_vel = float(smoothed[0])
         
         base_metadata['ewma_velocity'] = ewma_vel
@@ -566,20 +638,19 @@ class ZoomDetector:
         
         abs_velocity = abs(ewma_vel)
         if abs_velocity > self.max_velocity:
-            self.confidence = max(0.0, self.confidence - self.confidence_decay)
+            state['confidence'] = max(0.0, state['confidence'] - self.confidence_decay)
             base_metadata['reason'] = 'velocity_too_high'
             
-            if self.confidence == 0.0:
-                self.current_direction = None
+            if state['confidence'] == 0.0:
+                state['current_direction'] = None
             
             return GestureResult(
-                detected=(self.confidence >= self.confidence_threshold),
+                detected=(state['confidence'] >= self.confidence_threshold),
                 gesture_name='zoom',
-                confidence=self.confidence,
+                confidence=state['confidence'],
                 metadata=base_metadata
             )
         
-        eps = 1e-6
         if ewma_vel < -self.velocity_threshold:
             detected_direction = 'out'
         elif ewma_vel > self.velocity_threshold:
@@ -588,31 +659,31 @@ class ZoomDetector:
             detected_direction = None
         
         if detected_direction is not None:
-            if self.current_direction is None:
-                self.current_direction = detected_direction
-                self.confidence = min(1.0, self.confidence + self.confidence_ramp_up)
+            if state['current_direction'] is None:
+                state['current_direction'] = detected_direction
+                state['confidence'] = min(1.0, state['confidence'] + self.confidence_ramp_up)
                 base_metadata['reason'] = 'direction_started'
-            elif self.current_direction == detected_direction:
-                self.confidence = min(1.0, self.confidence + self.confidence_ramp_up)
+            elif state['current_direction'] == detected_direction:
+                state['confidence'] = min(1.0, state['confidence'] + self.confidence_ramp_up)
                 base_metadata['reason'] = 'direction_sustained'
             else:
-                self.confidence = max(0.0, self.confidence - self.confidence_decay)
+                state['confidence'] = max(0.0, state['confidence'] - self.confidence_decay)
                 base_metadata['reason'] = 'direction_reversed'
                 
-                if self.confidence == 0.0:
-                    self.current_direction = detected_direction
-                    self.confidence = min(1.0, self.confidence + self.confidence_ramp_up)
+                if state['confidence'] == 0.0:
+                    state['current_direction'] = detected_direction
+                    state['confidence'] = min(1.0, state['confidence'] + self.confidence_ramp_up)
         else:
-            self.confidence = max(0.0, self.confidence - self.confidence_decay)
+            state['confidence'] = max(0.0, state['confidence'] - self.confidence_decay)
             base_metadata['reason'] = 'movement_stopped'
             
-            if self.confidence == 0.0:
-                self.current_direction = None
+            if state['confidence'] == 0.0:
+                state['current_direction'] = None
         
-        base_metadata['direction'] = self.current_direction
-        base_metadata['confidence'] = self.confidence
+        base_metadata['direction'] = state['current_direction']
+        base_metadata['confidence'] = state['confidence']
         
-        is_detected = self.confidence >= self.confidence_threshold
+        is_detected = state['confidence'] >= self.confidence_threshold
         
         # Update reason if detected
         if is_detected and base_metadata['reason'] not in ['direction_started', 'direction_sustained']:
@@ -620,13 +691,13 @@ class ZoomDetector:
         
         # Include direction in gesture name for consistency with other directional gestures
         gesture_name = 'zoom'
-        if is_detected and self.current_direction:
-            gesture_name = f'zoom_{self.current_direction}'
+        if is_detected and state['current_direction']:
+            gesture_name = f'zoom_{state["current_direction"]}'
         
         return GestureResult(
             detected=is_detected,
             gesture_name=gesture_name,
-            confidence=self.confidence,
+            confidence=state['confidence'],
             metadata=base_metadata
         )
 
@@ -683,6 +754,8 @@ class ThumbsDetector:
     Uses EWMA for velocity smoothing (like SwipeDetector) so movement must be continuous.
     Waits hold_frames before confirming static thumbs_up/thumbs_down to allow time
     to detect if user intends to move (reduces false positives).
+    
+    Maintains per-hand state to support two-hand detection without interference.
     """
     def __init__(
         self,
@@ -700,16 +773,39 @@ class ThumbsDetector:
         self.confidence_decay = confidence_decay
         self.confidence_threshold = confidence_threshold
         
-        # EWMA for velocity smoothing
-        self.ewma_velocity = EWMA(alpha=ewma_alpha)
-        # Confidence for movement detection (like SwipeDetector)
-        self.move_confidence = 0.0
-        self.current_move_direction: Optional[str] = None  # 'up' or 'down'
-        # Hold counter for static gesture confirmation
-        self._static_hold_count = 0
-        self._last_static_gesture: Optional[str] = None  # 'thumbs_up' or 'thumbs_down'
+        # Per-hand state to avoid interference when both hands are detected
+        self._hand_state = {
+            'left': self._create_hand_state(),
+            'right': self._create_hand_state()
+        }
+    
+    def _create_hand_state(self):
+        """Create fresh state for a hand."""
+        return {
+            'ewma_velocity': EWMA(alpha=self.ewma_alpha),
+            'move_confidence': 0.0,
+            'current_move_direction': None,
+            'static_hold_count': 0,
+            'last_static_gesture': None
+        }
+    
+    def _get_state(self, hand_label: str):
+        """Get state for a specific hand, creating if needed."""
+        if hand_label not in self._hand_state:
+            self._hand_state[hand_label] = self._create_hand_state()
+        return self._hand_state[hand_label]
 
-    def detect(self, metrics: HandMetrics) -> GestureResult:
+    def detect(self, metrics: HandMetrics, hand_label: str = 'right') -> GestureResult:
+        """
+        Detect thumbs gesture for a specific hand.
+        
+        Args:
+            metrics: Hand metrics
+            hand_label: 'left' or 'right' to track per-hand state
+        """
+        # Get per-hand state
+        state = self._get_state(hand_label)
+        
         extended = metrics.fingers_extended
         # Check if only thumb is extended
         only_thumb = extended['thumb'] and not any([extended['index'], extended['middle'], extended['ring'], extended['pinky']])
@@ -718,19 +814,20 @@ class ThumbsDetector:
             'only_thumb': only_thumb,
             'velocity': metrics.velocity,
             'ewma_velocity_y': 0.0,
-            'move_confidence': self.move_confidence,
-            'static_hold_count': self._static_hold_count,
+            'move_confidence': state['move_confidence'],
+            'static_hold_count': state['static_hold_count'],
             'hold_frames_needed': self.hold_frames,
+            'hand_label': hand_label,
             'reason': None
         }
         
         if not only_thumb:
             # Reset state when thumb not isolated
-            self._static_hold_count = 0
-            self._last_static_gesture = None
-            self.move_confidence = max(0.0, self.move_confidence - self.confidence_decay)
-            if self.move_confidence == 0.0:
-                self.current_move_direction = None
+            state['static_hold_count'] = 0
+            state['last_static_gesture'] = None
+            state['move_confidence'] = max(0.0, state['move_confidence'] - self.confidence_decay)
+            if state['move_confidence'] == 0.0:
+                state['current_move_direction'] = None
             base_metadata['reason'] = 'thumb_not_isolated'
             return GestureResult(detected=False, gesture_name='none', metadata=base_metadata)
             
@@ -743,9 +840,9 @@ class ThumbsDetector:
         # Get current static gesture type
         current_static = 'thumbs_up' if is_thumbs_up else ('thumbs_down' if is_thumbs_down else None)
         
-        # Smooth velocity with EWMA
+        # Smooth velocity with EWMA (per-hand)
         vx, vy = metrics.velocity
-        smoothed = self.ewma_velocity.update([vy])
+        smoothed = state['ewma_velocity'].update([vy])
         ewma_vy = float(smoothed[0])
         base_metadata['ewma_velocity_y'] = ewma_vy
         
@@ -760,28 +857,28 @@ class ThumbsDetector:
         
         # Update movement confidence (like SwipeDetector)
         if detected_move_direction is not None:
-            if self.current_move_direction is None:
-                self.current_move_direction = detected_move_direction
-                self.move_confidence = min(1.0, self.move_confidence + self.confidence_ramp_up)
-            elif self.current_move_direction == detected_move_direction:
-                self.move_confidence = min(1.0, self.move_confidence + self.confidence_ramp_up)
+            if state['current_move_direction'] is None:
+                state['current_move_direction'] = detected_move_direction
+                state['move_confidence'] = min(1.0, state['move_confidence'] + self.confidence_ramp_up)
+            elif state['current_move_direction'] == detected_move_direction:
+                state['move_confidence'] = min(1.0, state['move_confidence'] + self.confidence_ramp_up)
             else:
                 # Direction changed
-                self.move_confidence = max(0.0, self.move_confidence - self.confidence_decay)
-                if self.move_confidence == 0.0:
-                    self.current_move_direction = detected_move_direction
-                    self.move_confidence = min(1.0, self.confidence_ramp_up)
+                state['move_confidence'] = max(0.0, state['move_confidence'] - self.confidence_decay)
+                if state['move_confidence'] == 0.0:
+                    state['current_move_direction'] = detected_move_direction
+                    state['move_confidence'] = min(1.0, self.confidence_ramp_up)
         else:
             # No significant movement
-            self.move_confidence = max(0.0, self.move_confidence - self.confidence_decay)
-            if self.move_confidence == 0.0:
-                self.current_move_direction = None
+            state['move_confidence'] = max(0.0, state['move_confidence'] - self.confidence_decay)
+            if state['move_confidence'] == 0.0:
+                state['current_move_direction'] = None
         
-        base_metadata['move_confidence'] = self.move_confidence
-        base_metadata['current_move_direction'] = self.current_move_direction
+        base_metadata['move_confidence'] = state['move_confidence']
+        base_metadata['current_move_direction'] = state['current_move_direction']
         
         # Check if movement is confirmed
-        movement_confirmed = self.move_confidence >= self.confidence_threshold
+        movement_confirmed = state['move_confidence'] >= self.confidence_threshold
         
         gesture_name = 'none'
         detected = False
@@ -789,26 +886,26 @@ class ThumbsDetector:
         if is_thumbs_up or is_thumbs_down:
             base_gesture = 'thumbs_up' if is_thumbs_up else 'thumbs_down'
             
-            if movement_confirmed and self.current_move_direction:
+            if movement_confirmed and state['current_move_direction']:
                 # Moving gesture confirmed via EWMA confidence
-                gesture_name = f'{base_gesture}_moving_{self.current_move_direction}'
+                gesture_name = f'{base_gesture}_moving_{state["current_move_direction"]}'
                 detected = True
                 # Reset static hold since we have movement
-                self._static_hold_count = 0
-                self._last_static_gesture = None
+                state['static_hold_count'] = 0
+                state['last_static_gesture'] = None
                 base_metadata['reason'] = 'movement_confirmed'
             else:
                 # No confirmed movement - check static gesture with hold_frames
-                if self._last_static_gesture == current_static:
-                    self._static_hold_count += 1
+                if state['last_static_gesture'] == current_static:
+                    state['static_hold_count'] += 1
                 else:
                     # Changed static gesture or just started
-                    self._last_static_gesture = current_static
-                    self._static_hold_count = 1
+                    state['last_static_gesture'] = current_static
+                    state['static_hold_count'] = 1
                 
-                base_metadata['static_hold_count'] = self._static_hold_count
+                base_metadata['static_hold_count'] = state['static_hold_count']
                 
-                if self._static_hold_count >= self.hold_frames:
+                if state['static_hold_count'] >= self.hold_frames:
                     # Static gesture confirmed after hold_frames
                     gesture_name = base_gesture
                     detected = True
@@ -818,14 +915,14 @@ class ThumbsDetector:
                     base_metadata['reason'] = 'waiting_for_hold'
                     # Don't report as detected yet - could be user wants to move
         else:
-            self._static_hold_count = 0
-            self._last_static_gesture = None
+            state['static_hold_count'] = 0
+            state['last_static_gesture'] = None
             base_metadata['reason'] = 'no_thumbs_pose'
                 
         return GestureResult(
             detected=detected,
             gesture_name=gesture_name,
-            confidence=self.move_confidence if movement_confirmed else (1.0 if detected else 0.0),
+            confidence=state['move_confidence'] if movement_confirmed else (1.0 if detected else 0.0),
             metadata=base_metadata
         )
 
@@ -994,12 +1091,13 @@ class GestureManager:
         
         results = {}
         
-        pinch_result = self.pinch.detect(metrics)
-        pointing_result = self.pointing.detect(metrics)
-        swipe_result = self.swipe.detect(metrics)
-        zoom_result = self.zoom.detect(metrics)
-        thumbs_result = self.thumbs.detect(metrics)
-        open_hand_result = self.open_hand.detect(metrics)
+        # Pass hand_label to all stateful detectors for per-hand state tracking
+        pinch_result = self.pinch.detect(metrics, hand_label)
+        pointing_result = self.pointing.detect(metrics, hand_label)
+        swipe_result = self.swipe.detect(metrics, hand_label)
+        zoom_result = self.zoom.detect(metrics, hand_label)
+        thumbs_result = self.thumbs.detect(metrics, hand_label)
+        open_hand_result = self.open_hand.detect(metrics)  # Stateless, no hand_label needed
 
 
         results['__pinch_meta'] = pinch_result

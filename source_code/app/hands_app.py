@@ -504,81 +504,100 @@ class HANDSApplication:
                                 meta_str = f" ({result.metadata['direction']})"
                             print(f"[{category}] {gesture_name.upper()}{meta_str}")
                 
-                # Update Status Indicator
+                # Update Status Indicator - Now sends per-hand data
+                # Each indicator shows what THAT hand is doing, not bimanual combinations
                 if self.status_queue:
-                    state = 'yellow'  # Default: AI working, no hand
-                    gesture_name = ""
-                    
-                    if not self.enable_system_control:
-                        state = 'red'
-                        gesture_name = "dry_run"
-                    
-                    if self.paused:
-                        state = 'red'
-                        gesture_name = "paused"
-                    elif left_landmarks or right_landmarks:
-                        state = 'blue'  # Hand detected (User preference: Blue instead of Green)
-                        
-                        # Check for active gestures and get gesture name
-                        # Priority: Bimanual > Right > Left
-                        
-                        def get_gesture_with_direction(gestures_dict):
-                            """Get gesture name with direction suffix if available."""
-                            if not gestures_dict:
-                                return ""
-                            # Skip internal metadata gestures (start with __)
-                            for name in gestures_dict:
-                                if name.startswith('__'):
-                                    continue
-                                result = gestures_dict[name]
-                                # Check for direction in metadata to create specific gesture name
-                                if hasattr(result, 'metadata') and result.metadata:
-                                    direction = result.metadata.get('direction', '')
-                                    # Only use direction if it's a simple string like 'in', 'out', 'up', 'down', 'left', 'right'
-                                    if isinstance(direction, str) and direction in ('in', 'out', 'up', 'down', 'left', 'right'):
-                                        # Create directional gesture name like zoom_in, swipe_up
-                                        # But avoid duplication like swipe_up_up
-                                        if not name.endswith(f'_{direction}'):
-                                            return f"{name}_{direction}"
-                                return name
+                    # Helper function to get gesture name with direction
+                    def get_gesture_with_direction(gestures_dict):
+                        """Get gesture name with direction suffix if available."""
+                        if not gestures_dict:
                             return ""
+                        # Skip internal metadata gestures (start with __)
+                        for name in gestures_dict:
+                            if name.startswith('__'):
+                                continue
+                            result = gestures_dict[name]
+                            # Check for direction in metadata to create specific gesture name
+                            if hasattr(result, 'metadata') and result.metadata:
+                                direction = result.metadata.get('direction', '')
+                                # Only use direction if it's a simple string
+                                if isinstance(direction, str) and direction in ('in', 'out', 'up', 'down', 'left', 'right'):
+                                    if not name.endswith(f'_{direction}'):
+                                        return f"{name}_{direction}"
+                            return name
+                        return ""
+                    
+                    # Build per-hand status data
+                    hands_data = {
+                        'left': {'detected': False, 'state': 'hidden', 'gesture': ''},
+                        'right': {'detected': False, 'state': 'hidden', 'gesture': ''}
+                    }
+                    
+                    # Check for special states (paused, dry_run)
+                    if not self.enable_system_control:
+                        # Dry-run mode - show on right indicator only
+                        hands_data['right'] = {'detected': True, 'state': 'red', 'gesture': 'dry_run'}
+                    elif self.paused:
+                        # Paused - show on right indicator only
+                        hands_data['right'] = {'detected': True, 'state': 'red', 'gesture': 'paused'}
+                    else:
+                        # Process left hand - always show what LEFT hand is doing
+                        if left_landmarks:
+                            hands_data['left']['detected'] = True
+                            hands_data['left']['state'] = 'blue'
+                            
+                            # Get left hand gesture (individual, not bimanual)
+                            l_gests = all_gestures.get('left', {})
+                            if l_gests:
+                                hands_data['left']['gesture'] = get_gesture_with_direction(l_gests)
+                            
+                            # Check for thumbs down quit gesture on left
+                            if 'thumbs_down' in l_gests:
+                                if self.quit_gesture_start_time == 0:
+                                    self.quit_gesture_start_time = time.time()
+                                elapsed = time.time() - self.quit_gesture_start_time
+                                if elapsed > self.quit_hold_duration:
+                                    print("\n🛑 Quit gesture detected! Exiting...")
+                                    self.running = False
+                                else:
+                                    remaining = int(self.quit_hold_duration - elapsed + 0.9)
+                                    hands_data['left']['gesture'] = f"exit_{remaining}"
+                                    hands_data['left']['state'] = 'red'
                         
-                        # Check Bimanual
-                        bi_gests = all_gestures.get('bimanual', {})
-                        if bi_gests:
-                            gesture_name = get_gesture_with_direction(bi_gests)
-                        else:
-                            # Check Right
+                        # Process right hand - always show what RIGHT hand is doing
+                        if right_landmarks:
+                            hands_data['right']['detected'] = True
+                            hands_data['right']['state'] = 'blue'
+                            
+                            # Get right hand gesture (individual, not bimanual)
                             r_gests = all_gestures.get('right', {})
                             if r_gests:
-                                gesture_name = get_gesture_with_direction(r_gests)
-                            else:
-                                # Check Left
-                                l_gests = all_gestures.get('left', {})
-                                if l_gests:
-                                    gesture_name = get_gesture_with_direction(l_gests)
+                                hands_data['right']['gesture'] = get_gesture_with_direction(r_gests)
+                            
+                            # Check for thumbs down quit gesture on right
+                            if 'thumbs_down' in r_gests:
+                                if self.quit_gesture_start_time == 0:
+                                    self.quit_gesture_start_time = time.time()
+                                elapsed = time.time() - self.quit_gesture_start_time
+                                if elapsed > self.quit_hold_duration:
+                                    print("\n🛑 Quit gesture detected! Exiting...")
+                                    self.running = False
+                                else:
+                                    remaining = int(self.quit_hold_duration - elapsed + 0.9)
+                                    hands_data['right']['gesture'] = f"exit_{remaining}"
+                                    hands_data['right']['state'] = 'red'
                         
-                        # Quit Gesture Logic (Thumbs Down held)
+                        # NOTE: Bimanual gestures are detected and used for system control,
+                        # but the status indicators show individual hand gestures.
+                        # This way: pan = left shows open_hand, right shows swipe_direction
+                        
+                        # Reset quit timer if no thumbs down
                         is_thumbs_down = 'thumbs_down' in all_gestures.get('right', {}) or \
                                          'thumbs_down' in all_gestures.get('left', {})
-                        
-                        if is_thumbs_down:
-                            if self.quit_gesture_start_time == 0:
-                                self.quit_gesture_start_time = time.time()
-                            
-                            elapsed = time.time() - self.quit_gesture_start_time
-                            if elapsed > self.quit_hold_duration:
-                                print("\n🛑 Quit gesture detected! Exiting...")
-                                self.running = False
-                            else:
-                                # Show countdown for quitting
-                                remaining = int(self.quit_hold_duration - elapsed + 0.9)
-                                gesture_name = f"exit_{remaining}"
-                                state = 'red'
-                        else:
+                        if not is_thumbs_down:
                             self.quit_gesture_start_time = 0
 
-                    self.status_queue.put((state, gesture_name))
+                    self.status_queue.put(hands_data)
 
                 if show_camera and self.frame_queue:
                     # Resize frame to match display window size
