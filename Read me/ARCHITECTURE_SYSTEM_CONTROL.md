@@ -72,14 +72,15 @@ class VelocitySensitivity:
 
 Each gesture type has a dedicated action method:
 
-| Gesture             | Method                   | Action            |
-| ------------------- | ------------------------ | ----------------- |
-| `pointing`          | `move_cursor()`          | Mouse movement    |
-| `pinch`             | `handle_pinch_gesture()` | Click/drag        |
-| `zoom_in/out`       | `zoom()`                 | Ctrl+Plus/Minus   |
-| `swipe_up/down`     | `scroll()`               | Mouse wheel       |
-| `swipe_left/right`  | `workspace_switch()`     | Ctrl+Alt+Arrow    |
-| `thumbs_*_moving_*` | `thumbs_action()`        | Volume/Brightness |
+| Gesture             | Method                   | Action                      |
+| ------------------- | ------------------------ | --------------------------- |
+| `pointing`          | `move_cursor()`          | Mouse movement (smooth)     |
+| `pinch`             | `handle_pinch_gesture()` | Click/drag                  |
+| `zoom_in/out`       | `zoom()`                 | Ctrl+Shift+= / Ctrl+-       |
+| `swipe_up/down`     | `scroll()`               | Mouse wheel (velocity-based) |
+| `swipe_left/right`  | `workspace_switch()`     | Ctrl+Alt+Arrow (velocity-based) |
+| `thumbs_up_moving_*`| `increase/decrease_volume()` | Volume control (velocity-based) |
+| `thumbs_down_moving_*` | `increase/decrease_brightness()` | Brightness control (velocity-based) |
 
 ---
 
@@ -157,22 +158,30 @@ def handle_pinch_gesture(self, pinch_detected: bool):
 
 ### System Zoom
 
-Uses Ctrl+Plus/Minus for system-level zoom:
+Uses Ctrl+Plus/Minus for system-level zoom with velocity-modulated rate limiting:
 
 ```python
-def zoom(self, zoom_in: bool, velocity_norm: float = 1.0):
-    if not self.velocity_sensitivity['zoom'].should_perform_action(velocity_norm):
-        return False  # Rate limited
+def zoom(self, zoom_in: bool = True, velocity_norm: float = 1.0):
+    if self.paused:
+        return
 
-    with self.keyboard.pressed(Key.ctrl):
-        if zoom_in:
-            self.keyboard.press(Key.equal)  # Plus (=) key
-            self.keyboard.release(Key.equal)
-        else:
-            self.keyboard.press(Key.minus)
-            self.keyboard.release(Key.minus)
+    try:
+        # Use the VelocitySensitivity calculator for rate limiting
+        if not self.velocity_sensitivity['zoom'].try_act(velocity_norm):
+            return
 
-    return True
+        with self.keyboard.pressed(Key.ctrl):
+            if zoom_in:
+                # Press Ctrl + + (Shift + =)
+                self.keyboard.press(Key.shift)
+                self.keyboard.press('=')  # Shift+= is +
+                self.keyboard.release('=')
+                self.keyboard.release(Key.shift)
+            else:
+                self.keyboard.press('-')
+                self.keyboard.release('-')
+    except Exception as e:
+        print(f"⚠ Error zooming: {e}")
 ```
 
 ### Workspace Switch
@@ -218,73 +227,61 @@ def scroll(self, dx: int, dy: int, velocity_norm: float = 1.0):
 
 ---
 
-## Volume & Brightness
+### Volume & Brightness
+
+Thumbs gestures with movement control volume and brightness:
+
+| Gesture | Action |
+| --- | --- |
+| `thumbs_up_moving_up` | Increase volume |
+| `thumbs_up_moving_down` | Decrease volume |
+| `thumbs_down_moving_up` | Increase brightness |
+| `thumbs_down_moving_down` | Decrease brightness |
+
+All use **velocity-modulated rate limiting** - faster movements = faster volume/brightness changes.
 
 ### Volume Control
 
-Uses XF86 media keys with pactl fallback:
+Uses exposed atomic actions:
 
 ```python
-def _volume_change(self, delta: int):
-    try:
-        # Method 1: Media keys
-        if delta > 0:
-            self.keyboard.press(Key.media_volume_up)
-            self.keyboard.release(Key.media_volume_up)
-        else:
-            self.keyboard.press(Key.media_volume_down)
-            self.keyboard.release(Key.media_volume_down)
-    except Exception:
-        # Method 2: PulseAudio CLI
-        import subprocess
-        change = '+5%' if delta > 0 else '-5%'
-        subprocess.run(['pactl', 'set-sink-volume', '@DEFAULT_SINK@', change])
+@exposed_action
+def increase_volume(self, velocity_norm: float = 1.0):
+    """Increase System Volume."""
+    self.perform_velocity_action('thumbs_up_moving_up', velocity_norm, 
+                               lambda: self._volume_change(+5))
+
+@exposed_action
+def decrease_volume(self, velocity_norm: float = 1.0):
+    """Decrease System Volume."""
+    self.perform_velocity_action('thumbs_up_moving_down', velocity_norm, 
+                               lambda: self._volume_change(-5))
 ```
+
+The underlying `_volume_change` method uses XF86 media keys with pactl fallback.
 
 ### Brightness Control
 
-Multiple fallback methods for Linux compatibility:
+Uses exposed atomic actions:
 
 ```python
-def _brightness_change(self, delta: int):
-    import subprocess
+@exposed_action
+def increase_brightness(self, velocity_norm: float = 1.0):
+    """Increase Screen Brightness."""
+    self.perform_velocity_action('thumbs_down_moving_up', velocity_norm, 
+                               lambda: self._brightness_change(+5))
 
-    # Method 1: brightnessctl (most common)
-    try:
-        change = '+5%' if delta > 0 else '5%-'
-        result = subprocess.run(['brightnessctl', 'set', change],
-                               capture_output=True, timeout=1)
-        if result.returncode == 0:
-            return
-    except FileNotFoundError:
-        pass
-
-    # Method 2: xbacklight (legacy X11)
-    try:
-        arg = '-inc' if delta > 0 else '-dec'
-        result = subprocess.run(['xbacklight', arg, '5'],
-                               capture_output=True, timeout=1)
-        if result.returncode == 0:
-            return
-    except FileNotFoundError:
-        pass
-
-    # Method 3: DBus (GNOME/KDE)
-    try:
-        import dbus
-        bus = dbus.SessionBus()
-        brightness = bus.get_object(
-            'org.gnome.SettingsDaemon.Power',
-            '/org/gnome/SettingsDaemon/Power'
-        )
-        iface = dbus.Interface(brightness,
-            'org.gnome.SettingsDaemon.Power.Screen')
-        current = iface.GetPercentage()
-        new = max(5, min(100, current + (5 if delta > 0 else -5)))
-        iface.SetPercentage(new)
-    except:
-        pass  # No method available
+@exposed_action
+def decrease_brightness(self, velocity_norm: float = 1.0):
+    """Decrease Screen Brightness."""
+    self.perform_velocity_action('thumbs_down_moving_down', velocity_norm, 
+                               lambda: self._brightness_change(-5))
 ```
+
+The underlying `_brightness_change` method uses multiple fallback methods for Linux compatibility:
+1. **brightnessctl** (most common on modern Linux)
+2. **xbacklight** (legacy X11 method)
+3. **DBus** (GNOME/KDE brightness interface)
 
 ---
 
@@ -340,33 +337,25 @@ Config values from `config.json`:
 
 ## Unified Action Method
 
-The `perform_velocity_action()` method standardizes velocity-sensitive actions:
+The `try_act()` method standardizes velocity-sensitive actions:
 
 ```python
-def perform_velocity_action(self, gesture_name: str, velocity_norm: float,
-                           action_callback: Callable) -> bool:
+def try_act(self, velocity_norm: float) -> bool:
     """
-    Perform an action with velocity-modulated rate limiting.
-
+    Check if action is allowed and record it if so.
+    
+    Combines should_act() and record_action() for convenience.
+    
     Args:
-        gesture_name: Name for rate limiting lookup
-        velocity_norm: Current gesture velocity
-        action_callback: Function to call if not rate-limited
-
+        velocity_norm: Normalized gesture velocity
+    
     Returns:
-        True if action was performed, False if rate-limited
+        True if action was allowed (and recorded), False if rate-limited
     """
-    sens = self.velocity_sensitivity.get(gesture_name)
-    if sens is None:
-        # No rate limiting for this gesture
-        action_callback()
+    if self.should_act(velocity_norm):
+        self.record_action()
         return True
-
-    if sens.should_perform_action(velocity_norm):
-        action_callback()
-        return True
-
-    return False  # Rate limited
+    return False
 ```
 
 ---
@@ -383,15 +372,28 @@ def perform_velocity_action(self, gesture_name: str, velocity_norm: float,
 │ - cursor_x, cursor_y: float                                 │
 │ - is_dragging: bool                                         │
 ├─────────────────────────────────────────────────────────────┤
+│ CORE METHODS:                                               │
 │ + move_cursor(x, y, precision_mode)                         │
 │ + handle_pinch_gesture(pinch_detected)                      │
-│ + click(double=False)                                       │
+│ + click(button, double=False)                               │
 │ + zoom(zoom_in, velocity_norm)                              │
 │ + scroll(dx, dy, velocity_norm)                             │
 │ + workspace_switch(direction)                               │
 │ + swipe(direction, velocity_norm)                           │
 │ + thumbs_action(gesture_name, velocity_norm)                │
 │ + perform_velocity_action(name, velocity, callback)         │
+│                                                              │
+│ EXPOSED ATOMIC ACTIONS (@exposed_action):                   │
+│ + left_click()                                              │
+│ + right_click()                                             │
+│ + double_click()                                            │
+│ + scroll_up/down/left/right(velocity_norm)                  │
+│ + zoom_in/out(velocity_norm)                                │
+│ + next_workspace/previous_workspace(velocity_norm)          │
+│ + increase/decrease_volume(velocity_norm)                   │
+│ + increase/decrease_brightness(velocity_norm)               │
+│                                                              │
+│ PRIVATE METHODS:                                            │
 │ - _volume_change(delta)                                     │
 │ - _brightness_change(delta)                                 │
 └─────────────────────────────────────────────────────────────┘
@@ -401,10 +403,14 @@ def perform_velocity_action(self, gesture_name: str, velocity_norm: float,
 │                  VelocitySensitivity                         │
 ├─────────────────────────────────────────────────────────────┤
 │ - config: VelocitySensitivityConfig                         │
-│ - last_action_time: float                                   │
+│ - _last_action_time: float                                  │
 ├─────────────────────────────────────────────────────────────┤
 │ + calculate_effective_sensitivity(velocity_norm)            │
-│ + should_perform_action(velocity_norm) -> bool              │
+│ + calculate_min_delay(velocity_norm)                        │
+│ + should_act(velocity_norm) -> bool                         │
+│ + record_action()                                           │
+│ + try_act(velocity_norm) -> bool                            │
+│ + reset()                                                   │
 │ + from_dict(config_dict) -> VelocitySensitivity             │
 └─────────────────────────────────────────────────────────────┘
 ```
