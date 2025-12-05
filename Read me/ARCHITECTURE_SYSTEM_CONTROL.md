@@ -7,20 +7,23 @@ This document explains how HANDS translates gesture detections into system actio
 ## System Control Architecture
 
 The system control layer is now split into two parts:
+
 1.  **The Body (`SystemController`)**: Handles the raw interaction with the OS (Mouse, Keyboard, Screen).
-2.  **The Brain (`ActionDispatcher`)**: Decides *what* the body should do based on User Configuration.
+2.  **The Brain (`ActionDispatcher`)**: Decides _what_ the body should do based on User Configuration.
 
 ### System Controller (`source_code/utils/system_controller.py`)
-*   **Role**: Execution only.
-*   **Dependencies**: `pynput`, `screeninfo`.
-*   **New Features**:
-    *   `execute_key_combo`: Parses strings like "ctrl+c" and presses keys.
-    *   `@exposed_action`: Marks methods essentially safe for user binding.
+
+- **Role**: Execution only.
+- **Dependencies**: `pynput`, `screeninfo`.
+- **New Features**:
+  - `execute_key_combo`: Parses strings like "ctrl+c" and presses keys.
+  - `@exposed_action`: Marks methods essentially safe for user binding.
 
 ### Action Dispatcher (`source_code/app/action_dispatcher.py`)
-*   **Role**: Decision making.
-*   **Input**: Gesture Names (Strings) + Metadata.
-*   **Config**: Loaded from `config.json` "action_map".
+
+- **Role**: Decision making.
+- **Input**: Gesture Names (Strings) + Metadata.
+- **Config**: Loaded from `config.json` "action_map".
 
 ---
 
@@ -72,14 +75,14 @@ class VelocitySensitivity:
 
 Each gesture type has a dedicated action method:
 
-| Gesture             | Method                   | Action                      |
-| ------------------- | ------------------------ | --------------------------- |
-| `pointing`          | `move_cursor()`          | Mouse movement (smooth)     |
-| `pinch`             | `handle_pinch_gesture()` | Click/drag                  |
-| `zoom_in/out`       | `zoom()`                 | Ctrl+Shift+= / Ctrl+-       |
-| `swipe_up/down`     | `scroll()`               | Mouse wheel (velocity-based) |
-| `swipe_left/right`  | `workspace_switch()`     | Ctrl+Alt+Arrow (velocity-based) |
-| `thumbs_up_moving_*`| `increase/decrease_volume()` | Volume control (velocity-based) |
+| Gesture                | Method                           | Action                              |
+| ---------------------- | -------------------------------- | ----------------------------------- |
+| `pointing`             | `move_cursor()`                  | Mouse movement (smooth)             |
+| `pinch`                | `handle_pinch_gesture()`         | Click/drag                          |
+| `zoom_in/out`          | `zoom()`                         | Ctrl+Shift+= / Ctrl+-               |
+| `swipe_up/down`        | `scroll()`                       | Mouse wheel (velocity-based)        |
+| `swipe_left/right`     | `workspace_switch()`             | Ctrl+Alt+Arrow (velocity-based)     |
+| `thumbs_up_moving_*`   | `increase/decrease_volume()`     | Volume control (velocity-based)     |
 | `thumbs_down_moving_*` | `increase/decrease_brightness()` | Brightness control (velocity-based) |
 
 ---
@@ -231,11 +234,11 @@ def scroll(self, dx: int, dy: int, velocity_norm: float = 1.0):
 
 Thumbs gestures with movement control volume and brightness:
 
-| Gesture | Action |
-| --- | --- |
-| `thumbs_up_moving_up` | Increase volume |
-| `thumbs_up_moving_down` | Decrease volume |
-| `thumbs_down_moving_up` | Increase brightness |
+| Gesture                   | Action              |
+| ------------------------- | ------------------- |
+| `thumbs_up_moving_up`     | Increase volume     |
+| `thumbs_up_moving_down`   | Decrease volume     |
+| `thumbs_down_moving_up`   | Increase brightness |
 | `thumbs_down_moving_down` | Decrease brightness |
 
 All use **velocity-modulated rate limiting** - faster movements = faster volume/brightness changes.
@@ -248,13 +251,13 @@ Uses exposed atomic actions:
 @exposed_action
 def increase_volume(self, velocity_norm: float = 1.0):
     """Increase System Volume."""
-    self.perform_velocity_action('thumbs_up_moving_up', velocity_norm, 
+    self.perform_velocity_action('thumbs_up_moving_up', velocity_norm,
                                lambda: self._volume_change(+5))
 
 @exposed_action
 def decrease_volume(self, velocity_norm: float = 1.0):
     """Decrease System Volume."""
-    self.perform_velocity_action('thumbs_up_moving_down', velocity_norm, 
+    self.perform_velocity_action('thumbs_up_moving_down', velocity_norm,
                                lambda: self._volume_change(-5))
 ```
 
@@ -268,17 +271,18 @@ Uses exposed atomic actions:
 @exposed_action
 def increase_brightness(self, velocity_norm: float = 1.0):
     """Increase Screen Brightness."""
-    self.perform_velocity_action('thumbs_down_moving_up', velocity_norm, 
+    self.perform_velocity_action('thumbs_down_moving_up', velocity_norm,
                                lambda: self._brightness_change(+5))
 
 @exposed_action
 def decrease_brightness(self, velocity_norm: float = 1.0):
     """Decrease Screen Brightness."""
-    self.perform_velocity_action('thumbs_down_moving_down', velocity_norm, 
+    self.perform_velocity_action('thumbs_down_moving_down', velocity_norm,
                                lambda: self._brightness_change(-5))
 ```
 
 The underlying `_brightness_change` method uses multiple fallback methods for Linux compatibility:
+
 1. **brightnessctl** (most common on modern Linux)
 2. **xbacklight** (legacy X11 method)
 3. **DBus** (GNOME/KDE brightness interface)
@@ -343,12 +347,12 @@ The `try_act()` method standardizes velocity-sensitive actions:
 def try_act(self, velocity_norm: float) -> bool:
     """
     Check if action is allowed and record it if so.
-    
+
     Combines should_act() and record_action() for convenience.
-    
+
     Args:
         velocity_norm: Normalized gesture velocity
-    
+
     Returns:
         True if action was allowed (and recorded), False if rate-limited
     """
