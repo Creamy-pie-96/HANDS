@@ -6,7 +6,7 @@
       "Enable pointing gesture for cursor control"
     ],
     "pinch": [
-      false,
+      true,
       "Enable pinch gesture for click/drag"
     ],
     "zoom_in": [
@@ -18,19 +18,19 @@
       "Enable zoom-out gesture (pinch fingers)"
     ],
     "swipe_left": [
-      false,
+      true,
       "Enable swipe-left gesture (workspace switch left)"
     ],
     "swipe_right": [
-      false,
+      true,
       "Enable swipe-right gesture (workspace switch right)"
     ],
     "swipe_up": [
-      false,
+      true,
       "Enable swipe-up gesture (scroll up)"
     ],
     "swipe_down": [
-      false,
+      true,
       "Enable swipe-down gesture (scroll down)"
     ],
     "thumbs_up": [
@@ -50,11 +50,11 @@
       "Enable thumbs-up moving downward (volume down)"
     ],
     "thumbs_down_moving_up": [
-      false,
+      true,
       "Enable thumbs-down moving upward (brightness up)"
     ],
     "thumbs_down_moving_down": [
-      false,
+      true,
       "Enable thumbs-down moving downward (brightness down)"
     ],
     "open_hand": [
@@ -62,7 +62,7 @@
       "Enable open hand gesture (pause detection)"
     ],
     "pan": [
-      false,
+      true,
       "Enable bimanual pan gesture (scroll with two hands)"
     ],
     "precision_cursor": [
@@ -969,16 +969,16 @@
   },
   "action_map": [
     {
-      "left": "open_hand",
-      "right": "open_hand",
-      "type": "function",
-      "name": "click"
-    },
-    {
       "left": "none",
       "right": "pointing",
       "type": "function",
-      "name": "move_cursor"
+      "name": "left_click"
+    },
+    {
+      "left": "none",
+      "right": "swipe_right",
+      "type": "function",
+      "name": "next_workspace"
     }
   ]
 }

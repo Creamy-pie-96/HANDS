@@ -363,31 +363,28 @@ class Config:
             "action_map": [
                 # --- Default Cursor Control ---
                 {"left": "none", "right": "pointing", "type": "function", "name": "move_cursor"},
-                {"left": "none", "right": "pinch", "type": "function", "name": "click"}, 
-                # Note: Pinch drag logic handled internally by SystemController state, 
-                # but 'click' triggers the press/release check logic.
+                {"left": "none", "right": "pinch", "type": "function", "name": "left_click"}, 
                 
                 # --- Zoom ---
-                {"left": "none", "right": "zoom_in", "type": "function", "name": "zoom", "args": {"zoom_in": True}},
-                {"left": "none", "right": "zoom_out", "type": "function", "name": "zoom", "args": {"zoom_in": False}},
+                {"left": "none", "right": "zoom_in", "type": "function", "name": "zoom_in"},
+                {"left": "none", "right": "zoom_out", "type": "function", "name": "zoom_out"},
                 
                 # --- Scroll (Swipe Up/Down) ---
-                {"left": "none", "right": "swipe_up", "type": "function", "name": "scroll", "direction": "up"},
-                {"left": "none", "right": "swipe_down", "type": "function", "name": "scroll", "direction": "down"},
+                {"left": "none", "right": "swipe_up", "type": "function", "name": "scroll_up"},
+                {"left": "none", "right": "swipe_down", "type": "function", "name": "scroll_down"},
                 
                 # --- Workspace (Swipe Left/Right) ---
-                {"left": "none", "right": "swipe_left", "type": "function", "name": "swipe", "direction": "left"},
-                {"left": "none", "right": "swipe_right", "type": "function", "name": "swipe", "direction": "right"},
+                {"left": "none", "right": "swipe_left", "type": "function", "name": "previous_workspace"},
+                {"left": "none", "right": "swipe_right", "type": "function", "name": "next_workspace"},
                 
                 # --- Volume/Brightness (Thumbs) ---
-                {"left": "none", "right": "thumbs_up_moving_up", "type": "function", "name": "thumbs_action"},
-                {"left": "none", "right": "thumbs_up_moving_down", "type": "function", "name": "thumbs_action"},
-                {"left": "none", "right": "thumbs_down_moving_up", "type": "function", "name": "thumbs_action"},
-                {"left": "none", "right": "thumbs_down_moving_down", "type": "function", "name": "thumbs_action"},
+                {"left": "none", "right": "thumbs_up_moving_up", "type": "function", "name": "increase_volume"},
+                {"left": "none", "right": "thumbs_up_moving_down", "type": "function", "name": "decrease_volume"},
+                {"left": "none", "right": "thumbs_down_moving_up", "type": "function", "name": "increase_brightness"},
+                {"left": "none", "right": "thumbs_down_moving_down", "type": "function", "name": "decrease_brightness"},
                 
                 # --- Bimanual Defaults ---
-                # Precision Cursor (Left Point + Right Point -> Precision) -> Actually logic is Left Still + Right Point in old code
-                # We will map "precision_cursor" bimanual gesture if the detector provides it.
+                # Precision Cursor
                 {"left": "pointing", "right": "pointing", "type": "function", "name": "move_cursor", "precision": True},
             ]
         }

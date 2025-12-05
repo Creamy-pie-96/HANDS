@@ -300,7 +300,6 @@ class SystemController:
         print(f"⚠ Using default screen resolution {self.fallback_width}x{self.fallback_height}")
         return ScreenBounds(width=self.fallback_width, height=self.fallback_height, padding=self.screen_bounds_padding)
     
-    @exposed_action
     def toggle_pause(self):
         """Toggle pause state."""
         self.paused = not self.paused
@@ -376,7 +375,6 @@ class SystemController:
         except Exception as e:
             print(f"⚠ Error moving cursor: {e}")
     
-    @exposed_action
     def click(self, button: str = 'left', double: bool = False):
         """
         Perform mouse click.
@@ -402,7 +400,6 @@ class SystemController:
         except Exception as e:
             print(f"⚠ Error clicking: {e}")
     
-    @exposed_action
     def execute_key_combo(self, key_string: str):
         """
         Execute a key combination from a string description.
@@ -499,7 +496,6 @@ class SystemController:
         except Exception as e:
             print(f"⚠ Error stopping drag: {e}")
     
-    @exposed_action
     def scroll(self, dx: int = 0, dy: int = 0, velocity_norm: float = 1.0):
         """
         Perform scroll action with velocity-modulated rate-limiting.
@@ -536,7 +532,6 @@ class SystemController:
         except Exception as e:
             print(f"⚠ Error scrolling: {e}")
     
-    @exposed_action
     def zoom(self, zoom_in: bool = True, velocity_norm: float = 1.0):
         """
         Perform system zoom (Ctrl + +/-) with velocity-modulated rate-limiting.
@@ -657,7 +652,6 @@ class SystemController:
         
         return False
     
-    @exposed_action
     def swipe(self, direction: str, velocity_norm: float = 1.0) -> bool:
         """
         Perform swipe action with velocity-modulated rate-limiting.
@@ -680,7 +674,6 @@ class SystemController:
             lambda: self.workspace_switch(direction)
         )
     
-    @exposed_action
     def thumbs_action(self, gesture_name: str, velocity_norm: float = 1.0, action_callback=None) -> bool:
         """
         Perform thumbs gesture action with velocity-modulated rate-limiting.
@@ -798,7 +791,7 @@ class SystemController:
     
     def handle_pinch_gesture(self, pinch_detected: bool):
         """
-        Handle pinch gesture for click/drag logic.
+        Handle pinch gesture state for clicking and dragging.
         
         Args:
             pinch_detected: True if pinch is currently detected
@@ -837,6 +830,102 @@ class SystemController:
             now - self.pinch_start_time >= self.drag_hold_duration):
             self.start_drag()
 
+
+    # =========================================================================
+    # ATOMIC USER ACTIONS
+    # These are the simple, specific functions exposed to the GUI.
+    # =========================================================================
+
+    @exposed_action
+    def toggle_pause(self):
+        """Toggle system control pause."""
+        self.paused = not self.paused
+        return self.paused
+
+    @exposed_action
+    def left_click(self):
+        """Perform a left mouse click."""
+        self.click('left')
+
+    @exposed_action
+    def right_click(self):
+        """Perform a right mouse click."""
+        self.click('right')
+
+    @exposed_action
+    def double_click(self):
+        """Perform a double click."""
+        self.click('left', double=True)
+
+    @exposed_action
+    def scroll_up(self, velocity_norm: float = 1.0):
+        """Scroll page UP."""
+        amount = int(self.get_base_sensitivity('swipe_up', 3.0))
+        self.scroll(dy=-amount, velocity_norm=velocity_norm)
+
+    @exposed_action
+    def scroll_down(self, velocity_norm: float = 1.0):
+        """Scroll page DOWN."""
+        amount = int(self.get_base_sensitivity('swipe_down', 3.0))
+        self.scroll(dy=amount, velocity_norm=velocity_norm)
+
+    @exposed_action
+    def scroll_left(self, velocity_norm: float = 1.0):
+        """Scroll page LEFT."""
+        amount = int(self.get_base_sensitivity('swipe_left', 3.0))
+        self.scroll(dx=-amount, velocity_norm=velocity_norm)
+
+    @exposed_action
+    def scroll_right(self, velocity_norm: float = 1.0):
+        """Scroll page RIGHT."""
+        amount = int(self.get_base_sensitivity('swipe_right', 3.0))
+        self.scroll(dx=amount, velocity_norm=velocity_norm)
+
+    @exposed_action
+    def zoom_in(self, velocity_norm: float = 1.0):
+        """Zoom IN (Ctrl + Plus)."""
+        self.zoom(zoom_in=True, velocity_norm=velocity_norm)
+
+    @exposed_action
+    def zoom_out(self, velocity_norm: float = 1.0):
+        """Zoom OUT (Ctrl + Minus)."""
+        self.zoom(zoom_in=False, velocity_norm=velocity_norm)
+
+    @exposed_action
+    def next_workspace(self, velocity_norm: float = 1.0):
+        """Switch to NEXT workspace (Right)."""
+        self.perform_velocity_action('swipe_right', velocity_norm, 
+                                   lambda: self.workspace_switch('right'))
+
+    @exposed_action
+    def previous_workspace(self, velocity_norm: float = 1.0):
+        """Switch to PREVIOUS workspace (Left)."""
+        self.perform_velocity_action('swipe_left', velocity_norm, 
+                                   lambda: self.workspace_switch('left'))
+
+    @exposed_action
+    def increase_volume(self, velocity_norm: float = 1.0):
+        """Increase System Volume."""
+        self.perform_velocity_action('thumbs_up_moving_up', velocity_norm, 
+                                   lambda: self._volume_change(+5))
+
+    @exposed_action
+    def decrease_volume(self, velocity_norm: float = 1.0):
+        """Decrease System Volume."""
+        self.perform_velocity_action('thumbs_up_moving_down', velocity_norm, 
+                                   lambda: self._volume_change(-5))
+
+    @exposed_action
+    def increase_brightness(self, velocity_norm: float = 1.0):
+        """Increase Screen Brightness."""
+        self.perform_velocity_action('thumbs_down_moving_up', velocity_norm, 
+                                   lambda: self._brightness_change(+5))
+
+    @exposed_action
+    def decrease_brightness(self, velocity_norm: float = 1.0):
+        """Decrease Screen Brightness."""
+        self.perform_velocity_action('thumbs_down_moving_down', velocity_norm, 
+                                   lambda: self._brightness_change(-5))
 
 # Singleton instance
 _controller_instance = None

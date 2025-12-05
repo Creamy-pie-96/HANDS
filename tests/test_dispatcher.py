@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, create_autospec
 import sys
 import os
 
@@ -7,17 +7,18 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from source_code.app.action_dispatcher import ActionDispatcher
+from source_code.utils.system_controller import SystemController
 
 class TestActionDispatcher(unittest.TestCase):
     def setUp(self):
-        # Mock SystemController
-        self.mock_sys_ctrl = MagicMock()
+        # Mock SystemController with autospec to support introspection
+        self.mock_sys_ctrl = create_autospec(SystemController, instance=True)
         self.dispatcher = ActionDispatcher(self.mock_sys_ctrl)
 
     def test_load_map(self):
         map_list = [
             {"left": "fist", "right": "none", "type": "key", "keys": "a"},
-            {"left": "none", "right": "open", "type": "function", "name": "foo"},
+            {"left": "none", "right": "open", "type": "function", "name": "left_click"},
             {"left": "fist", "right": "open", "type": "key", "keys": "b"}
         ]
         self.dispatcher.load_map(map_list)
@@ -29,7 +30,7 @@ class TestActionDispatcher(unittest.TestCase):
     def test_dispatch_single_hand(self):
         map_list = [
             {"left": "swipe_left", "right": "none", "type": "key", "keys": "left_arrow"},
-            {"left": "none", "right": "pinch", "type": "function", "name": "click"}
+            {"left": "none", "right": "pinch", "type": "function", "name": "left_click"}
         ]
         self.dispatcher.load_map(map_list)
         
@@ -39,7 +40,7 @@ class TestActionDispatcher(unittest.TestCase):
         
         # Test Right
         self.dispatcher.dispatch("none", "pinch", {})
-        self.mock_sys_ctrl.click.assert_called()
+        self.mock_sys_ctrl.left_click.assert_called()
 
     def test_dispatch_bimanual_override(self):
         map_list = [
@@ -57,18 +58,27 @@ class TestActionDispatcher(unittest.TestCase):
 
     def test_dispatch_metadata_passing(self):
         map_list = [
-            {"left": "none", "right": "swipe_up", "type": "function", "name": "scroll"}
+            {"left": "none", "right": "swipe_up", "type": "function", "name": "scroll_up"}
         ]
         self.dispatcher.load_map(map_list)
-        
-        # Configure Mock sensitivity
-        self.mock_sys_ctrl.get_base_sensitivity.return_value = 10
         
         meta = {"velocity_norm": 0.8, "direction": "up"}
         self.dispatcher.dispatch("none", "swipe_up", meta)
         
-        # Expect conversion to dy (up -> positive dy in legacy implementation I copied)
-        self.mock_sys_ctrl.scroll.assert_called_with(velocity_norm=0.8, dy=10)
+        # Expect scroll_up to be called with velocity_norm (introspected)
+        self.mock_sys_ctrl.scroll_up.assert_called_with(velocity_norm=0.8)
+
+    def test_dispatch_move_cursor(self):
+        map_list = [
+            {"left": "index", "right": "none", "type": "function", "name": "move_cursor"}
+        ]
+        self.dispatcher.load_map(map_list)
+        
+        meta = {"cursor_pos": (0.2, 0.3)}
+        self.dispatcher.dispatch("index", "none", meta)
+        
+        self.mock_sys_ctrl.move_cursor.assert_called_with(norm_x=0.2, norm_y=0.3)
+
 
 if __name__ == '__main__':
     unittest.main()

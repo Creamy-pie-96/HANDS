@@ -77,6 +77,7 @@ class ActionDispatcher:
               f"{self.mapping_stats['left']} left, {self.mapping_stats['right']} right mappings.")
 
     def dispatch(self, left_gesture: str, right_gesture: str, metadata: Dict[str, Any]):
+        
         """
         Decide which action to take based on current gestures.
         
@@ -96,6 +97,7 @@ class ActionDispatcher:
         if left_gesture != "none" and right_gesture != "none":
             combo_key = (left_gesture, right_gesture)
             if combo_key in self.bimanual_map:
+                print(f"  > Bimanual Match: {combo_key} -> {self.bimanual_map[combo_key]['name']}")
                 try:
                     self._execute_entry(self.bimanual_map[combo_key], metadata)
                 except Exception as e:
@@ -106,12 +108,14 @@ class ActionDispatcher:
         # We can execute both left and right actions if they don't conflict
         
         if left_gesture != "none" and left_gesture in self.left_map:
+            # print(f"  > Left Match: {left_gesture} -> {self.left_map[left_gesture]['name']}") # Noise reduction
             try:
                 self._execute_entry(self.left_map[left_gesture], metadata)
             except Exception as e:
                 print(f"⚠ Error executing left action: {e}")
                 
         if right_gesture != "none" and right_gesture in self.right_map:
+            print(f"  > Right Match: {right_gesture} -> {self.right_map[right_gesture]['name']}")
             try:
                 self._execute_entry(self.right_map[right_gesture], metadata)
             except Exception as e:
@@ -133,80 +137,36 @@ class ActionDispatcher:
                 
             func = getattr(self.sys_ctrl, func_name, None)
             if not func:
-                print(f"⚠ Unknown function: {func_name}")
+                # Silent fail for optional features or log warning
+                # print(f"⚠ Unknown function: {func_name}")
                 return
                 
-            # Build arguments for the function dynamically
-            kwargs = {}
-            
-            # Common metadata mapping
-            # Functions in SystemController generally expect:
-            # - velocity_norm (for zoom, scroll, swipe)
-            # - gesture_name (for thumbs)
-            # - norm_x, norm_y (for move_cursor)
-            
-            # Pass common params if function accepts them
-            # We rely on kwargs to be flexible.
-            
-            # Map 'velocity' from metadata to 'velocity_norm'
-            # Note: metadata structure depends on the gesture detector
-            vel = metadata.get("velocity_norm", 1.0)
-            
-            # Inspect function signature would be safer, but for now we apply common patterns
-            # or pass known args. 
-            
-            # Specific mappings based on function name logic
-            # (Ideally this should be more generic, but pragmatically this works)
-            
-            if func_name == "move_cursor":
-                pos = metadata.get("cursor_pos", (0.5, 0.5))
-                kwargs["norm_x"] = pos[0]
-                kwargs["norm_y"] = pos[1]
-                # Check for precision in entry or metadata
-                if "precision" in entry:
+            # Build arguments dynamically based on what the function accepts
+            import inspect
+            try:
+                sig = inspect.signature(func)
+                kwargs = {}
+                
+                # 1. Velocity (for scroll, zoom, volume, etc.)
+                if "velocity_norm" in sig.parameters:
+                    kwargs["velocity_norm"] = metadata.get("velocity_norm", 1.0)
+                    
+                # 2. Cursor Position (for move_cursor)
+                if "norm_x" in sig.parameters and "norm_y" in sig.parameters:
+                    pos = metadata.get("cursor_pos", (0.5, 0.5))
+                    kwargs["norm_x"] = pos[0]
+                    kwargs["norm_y"] = pos[1]
+                
+                # 3. Precision Mode
+                if "precision_mode" in sig.parameters and "precision" in entry:
                     kwargs["precision_mode"] = entry["precision"]
-            
-            elif func_name == "scroll":
-                kwargs["velocity_norm"] = vel
-                direction = entry.get("direction") or metadata.get("direction")
+                    
+                # 4. Explicit Args from Config (if any)
+                if "args" in entry and isinstance(entry["args"], dict):
+                    kwargs.update(entry["args"])
+                    
+                # Call the function
+                func(**kwargs)
                 
-                if direction:
-                     # Default base amount
-                     amount = 30 # Fallback 
-                     gesture_key = f"swipe_{direction}"
-                     
-                     if hasattr(self.sys_ctrl, "get_base_sensitivity"):
-                         # Retrieve sensitivity from config via SystemController
-                         amount = int(self.sys_ctrl.get_base_sensitivity(gesture_key, 3.0))
-                     
-                     # Map direction to dx/dy
-                     # Note: Legacy logic reversed Y for some reason or pynput behavior
-                     # swipe_up -> scroll(0, amount) -> Scroll Down? (Content moves up?)
-                     # Let's match legacy hands_app.py logic:
-                     # direction == 'up' -> self.system_ctrl.scroll(0, scroll_amount)
-                     # direction == 'down' -> self.system_ctrl.scroll(0, -scroll_amount)
-                     
-                     if direction == "up":
-                         kwargs["dy"] = amount
-                     elif direction == "down":
-                         kwargs["dy"] = -amount
-                     elif direction == "left":
-                         kwargs["dx"] = amount
-                     elif direction == "right":
-                         kwargs["dx"] = -amount
-
-            elif func_name in ["zoom", "swipe", "thumbs_action"]:
-                kwargs["velocity_norm"] = vel
-                
-                # Directional mappings
-                if func_name == "swipe":
-                    if "direction" in entry:
-                        kwargs["direction"] = entry["direction"]
-                    elif "direction" in metadata:
-                        kwargs["direction"] = metadata["direction"]
-                
-                if func_name == "thumbs_action":
-                    kwargs["gesture_name"] = entry.get("right", "thumbs_up") # Fallback
-            
-            # Call the function
-            func(**kwargs)
+            except Exception as e:
+                print(f"⚠ Error executing {func_name}: {e}")

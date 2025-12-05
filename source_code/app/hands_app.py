@@ -262,6 +262,10 @@ class HANDSApplication:
         # 1. High Priority: Directional/Active gestures
         # Thumbs moves, Swipes, Zooms
         for name in gestures_dict:
+            # Skip internal metadata keys
+            if name.startswith('__'):
+                continue
+                
             if any(x in name for x in ['moving', 'swipe', 'zoom', 'pinch']):
                  # Check if enabled
                  if is_gesture_enabled(name):
@@ -333,14 +337,44 @@ class HANDSApplication:
         # Let's look at `bimanual_gestures.py`. It likely checks for Left Point + Right Point.
         # So `left_name` and `right_name` *should* be 'pointing' already.
         
-        # Update metadata specifically for precision cursor if present (it has damping)
-        if 'precision_cursor' in all_gestures.get('bimanual', {}):
-             # Ensure metadata has the damped cursor pos
-             res = all_gestures['bimanual']['precision_cursor']
+        # 3. Check Bimanual Overrides from Detector
+        # Some complex gestures (like precision cursor, pan) are detected specially 
+        # and put in the 'bimanual' dictionary. We map them to the dispatcher's expected keys.
+        
+        bimanual_gestures = all_gestures.get('bimanual', {})
+        
+        if 'precision_cursor' in bimanual_gestures:
+             # Precision cursor is detected as a bimanual state.
+             # Default action map expects: left="pointing", right="pointing" -> move_cursor(precision=True)
+             left_name = "pointing"
+             right_name = "pointing"
+             
+             # Ensure metadata has the damped cursor pos from the specific result
+             res = bimanual_gestures['precision_cursor']
              if res.metadata:
                  metadata.update(res.metadata)
+                 
+        elif 'pan' in bimanual_gestures:
+             # Pan gesture detected (typically for scrolling)
+             # Map to a special combo or utilize scroll action
+             # For now, let's map to a reserved key tuple if the user wants to map it
+             # But default config doesn't have "pan" + "pan".
+             # To make it work out of the box with the default "pan" behavior (scrolling):
+             # We can't easily map it to dispatcher without a config entry.
+             # User said: "Left still + Right move - Pan/Scroll".
+             pass # Requires config update to support proper dispatching
         
+        if not self.dispatcher.bimanual_map and not self.dispatcher.left_map and not self.dispatcher.right_map:
+             # Warn once
+             if not hasattr(self, "_map_warned"):
+                 print("⚠ Action Dispatcher has NO mappings loaded!")
+                 self._map_warned = True
+
         # 3. Dispatch
+        # Debug print (throttled)
+        # if left_name != "none" or right_name != "none":
+        #    print(f"Dispatching: L={left_name}, R={right_name}")
+            
         self.dispatcher.dispatch(left_name, right_name, metadata)
         
         # 4. Handle "Open Hand" pause toggle (Special Hardcoded Loop Exception?)
