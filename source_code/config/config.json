@@ -49,6 +49,14 @@
       true,
       "Enable thumbs-up moving downward (volume down)"
     ],
+    "thumbs_up_moving_left": [
+      true,
+      "Enable thumbs-up moving left"
+    ],
+    "thumbs_up_moving_right": [
+      true,
+      "Enable thumbs-up moving right"
+    ],
     "thumbs_down_moving_up": [
       true,
       "Enable thumbs-down moving upward (brightness up)"
@@ -56,6 +64,14 @@
     "thumbs_down_moving_down": [
       true,
       "Enable thumbs-down moving downward (brightness down)"
+    ],
+    "thumbs_down_moving_left": [
+      true,
+      "Enable thumbs-down moving left"
+    ],
+    "thumbs_down_moving_right": [
+      true,
+      "Enable thumbs-down moving right"
     ],
     "open_hand": [
       true,
@@ -204,9 +220,13 @@
       ]
     },
     "thumbs": {
-      "velocity_threshold": [
+      "velocity_threshold_x": [
         0.2,
-        "Minimum thumb velocity to detect thumbs-up/down movement"
+        "Minimum thumb velocity to detect thumbs-up/down movement in x direction"
+      ],
+      "velocity_threshold_y": [
+        0.2,
+        "Minimum thumb velocity to detect thumbs-up/down movement in y direction"
       ],
       "ewma_alpha": [
         0.3,
@@ -227,6 +247,130 @@
       "confidence_threshold": [
         0.6,
         "Minimum confidence to report moving thumbs gesture"
+      ]
+    },
+    "closed": {
+      "velocity_threshold_x": [
+        0.3,
+        "minimum velocity threshold for x direction"
+      ],
+      "velocity_threshold_y": [
+        0.3,
+        "minimum velocity threshold for y direction"
+      ],
+      "ewma_alpha": [
+        0.3,
+        "EWMA smoothing factor for velocity (0-1, higher=more responsive)"
+      ],
+      "hold_frames": [
+        5,
+        "Frames to wait before confirming static closed hand gesture"
+      ],
+      "confidence_ramp_up": [
+        0.3,
+        "Confidence increase per frame when consistent movement detected"
+      ],
+      "confidence_decay": [
+        0.2,
+        "Confidence decrease per frame when movement stops/changes"
+      ],
+      "confidence_threshold": [
+        0.6,
+        "Minimum confidence to report moving closed hand gesture"
+      ]
+    },
+    "victory": {
+      "velocity_threshold_x": [
+        0.3,
+        "minimum velocity threshold for x direction"
+      ],
+      "velocity_threshold_y": [
+        0.3,
+        "minimum velocity threshold for y direction"
+      ],
+      "ewma_alpha": [
+        0.3,
+        "EWMA smoothing factor for velocity (0-1, higher=more responsive)"
+      ],
+      "hold_frames": [
+        5,
+        "Frames to wait before confirming static closed hand gesture"
+      ],
+      "confidence_ramp_up": [
+        0.3,
+        "Confidence increase per frame when consistent movement detected"
+      ],
+      "confidence_decay": [
+        0.2,
+        "Confidence decrease per frame when movement stops/changes"
+      ],
+      "confidence_threshold": [
+        0.6,
+        "Minimum confidence to report moving closed hand gesture"
+      ],
+      "index_middle_gap_threshold": [
+        0.175,
+        "Maximum allowed distance between index and middle fingers (they must stay together)"
+      ]
+    },
+    "middle_finger": {
+      "velocity_threshold_x": [
+        0.2,
+        "Minimum velocity to detect movement in x direction"
+      ],
+      "velocity_threshold_y": [
+        0.2,
+        "Minimum velocity to detect movement in y direction"
+      ],
+      "ewma_alpha": [
+        0.3,
+        "EWMA smoothing factor for velocity"
+      ],
+      "hold_frames": [
+        5,
+        "Frames to wait before confirming static gesture"
+      ],
+      "confidence_ramp_up": [
+        0.3,
+        "Confidence increase per frame"
+      ],
+      "confidence_decay": [
+        0.2,
+        "Confidence decrease per frame"
+      ],
+      "confidence_threshold": [
+        0.6,
+        "Minimum confidence to report moving gesture"
+      ]
+    },
+    "pinky": {
+      "velocity_threshold_x": [
+        0.2,
+        "Minimum velocity to detect movement in x direction"
+      ],
+      "velocity_threshold_y": [
+        0.2,
+        "Minimum velocity to detect movement in y direction"
+      ],
+      "ewma_alpha": [
+        0.3,
+        "EWMA smoothing factor for velocity"
+      ],
+      "hold_frames": [
+        5,
+        "Frames to wait before confirming static gesture"
+      ],
+      "confidence_ramp_up": [
+        0.3,
+        "Confidence increase per frame"
+      ],
+      "confidence_decay": [
+        0.2,
+        "Confidence decrease per frame"
+      ],
+      "confidence_threshold": [
+        0.6,
+        "Minimum confidence to report moving gesture"
       ]
     }
   },
@@ -417,6 +561,42 @@
           "Base delay between actions in seconds"
         ]
       },
+      "thumbs_up_moving_left": {
+        "sensitivity": [
+          1.0,
+          "Thumbs up moving left action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "thumbs_up_moving_right": {
+        "sensitivity": [
+          1.0,
+          "Thumbs up moving right action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
       "thumbs_down_moving_up": {
         "sensitivity": [
           1.0,
@@ -447,6 +627,42 @@
         "speed_factor": [
           0.4,
           "Max influence of velocity on action rate (\u00b140% adjustment)"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "thumbs_down_moving_left": {
+        "sensitivity": [
+          1.0,
+          "Thumbs down moving left action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "thumbs_down_moving_right": {
+        "sensitivity": [
+          1.0,
+          "Thumbs down moving right action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
         ],
         "base_delay": [
           0.15,

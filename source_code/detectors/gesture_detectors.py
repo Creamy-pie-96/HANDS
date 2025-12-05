@@ -752,39 +752,53 @@ class OpenHandDetector:
 
 
 
-class ThumbsDetector:
+class UniversalGestureDetector:
     """
-    Detects Thumbs Up/Down and their movements.
-    Uses EWMA for velocity smoothing (like SwipeDetector) so movement must be continuous.
-    Waits hold_frames before confirming static thumbs_up/thumbs_down to allow time
-    to detect if user intends to move (reduces false positives).
-    
-    Maintains per-hand state to support two-hand detection without interference.
+    Generic detector for static and directional gestures based on finger states.
+    Supports:
+    - Custom finger state configuration (extended/curled)
+    - 4-way directional movement (up/down/left/right) using EWMA velocity
+    - Static hold validation
+    - Optional finger gap constraints (e.g. for victory sign)
+    - Optional orientation check (e.g. thumb up vs thumb down)
     """
     def __init__(
         self,
-        velocity_threshold: float = 0.2,
+        finger_config: Dict[str, bool], # {finger_name: is_extended}
+        gesture_name: str,
+        velocity_threshold_x: float = 0.2,
+        velocity_threshold_y: float = 0.2,
         ewma_alpha: float = 0.3,
         hold_frames: int = 5,
         confidence_ramp_up: float = 0.3,
         confidence_decay: float = 0.2,
-        confidence_threshold: float = 0.6
+        confidence_threshold: float = 0.6,
+        max_finger_gap_pair: Optional[Tuple[str, str]] = None,
+        max_finger_gap_threshold: float = 1.0, # default loose
+        orientation_tip_index: Optional[int] = None,
+        orientation_ref_index: Optional[int] = None # usually MCP
     ):
-        self.velocity_threshold = velocity_threshold
+        self.finger_config = finger_config
+        self.gesture_name = gesture_name
+        self.velocity_threshold_x = velocity_threshold_x
+        self.velocity_threshold_y = velocity_threshold_y
         self.ewma_alpha = ewma_alpha
         self.hold_frames = hold_frames
         self.confidence_ramp_up = confidence_ramp_up
         self.confidence_decay = confidence_decay
         self.confidence_threshold = confidence_threshold
+        self.max_finger_gap_pair = max_finger_gap_pair
+        self.max_finger_gap_threshold = max_finger_gap_threshold
+        self.orientation_tip_index = orientation_tip_index
+        self.orientation_ref_index = orientation_ref_index
         
-        # Per-hand state to avoid interference when both hands are detected
+        # Per-hand state
         self._hand_state = {
             'left': self._create_hand_state(),
             'right': self._create_hand_state()
         }
-    
+
     def _create_hand_state(self):
-        """Create fresh state for a hand."""
         return {
             'ewma_velocity': EWMA(alpha=self.ewma_alpha),
             'move_confidence': 0.0,
@@ -792,74 +806,93 @@ class ThumbsDetector:
             'static_hold_count': 0,
             'last_static_gesture': None
         }
-    
+
     def _get_state(self, hand_label: str):
-        """Get state for a specific hand, creating if needed."""
         if hand_label not in self._hand_state:
             self._hand_state[hand_label] = self._create_hand_state()
         return self._hand_state[hand_label]
 
     def detect(self, metrics: HandMetrics, hand_label: str = 'right') -> GestureResult:
-        """
-        Detect thumbs gesture for a specific hand.
-        
-        Args:
-            metrics: Hand metrics
-            hand_label: 'left' or 'right' to track per-hand state
-        """
-        # Get per-hand state
         state = self._get_state(hand_label)
         
+        # 1. Validate Finger States
         extended = metrics.fingers_extended
-        # Check if only thumb is extended
-        only_thumb = extended['thumb'] and not any([extended['index'], extended['middle'], extended['ring'], extended['pinky']])
+        fingers_match = True
         
+        # Check explicitly configured fingers AND implicit closed fingers
+        all_fingers = ['thumb', 'index', 'middle', 'ring', 'pinky']
+        for finger in all_fingers:
+            required = self.finger_config.get(finger, False) # Default to CLOSED of not specified
+            if extended[finger] != required:
+                fingers_match = False
+                break
+        
+        # 2. Validate Gap (if configured)
+        if fingers_match and self.max_finger_gap_pair:
+            f1, f2 = self.max_finger_gap_pair
+            dist = metrics.tip_distances.get(f'{f1}_{f2}', metrics.tip_distances.get(f'{f2}_{f1}', 1.0))
+            if dist > self.max_finger_gap_threshold:
+                fingers_match = False
+
+        # 3. Check Orientation (Up/Down) if configured
+        gesture_suffix = ""
+        if fingers_match and self.orientation_tip_index is not None and self.orientation_ref_index is not None:
+            # Check Y-coord of tip vs reference (MCP)
+            # In image coords, y increases downwards.
+            # Up means Tip Y < Ref Y
+            # Down means Tip Y > Ref Y
+            try:
+                tip_y = metrics.landmarks_norm[self.orientation_tip_index][1]
+                ref_y = metrics.landmarks_norm[self.orientation_ref_index][1]
+                
+                if tip_y < ref_y:
+                    gesture_suffix = "_up"
+                else:
+                    gesture_suffix = "_down"
+            except IndexError:
+                fingers_match = False # Safety fallback
+
         base_metadata = {
-            'only_thumb': only_thumb,
+            'fingers_match': fingers_match,
             'velocity': metrics.velocity,
             'ewma_velocity_y': 0.0,
             'move_confidence': state['move_confidence'],
             'static_hold_count': state['static_hold_count'],
             'hold_frames_needed': self.hold_frames,
             'hand_label': hand_label,
+            'gesture_base': self.gesture_name,
             'reason': None
         }
-        
-        if not only_thumb:
-            # Reset state when thumb not isolated
+
+        if not fingers_match:
             state['static_hold_count'] = 0
             state['last_static_gesture'] = None
             state['move_confidence'] = max(0.0, state['move_confidence'] - self.confidence_decay)
             if state['move_confidence'] == 0.0:
                 state['current_move_direction'] = None
-            base_metadata['reason'] = 'thumb_not_isolated'
+            base_metadata['reason'] = 'pose_mismatch'
             return GestureResult(detected=False, gesture_name='none', metadata=base_metadata)
-            
-        thumb_tip_y = metrics.landmarks_norm[4][1]
-        pinky_mcp_y = metrics.landmarks_norm[17][1]
-        
-        is_thumbs_up = thumb_tip_y < pinky_mcp_y
-        is_thumbs_down = thumb_tip_y > pinky_mcp_y
-        
-        # Get current static gesture type
-        current_static = 'thumbs_up' if is_thumbs_up else ('thumbs_down' if is_thumbs_down else None)
-        
-        # Smooth velocity with EWMA (per-hand)
+
+        # 4. Process Velocity
         vx, vy = metrics.velocity
-        smoothed = state['ewma_velocity'].update([vy])
-        ewma_vy = float(smoothed[0])
-        base_metadata['ewma_velocity_y'] = ewma_vy
-        
-        # Detect movement direction
-        velocity_up = ewma_vy < -self.velocity_threshold
-        velocity_down = ewma_vy > self.velocity_threshold
+        smoothed = state['ewma_velocity'].update([vx, vy])
+        ewma_vx = float(smoothed[0])
+        ewma_vy = float(smoothed[1])
+        base_metadata['ewma_velocity'] = (ewma_vx, ewma_vy)
+
         detected_move_direction = None
-        if velocity_up:
-            detected_move_direction = 'up'
-        elif velocity_down:
-            detected_move_direction = 'down'
         
-        # Update movement confidence (like SwipeDetector)
+        # Determine direction based on dominant velocity
+        if abs(ewma_vx) > abs(ewma_vy):
+             # X movement
+            if abs(ewma_vx) > self.velocity_threshold_x:
+                detected_move_direction = 'right' if ewma_vx > 0 else 'left'
+        else:
+            # Y movement
+            if abs(ewma_vy) > self.velocity_threshold_y:
+                 detected_move_direction = 'down' if ewma_vy > 0 else 'up' 
+
+        # 5. Update Confidence
         if detected_move_direction is not None:
             if state['current_move_direction'] is None:
                 state['current_move_direction'] = detected_move_direction
@@ -873,63 +906,50 @@ class ThumbsDetector:
                     state['current_move_direction'] = detected_move_direction
                     state['move_confidence'] = min(1.0, self.confidence_ramp_up)
         else:
-            # No significant movement
-            state['move_confidence'] = max(0.0, state['move_confidence'] - self.confidence_decay)
-            if state['move_confidence'] == 0.0:
+             state['move_confidence'] = max(0.0, state['move_confidence'] - self.confidence_decay)
+             if state['move_confidence'] == 0.0:
                 state['current_move_direction'] = None
+
+        movement_confirmed = state['move_confidence'] > self.confidence_threshold
         
-        base_metadata['move_confidence'] = state['move_confidence']
-        base_metadata['current_move_direction'] = state['current_move_direction']
-        
-        # Check if movement is confirmed
-        movement_confirmed = state['move_confidence'] >= self.confidence_threshold
-        
-        gesture_name = 'none'
         detected = False
+        final_gesture_name = 'none'
         
-        if is_thumbs_up or is_thumbs_down:
-            base_gesture = 'thumbs_up' if is_thumbs_up else 'thumbs_down'
-            
-            if movement_confirmed and state['current_move_direction']:
-                # Moving gesture confirmed via EWMA confidence
-                gesture_name = f'{base_gesture}_moving_{state["current_move_direction"]}'
-                detected = True
-                # Reset static hold since we have movement
-                state['static_hold_count'] = 0
-                state['last_static_gesture'] = None
-                base_metadata['reason'] = 'movement_confirmed'
-            else:
-                # No confirmed movement - check static gesture with hold_frames
-                if state['last_static_gesture'] == current_static:
-                    state['static_hold_count'] += 1
-                else:
-                    # Changed static gesture or just started
-                    state['last_static_gesture'] = current_static
-                    state['static_hold_count'] = 1
-                
-                base_metadata['static_hold_count'] = state['static_hold_count']
-                
-                if state['static_hold_count'] >= self.hold_frames:
-                    # Static gesture confirmed after hold_frames
-                    gesture_name = base_gesture
-                    detected = True
-                    base_metadata['reason'] = 'static_confirmed'
-                else:
-                    # Still waiting for hold_frames
-                    base_metadata['reason'] = 'waiting_for_hold'
-                    # Don't report as detected yet - could be user wants to move
+        # Combine base name + suffix (e.g. thumbs_up)
+        # Only add suffix if orientation is configured AND matched
+        # If not orientation configured, suffix is empty, so name is just base
+        current_static_name = f"{self.gesture_name}{gesture_suffix}"
+
+        # 6. Determine Result (Moving vs Static)
+        if movement_confirmed and state['current_move_direction']:
+             final_gesture_name = f'{current_static_name}_moving_{state["current_move_direction"]}'
+             detected = True
+             state['static_hold_count'] = 0
+             state['last_static_gesture'] = None
+             base_metadata['reason'] = 'movement_confirmed'
         else:
-            state['static_hold_count'] = 0
-            state['last_static_gesture'] = None
-            base_metadata['reason'] = 'no_thumbs_pose'
-                
+            # Check static hold
+            if state['last_static_gesture'] == current_static_name:
+                state['static_hold_count'] += 1
+            else:
+                state['last_static_gesture'] = current_static_name
+                state['static_hold_count'] = 1
+            
+            base_metadata['static_hold_count'] = state['static_hold_count']
+            
+            if state['static_hold_count'] >= self.hold_frames:
+                final_gesture_name = current_static_name
+                detected = True
+                base_metadata['reason'] = 'static_confirmed'
+            else:
+                base_metadata['reason'] = 'waiting_for_hold'
+
         return GestureResult(
             detected=detected,
-            gesture_name=gesture_name,
+            gesture_name=final_gesture_name,
             confidence=state['move_confidence'] if movement_confirmed else (1.0 if detected else 0.0),
             metadata=base_metadata
         )
-
 class GestureManager:
     """
     Manages multiple gesture detectors and resolves conflicts.
@@ -980,12 +1000,48 @@ class GestureManager:
             open_min = get_gesture_threshold('open_hand', 'min_fingers', default=4)
             open_pinch_exclusion = get_gesture_threshold('open_hand', 'pinch_exclusion_distance', default=0.08)
             
-            thumbs_velocity_thresh = get_gesture_threshold('thumbs', 'velocity_threshold', default=0.2)
+            thumbs_velocity_thresh_x = get_gesture_threshold('thumbs', 'velocity_threshold_x', default=0.2)
+            thumbs_velocity_thresh_y = get_gesture_threshold('thumbs', 'velocity_threshold_y', default=0.2)
             thumbs_ewma_alpha = get_gesture_threshold('thumbs', 'ewma_alpha', default=0.3)
             thumbs_hold_frames = get_gesture_threshold('thumbs', 'hold_frames', default=5)
             thumbs_conf_ramp = get_gesture_threshold('thumbs', 'confidence_ramp_up', default=0.3)
             thumbs_conf_decay = get_gesture_threshold('thumbs', 'confidence_decay', default=0.2)
             thumbs_conf_thresh = get_gesture_threshold('thumbs', 'confidence_threshold', default=0.6)
+
+            # For closed hands
+            closed_velocity_thresh_x = get_gesture_threshold('closed', 'velocity_threshold_x', default=0.3)
+            closed_velocity_thresh_y = get_gesture_threshold('closed', 'velocity_threshold_y', default=0.3)
+            closed_ewma_alpha = get_gesture_threshold('closed', 'ewma_alpha', default=0.3)
+            closed_hold_frames = get_gesture_threshold('closed', 'hold_frames', default=5)
+            closed_conf_ramp = get_gesture_threshold('closed', 'confidence_ramp_up', default=0.3)
+            closed_conf_decay = get_gesture_threshold('closed', 'confidence_decay', default=0.2)
+            closed_conf_thresh = get_gesture_threshold('closed', 'confidence_threshold', default=0.6)
+
+            # For victory hands
+            victory_velocity_thresh_x = get_gesture_threshold('victory', 'velocity_threshold_x', default=0.3)
+            victory_velocity_thresh_y = get_gesture_threshold('victory', 'velocity_threshold_y', default=0.3)
+            victory_ewma_alpha = get_gesture_threshold('victory', 'ewma_alpha', default=0.3)
+            victory_hold_frames = get_gesture_threshold('victory', 'hold_frames', default=5)
+            victory_conf_ramp = get_gesture_threshold('victory', 'confidence_ramp_up', default=0.3)
+            victory_conf_decay = get_gesture_threshold('victory', 'confidence_decay', default=0.2)
+            victory_conf_thresh = get_gesture_threshold('victory', 'confidence_threshold', default=0.6)
+            victory_index_middle_gap_threshold = get_gesture_threshold('victory', 'index_middle_gap_threshold', default=0.175)
+
+            # For middle finger
+            middle_velocity_thresh = get_gesture_threshold('middle_finger', 'velocity_threshold', default=0.2)
+            middle_ewma_alpha = get_gesture_threshold('middle_finger', 'ewma_alpha', default=0.3)
+            middle_hold_frames = get_gesture_threshold('middle_finger', 'hold_frames', default=5)
+            middle_conf_ramp = get_gesture_threshold('middle_finger', 'confidence_ramp_up', default=0.3)
+            middle_conf_decay = get_gesture_threshold('middle_finger', 'confidence_decay', default=0.2)
+            middle_conf_thresh = get_gesture_threshold('middle_finger', 'confidence_threshold', default=0.6)
+
+            # For pinky
+            pinky_velocity_thresh = get_gesture_threshold('pinky', 'velocity_threshold', default=0.2)
+            pinky_ewma_alpha = get_gesture_threshold('pinky', 'ewma_alpha', default=0.3)
+            pinky_hold_frames = get_gesture_threshold('pinky', 'hold_frames', default=5)
+            pinky_conf_ramp = get_gesture_threshold('pinky', 'confidence_ramp_up', default=0.3)
+            pinky_conf_decay = get_gesture_threshold('pinky', 'confidence_decay', default=0.2)
+            pinky_conf_thresh = get_gesture_threshold('pinky', 'confidence_threshold', default=0.6)
         except Exception:
             print("Failed to load config file and so falling back to hadcoded value")
             # Fallback to hardcoded defaults if config access fails
@@ -1057,13 +1113,68 @@ class GestureManager:
             require_fingers_extended=zoom_require_ext
         )
         self.open_hand = OpenHandDetector(min_fingers=open_min, pinch_threshold=open_pinch_exclusion)
-        self.thumbs = ThumbsDetector(
-            velocity_threshold=thumbs_velocity_thresh,
+        self.thumbs = UniversalGestureDetector(
+            finger_config={'thumb': True, 'index': False, 'middle': False, 'ring': False, 'pinky': False},
+            gesture_name='thumbs',
+            velocity_threshold_x=thumbs_velocity_thresh_x,
+            velocity_threshold_y=thumbs_velocity_thresh_y,
             ewma_alpha=thumbs_ewma_alpha,
             hold_frames=thumbs_hold_frames,
             confidence_ramp_up=thumbs_conf_ramp,
             confidence_decay=thumbs_conf_decay,
-            confidence_threshold=thumbs_conf_thresh
+            confidence_threshold=thumbs_conf_thresh,
+            orientation_tip_index=LANDMARK_NAMES['THUMB_TIP'],
+            orientation_ref_index=LANDMARK_NAMES['PINKY_MCP']
+        )
+        self.closed_hand = UniversalGestureDetector(
+            finger_config={'thumb': False, 'index': False, 'middle': False, 'ring': False, 'pinky': False},
+            gesture_name='closed_hand',
+            velocity_threshold_x=closed_velocity_thresh_x,
+            velocity_threshold_y=closed_velocity_thresh_y,
+            ewma_alpha=closed_ewma_alpha,
+            hold_frames=closed_hold_frames,
+            confidence_ramp_up=closed_conf_ramp,
+            confidence_decay=closed_conf_decay,
+            confidence_threshold=closed_conf_thresh
+        )
+        self.victory_hand = UniversalGestureDetector(
+            finger_config={'thumb': False, 'index': True, 'middle': True, 'ring': False, 'pinky': False},
+            gesture_name='victory',
+            velocity_threshold_x=victory_velocity_thresh_x,
+            velocity_threshold_y=victory_velocity_thresh_y,
+            ewma_alpha=victory_ewma_alpha,
+            hold_frames=victory_hold_frames,
+            confidence_ramp_up=victory_conf_ramp,
+            confidence_decay=victory_conf_decay,
+            confidence_threshold=victory_conf_thresh,
+            max_finger_gap_pair=('index', 'middle'),
+            max_finger_gap_threshold=victory_index_middle_gap_threshold
+        )
+        self.middlefinger = UniversalGestureDetector(
+            finger_config={'thumb': False, 'index': False, 'middle': True, 'ring': False, 'pinky': False},
+            gesture_name='middle_finger',
+            velocity_threshold_x=middle_velocity_thresh,
+            velocity_threshold_y=middle_velocity_thresh,
+            ewma_alpha=middle_ewma_alpha,
+            hold_frames=middle_hold_frames,
+            confidence_ramp_up=middle_conf_ramp,
+            confidence_decay=middle_conf_decay,
+            confidence_threshold=middle_conf_thresh,
+            orientation_tip_index=LANDMARK_NAMES['MIDDLE_TIP'],
+            orientation_ref_index=LANDMARK_NAMES['PINKY_MCP']
+        )
+        self.pinky = UniversalGestureDetector(
+            finger_config={'thumb': False, 'index': False, 'middle': False, 'ring': False, 'pinky': True},
+            gesture_name='pinky',
+            velocity_threshold_x=pinky_velocity_thresh,
+            velocity_threshold_y=pinky_velocity_thresh,
+            ewma_alpha=pinky_ewma_alpha,
+            hold_frames=pinky_hold_frames,
+            confidence_ramp_up=pinky_conf_ramp,
+            confidence_decay=pinky_conf_decay,
+            confidence_threshold=pinky_conf_thresh,
+            orientation_tip_index=LANDMARK_NAMES['PINKY_TIP'],
+            orientation_ref_index=LANDMARK_NAMES['PINKY_MCP']
         )
         # Store finger-extension hysteresis for use during metric computation
         self.finger_open_ratio = open_ratio
