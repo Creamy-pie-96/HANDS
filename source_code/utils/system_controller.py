@@ -14,11 +14,16 @@ import numpy as np
 
 try:
     from pynput.mouse import Controller as MouseController, Button
-    from pynput.keyboard import Controller as KeyboardController, Key
+    from pynput.keyboard import Controller as KeyboardController, Key, KeyCode
     PYNPUT_AVAILABLE = True
 except ImportError:
     PYNPUT_AVAILABLE = False
     print("⚠ pynput not available. Install with: pip install pynput")
+
+# Decorator to mark methods as exposed for the config GUI
+def exposed_action(func):
+    func._is_exposed_action = True
+    return func
 
 try:
     import screeninfo
@@ -295,6 +300,7 @@ class SystemController:
         print(f"⚠ Using default screen resolution {self.fallback_width}x{self.fallback_height}")
         return ScreenBounds(width=self.fallback_width, height=self.fallback_height, padding=self.screen_bounds_padding)
     
+    @exposed_action
     def toggle_pause(self):
         """Toggle pause state."""
         self.paused = not self.paused
@@ -315,6 +321,7 @@ class SystemController:
         screen_y = int(norm_y * self.screen.height)
         return self.screen.clamp(screen_x, screen_y)
     
+    @exposed_action
     def move_cursor(self, norm_x: float, norm_y: float, precision_mode: bool = False):
         """
         Move cursor to normalized position with smoothing and stabilization.
@@ -369,6 +376,7 @@ class SystemController:
         except Exception as e:
             print(f"⚠ Error moving cursor: {e}")
     
+    @exposed_action
     def click(self, button: str = 'left', double: bool = False):
         """
         Perform mouse click.
@@ -394,7 +402,82 @@ class SystemController:
         except Exception as e:
             print(f"⚠ Error clicking: {e}")
     
-    def start_drag(self):
+    @exposed_action
+    def execute_key_combo(self, key_string: str):
+        """
+        Execute a key combination from a string description.
+        
+        Format example: "ctrl+shift+p", "alt+tab", "a", "enter"
+        
+        Args:
+            key_string: String describing the key combo
+        """
+        if self.paused or not PYNPUT_AVAILABLE:
+            return
+
+        # Normalize string
+        parts = [p.strip().lower() for p in key_string.split('+')]
+        if not parts:
+            return
+            
+        try:
+            keys_to_press = []
+            
+            # Helper to get key object
+            def get_key(k_str):
+                # Check for special keys in pynput.keyboard.Key
+                if hasattr(Key, k_str):
+                    return getattr(Key, k_str)
+                # Check for single char
+                if len(k_str) == 1:
+                    return k_str
+                # Handle aliases/special cases
+                aliases = {
+                    'ctrl': Key.ctrl,
+                    'control': Key.ctrl,
+                    'shift': Key.shift,
+                    'alt': Key.alt,
+                    'win': Key.cmd,
+                    'cmd': Key.cmd,
+                    'super': Key.cmd, 
+                    'enter': Key.enter,
+                    'return': Key.enter,
+                    'esc': Key.esc,
+                    'escape': Key.esc,
+                    'space': Key.space,
+                    'tab': Key.tab,
+                    'backspace': Key.backspace,
+                    'del': Key.delete,
+                    'delete': Key.delete,
+                    'up': Key.up,
+                    'down': Key.down,
+                    'left': Key.left,
+                    'right': Key.right,
+                    'f1': Key.f1, 'f2': Key.f2, 'f3': Key.f3, 'f4': Key.f4,
+                    'f5': Key.f5, 'f6': Key.f6, 'f7': Key.f7, 'f8': Key.f8,
+                    'f9': Key.f9, 'f10': Key.f10, 'f11': Key.f11, 'f12': Key.f12,
+                }
+                return aliases.get(k_str)
+
+            # Identify valid keys
+            for part in parts:
+                k = get_key(part)
+                if k:
+                    keys_to_press.append(k)
+                else:
+                    print(f"⚠ Unknown key in combo: {part}")
+                    return
+
+            # Press all in order
+            for k in keys_to_press:
+                self.keyboard.press(k)
+            
+            # Release all in reverse order
+            for k in reversed(keys_to_press):
+                self.keyboard.release(k)
+                
+        except Exception as e:
+            print(f"⚠ Error executing key combo '{key_string}': {e}")
         """Start drag operation (press and hold)."""
         if self.paused or self.is_dragging:
             return
@@ -416,6 +499,7 @@ class SystemController:
         except Exception as e:
             print(f"⚠ Error stopping drag: {e}")
     
+    @exposed_action
     def scroll(self, dx: int = 0, dy: int = 0, velocity_norm: float = 1.0):
         """
         Perform scroll action with velocity-modulated rate-limiting.
@@ -452,6 +536,7 @@ class SystemController:
         except Exception as e:
             print(f"⚠ Error scrolling: {e}")
     
+    @exposed_action
     def zoom(self, zoom_in: bool = True, velocity_norm: float = 1.0):
         """
         Perform system zoom (Ctrl + +/-) with velocity-modulated rate-limiting.
@@ -572,6 +657,7 @@ class SystemController:
         
         return False
     
+    @exposed_action
     def swipe(self, direction: str, velocity_norm: float = 1.0) -> bool:
         """
         Perform swipe action with velocity-modulated rate-limiting.
@@ -594,6 +680,7 @@ class SystemController:
             lambda: self.workspace_switch(direction)
         )
     
+    @exposed_action
     def thumbs_action(self, gesture_name: str, velocity_norm: float = 1.0, action_callback=None) -> bool:
         """
         Perform thumbs gesture action with velocity-modulated rate-limiting.

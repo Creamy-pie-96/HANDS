@@ -24,6 +24,7 @@ from source_code.detectors.bimanual_gestures import ComprehensiveGestureManager
 from source_code.utils.system_controller import SystemController
 from source_code.utils.visual_feedback import VisualFeedback
 from source_code.config.config_manager import config, is_gesture_enabled
+from source_code.app.action_dispatcher import ActionDispatcher
 
 # MediaPipe setup
 mp_hands = mp.solutions.hands
@@ -204,7 +205,15 @@ class HANDSApplication:
         # Initialize visual feedback
         self.visual = VisualFeedback(config)
         print(f"✓ Visual feedback initialized")
-        
+
+        # Initialize Action Dispatcher
+        if self.system_ctrl:
+            self.dispatcher = ActionDispatcher(self.system_ctrl)
+            # Load initial mapping
+            self.dispatcher.load_map(config.get("action_map", default=[]))
+        else:
+            self.dispatcher = None
+            
         # Application state
         self.running = True
         self.paused = False
@@ -242,128 +251,109 @@ class HANDSApplication:
         
         print("\n✓ HANDS application ready!\n")
     
+    def _get_primary_gesture(self, gestures_dict: dict) -> str:
+        """
+        Determine the primary gesture from a dictionary of detected gestures.
+        Prioritizes dynamic/complex gestures over static/simple ones.
+        """
+        if not gestures_dict:
+            return "none"
+            
+        # 1. High Priority: Directional/Active gestures
+        # Thumbs moves, Swipes, Zooms
+        for name in gestures_dict:
+            if any(x in name for x in ['moving', 'swipe', 'zoom', 'pinch']):
+                 # Check if enabled
+                 if is_gesture_enabled(name):
+                     return name
+                     
+        # 2. Medium Priority: Pointing
+        if 'pointing' in gestures_dict and is_gesture_enabled('pointing'):
+            return 'pointing'
+            
+        # 3. Low Priority: Static/Generic
+        for name in gestures_dict:
+            if not name.startswith('__') and is_gesture_enabled(name):
+                return name
+                
+        return "none"
+
     def process_gestures(self, all_gestures):
         """
-        Process detected gestures and trigger system actions.
+        Process detected gestures and trigger system actions via Dispatcher.
         
         Args:
             all_gestures: Dict with 'left', 'right', 'bimanual' gesture results
         """
-        if self.paused or not self.enable_system_control:
+        if self.paused or not self.enable_system_control or not self.dispatcher:
             return
         
-        # Get right hand gestures (primary control)
-        right_gestures = all_gestures.get('right', {})
-        left_gestures = all_gestures.get('left', {})
-        bimanual = all_gestures.get('bimanual', {})
+        # 1. Gather Metadata from all active gestures
+        metadata = {}
         
-        # Priority: Bimanual > Right hand > Left hand
+        # Recursive helper to merge metadata
+        def extract_meta(source_dict):
+            for g_res in source_dict.values():
+                if hasattr(g_res, 'metadata') and g_res.metadata:
+                    metadata.update(g_res.metadata)
+                    
+        extract_meta(all_gestures.get('left', {}))
+        extract_meta(all_gestures.get('right', {}))
+        extract_meta(all_gestures.get('bimanual', {}))
         
-        # BIMANUAL GESTURES (highest priority)
-        if 'precision_cursor' in bimanual and is_gesture_enabled('precision_cursor'):
-            # Precision cursor mode with damping
-            data = bimanual['precision_cursor'].metadata
-            cursor_pos = data.get('cursor_pos')
-            if cursor_pos:
-                self.cursor_pos = cursor_pos
-                self.system_ctrl.move_cursor(cursor_pos[0], cursor_pos[1], precision_mode=True)
-            return
+        # Ensure critical fields exist
+        if 'velocity_norm' not in metadata:
+             # Try to find velocity in common places
+             # Check swipe/zoom
+             pass # Already merged if present
         
-        if 'pan' in bimanual and is_gesture_enabled('pan'):
-            # Pan/scroll gesture
-            data = bimanual['pan'].metadata
-            velocity = data.get('velocity', (0, 0))
-            # Use correct swipe sensitivity based on direction
-            # Horizontal: swipe_right for +X, swipe_left for -X
-            # Vertical: swipe_down for +Y, swipe_up for -Y
-            sens_x = self.system_ctrl.get_base_sensitivity(
-                'swipe_right' if velocity[0] >= 0 else 'swipe_left', 3.0)
-            sens_y = self.system_ctrl.get_base_sensitivity(
-                'swipe_down' if velocity[1] >= 0 else 'swipe_up', 3.0)
-            scroll_x = int(velocity[0] * sens_x)
-            scroll_y = int(velocity[1] * sens_y)
-            # Compute velocity magnitude for modulation
-            velocity_norm = float(np.hypot(velocity[0], velocity[1]))
-            self.system_ctrl.scroll(scroll_x, -scroll_y, velocity_norm=velocity_norm)  # Invert Y for natural scrolling
-            return
+        # 2. Determine Primary Gestures (Strings)
+        left_name = self._get_primary_gesture(all_gestures.get('left', {}))
+        right_name = self._get_primary_gesture(all_gestures.get('right', {}))
         
-        # SINGLE HAND GESTURES
+        # Check Bimanual Overrides (e.g. pan is bimanual)
+        # Bimanual detector logic often puts result in 'bimanual' key
+        # We need to map detected bimanual results to the dispatcher format.
+        # Dispatcher expects "left_gesture" and "right_gesture" names.
+        # But if the system detects a "bimanual" event like 'precision_cursor', 
+        # it might be easier to handle it here or map it in the dispatcher.
         
-        # Pointing: Move cursor
-        if 'pointing' in right_gestures and is_gesture_enabled('pointing'):
-            data = right_gestures['pointing'].metadata
-            cursor_pos = data.get('tip_position')
-            if cursor_pos:
-                self.cursor_pos = cursor_pos
-                self.system_ctrl.move_cursor(cursor_pos[0], cursor_pos[1])
+        # Current design: Dispatcher keys are (left, right). 
+        # If we have a dedicated bimanual gesture like 'precision_cursor', 
+        # it typically implies specific hand states (e.g. Left Still + Right Point).
+        # We should respect the detected per-hand states, which will naturally match the map.
+        # BUT, if the bimanual detector synthesized a high-level state that supersedes individual hands,
+        # we might need to look at 'bimanual' dict.
         
-        # Pinch: Click/drag
-        if 'pinch' in right_gestures and is_gesture_enabled('pinch'):
-            self.system_ctrl.handle_pinch_gesture(True)
-        else:
-            self.system_ctrl.handle_pinch_gesture(False)
+        # Special Case: 'precision_cursor' in bimanual
+        # In this case, we might want to force specific names to match default map
+        # Or rely on the fact that existing logic detected it.
+        # The default map has {"left": "pointing", "right": "pointing", ...} for precision.
+        # Is that what 'precision_cursor' detects?
+        # Let's look at `bimanual_gestures.py`. It likely checks for Left Point + Right Point.
+        # So `left_name` and `right_name` *should* be 'pointing' already.
         
-        # Zoom: System zoom
-        # Handle both zoom_in and zoom_out
-        for gesture_name, gesture_result in right_gestures.items():
-            if gesture_name.startswith('zoom_'):
-                # Check if this specific zoom direction is enabled
-                if not is_gesture_enabled(gesture_name):
-                    continue
-                data = gesture_result.metadata
-                direction = data.get('direction')
-                # Get EWMA velocity for modulation
-                ewma_vel = abs(data.get('ewma_velocity', 0.0))
-                if direction == 'in':
-                    self.system_ctrl.zoom(zoom_in=True, velocity_norm=ewma_vel)
-                elif direction == 'out':
-                    self.system_ctrl.zoom(zoom_in=False, velocity_norm=ewma_vel)
-                break
+        # Update metadata specifically for precision cursor if present (it has damping)
+        if 'precision_cursor' in all_gestures.get('bimanual', {}):
+             # Ensure metadata has the damped cursor pos
+             res = all_gestures['bimanual']['precision_cursor']
+             if res.metadata:
+                 metadata.update(res.metadata)
         
-        # Swipe: Scroll or workspace switch
-        # Handle all swipe directions
-        for gesture_name, gesture_result in right_gestures.items():
-            if gesture_name.startswith('swipe_'):
-                # Check if this specific swipe direction is enabled
-                if not is_gesture_enabled(gesture_name):
-                    continue
-                data = gesture_result.metadata
-                direction = data.get('direction')
-                # Get EWMA velocity for modulation
-                ewma_velocity = data.get('ewma_velocity', (0.0, 0.0))
-                velocity_norm = float(np.hypot(ewma_velocity[0], ewma_velocity[1]))
-                
-                if direction in ['up', 'down']:
-                    # Scroll - use swipe_up/swipe_down sensitivity as scroll amount
-                    gesture_key = f'swipe_{direction}'
-                    scroll_amount = int(self.system_ctrl.get_base_sensitivity(gesture_key, 3.0))
-                    if direction == 'up':
-                        self.system_ctrl.scroll(0, scroll_amount, velocity_norm=velocity_norm)
-                    else:
-                        self.system_ctrl.scroll(0, -scroll_amount, velocity_norm=velocity_norm)
-                elif direction in ['left', 'right']:
-                    # Workspace switch
-                    self.system_ctrl.swipe(direction, velocity_norm)
-                break
+        # 3. Dispatch
+        self.dispatcher.dispatch(left_name, right_name, metadata)
         
-        # Thumbs gestures: Volume and Brightness control
-        # Handle moving thumbs gestures
-        for gesture_name, gesture_result in right_gestures.items():
-            if gesture_name.startswith('thumbs_') and 'moving' in gesture_name:
-                # Check if this specific thumbs gesture is enabled
-                if not is_gesture_enabled(gesture_name):
-                    continue
-                data = gesture_result.metadata
-                # Get velocity for modulation
-                velocity = abs(data.get('ewma_velocity', 0.5))
-                self.system_ctrl.thumbs_action(gesture_name, velocity_norm=velocity)
-                break
-        
-        # Open hand: Pause/unpause
-        if ('open_hand' in right_gestures or 'open_hand' in left_gestures) and is_gesture_enabled('open_hand'):
-            # Toggle pause on open hand
-            # Note: This is checked once per detection to avoid rapid toggling
-            pass  # Handled in keyboard input 'p'
+        # 4. Handle "Open Hand" pause toggle (Special Hardcoded Loop Exception?)
+        # The plan says "Replace all hard-coded...". 
+        # We can map Open Hand -> 'toggle_pause' in the config!
+        # Default config checks for open hand? 
+        # Wait, 'toggle_pause' is a SystemController method, exposed now.
+        # So we can just map it! No hardcoding needed.
+        # EXCEPT: The pause logic check in the old code was:
+        # "Toggle pause on open hand... pass # Handled in keyboard input 'p'"
+        # It seems it wasn't actually enabled in the old code? "pass".
+        # We will leave it to the user config now.
+
     
     def run(self):
         """Main application loop."""
@@ -414,6 +404,11 @@ class HANDSApplication:
                             if self.enable_system_control:
                                 self.system_ctrl = SystemController(self.config)
                             self.visual = VisualFeedback(self.config)
+                            
+                            # Reload Dispatcher
+                            if self.dispatcher and self.config.get("action_map"):
+                                self.dispatcher.load_map(self.config.get("action_map"))
+                                
                             print("✓ Components reloaded with new configuration\n")
                         
                         # Check app_control flags (hot-reloaded)

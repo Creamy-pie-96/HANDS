@@ -4,14 +4,23 @@ This document explains how HANDS translates gesture detections into system actio
 
 ---
 
-## Overview
+## System Control Architecture
 
-The System Controller (`system_controller.py`) is the bridge between gesture detection and OS-level actions. It handles:
+The system control layer is now split into two parts:
+1.  **The Body (`SystemController`)**: Handles the raw interaction with the OS (Mouse, Keyboard, Screen).
+2.  **The Brain (`ActionDispatcher`)**: Decides *what* the body should do based on User Configuration.
 
-- Mouse control (move, click, drag)
-- Keyboard shortcuts (zoom, workspace switch)
-- Media controls (volume, brightness)
-- Rate limiting with velocity modulation
+### System Controller (`source_code/utils/system_controller.py`)
+*   **Role**: Execution only.
+*   **Dependencies**: `pynput`, `screeninfo`.
+*   **New Features**:
+    *   `execute_key_combo`: Parses strings like "ctrl+c" and presses keys.
+    *   `@exposed_action`: Marks methods essentially safe for user binding.
+
+### Action Dispatcher (`source_code/app/action_dispatcher.py`)
+*   **Role**: Decision making.
+*   **Input**: Gesture Names (Strings) + Metadata.
+*   **Config**: Loaded from `config.json` "action_map".
 
 ---
 

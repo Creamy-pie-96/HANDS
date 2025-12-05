@@ -103,7 +103,8 @@ class Config:
                 return default
         
         # Handle new [value, description] format
-        if isinstance(current, list) and len(current) >= 1:
+        # Only unwrap if it's a 2-element list with second element being a string (description)
+        if isinstance(current, list) and len(current) == 2 and isinstance(current[1], str):
             return current[0]  # Return the value part
         
         return current
@@ -358,7 +359,37 @@ class Config:
             "app_control": {
                 "pause": False,
                 "exit": False
-            }
+            },
+            "action_map": [
+                # --- Default Cursor Control ---
+                {"left": "none", "right": "pointing", "type": "function", "name": "move_cursor"},
+                {"left": "none", "right": "pinch", "type": "function", "name": "click"}, 
+                # Note: Pinch drag logic handled internally by SystemController state, 
+                # but 'click' triggers the press/release check logic.
+                
+                # --- Zoom ---
+                {"left": "none", "right": "zoom_in", "type": "function", "name": "zoom", "args": {"zoom_in": True}},
+                {"left": "none", "right": "zoom_out", "type": "function", "name": "zoom", "args": {"zoom_in": False}},
+                
+                # --- Scroll (Swipe Up/Down) ---
+                {"left": "none", "right": "swipe_up", "type": "function", "name": "scroll", "direction": "up"},
+                {"left": "none", "right": "swipe_down", "type": "function", "name": "scroll", "direction": "down"},
+                
+                # --- Workspace (Swipe Left/Right) ---
+                {"left": "none", "right": "swipe_left", "type": "function", "name": "swipe", "direction": "left"},
+                {"left": "none", "right": "swipe_right", "type": "function", "name": "swipe", "direction": "right"},
+                
+                # --- Volume/Brightness (Thumbs) ---
+                {"left": "none", "right": "thumbs_up_moving_up", "type": "function", "name": "thumbs_action"},
+                {"left": "none", "right": "thumbs_up_moving_down", "type": "function", "name": "thumbs_action"},
+                {"left": "none", "right": "thumbs_down_moving_up", "type": "function", "name": "thumbs_action"},
+                {"left": "none", "right": "thumbs_down_moving_down", "type": "function", "name": "thumbs_action"},
+                
+                # --- Bimanual Defaults ---
+                # Precision Cursor (Left Point + Right Point -> Precision) -> Actually logic is Left Still + Right Point in old code
+                # We will map "precision_cursor" bimanual gesture if the detector provides it.
+                {"left": "pointing", "right": "pointing", "type": "function", "name": "move_cursor", "precision": True},
+            ]
         }
     
     @property

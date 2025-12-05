@@ -739,6 +739,9 @@ def run_gui(config, status_queue, frame_queue=None, key_queue=None):
     """
     app = QApplication(sys.argv)
     
+    # Prevent app from quitting when windows close
+    app.setQuitOnLastWindowClosed(False)
+    
     debug = config.get('display', 'status_indicator', 'debug', default=False)
     
     # Create dual hand indicator
@@ -819,4 +822,6 @@ def run_gui(config, status_queue, frame_queue=None, key_queue=None):
     timer.timeout.connect(check_queues)
     timer.start(30)  # Check every 30ms (~33 FPS)
     
-    sys.exit(app.exec())
+    exit_code = app.exec()
+    print(f"📺 GUI closed with exit code: {exit_code}")
+    sys.exit(exit_code)

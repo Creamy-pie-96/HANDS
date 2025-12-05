@@ -76,7 +76,7 @@
         0.2,
         "Maximum distance between thumb and index fingertips to trigger pinch (normalized 0-1)"
       ],
-      "index_middle_gap_threshold":[
+      "index_middle_gap_threshold": [
         0.175,
         "Minimum distance between index and thumb fingertips to trigger pinch(normalized 0-1)"
       ],
@@ -966,5 +966,19 @@
       false,
       "Set to true to gracefully exit the application (hot-reloaded)"
     ]
-  }
+  },
+  "action_map": [
+    {
+      "left": "open_hand",
+      "right": "open_hand",
+      "type": "function",
+      "name": "click"
+    },
+    {
+      "left": "none",
+      "right": "pointing",
+      "type": "function",
+      "name": "move_cursor"
+    }
+  ]
 }
