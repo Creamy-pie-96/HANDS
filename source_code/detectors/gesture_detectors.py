@@ -249,11 +249,11 @@ class PinchDetector:
     Maintains per-hand state to support two-hand detection without interference.
     """
 
-    def __init__(self, thresh_rel: float = 0.055, hold_frames: int = 5, cooldown_s: float = 0.6):
+    def __init__(self, thresh_rel: float = 0.055, hold_frames: int = 5, cooldown_s: float = 0.6,index_middle_gap_threshold = 0.2):
         self.thresh_rel = thresh_rel
         self.hold_frames = hold_frames
         self.cooldown_s = cooldown_s
-        
+        self.index_middle_gap_threshold = index_middle_gap_threshold
         # Per-hand state
         self._hand_state = {
             'left': self._create_hand_state(),
@@ -274,7 +274,8 @@ class PinchDetector:
         dist_rel = metrics.tip_distances['index_thumb']
         now = time.time()
         in_cooldown = now - state['last_time'] < self.cooldown_s
-        
+
+        index_middle_dist = metrics.tip_distances.get('index_middle', 0.0)
         # Always return full metadata for visual feedback
         base_metadata = {
             'dist_rel': dist_rel,
@@ -283,12 +284,15 @@ class PinchDetector:
             'hold_frames_needed': self.hold_frames,
             'in_cooldown': in_cooldown,
             'cooldown_remaining': max(0.0, self.cooldown_s - (now - state['last_time'])),
-            'hand_label': hand_label
+            'hand_label': hand_label,
+            'indx_mdl_dist' : index_middle_dist
         }
         
         if in_cooldown:
             return GestureResult(detected=False, gesture_name='pinch', metadata=base_metadata)
-
+        if index_middle_dist <= self.index_middle_gap_threshold:
+            base_metadata['reason'] = "index is too close to middle finger"
+            return GestureResult(detected=False,gesture_name='pinch',metadata=base_metadata)
         if dist_rel <= self.thresh_rel:
             state['count'] += 1
             base_metadata['hold_count'] = state['count']
@@ -940,6 +944,7 @@ class GestureManager:
             pinch_thresh = get_gesture_threshold('pinch', 'threshold_rel', default=0.055)
             pinch_hold = get_gesture_threshold('pinch', 'hold_frames', default=5)
             pinch_cd = get_gesture_threshold('pinch', 'cooldown_seconds', default=0.6)
+            pinch_indx_midl_gap_thresh = get_gesture_threshold('pinch','index_middle_gap_threshold', default=0.2)
 
             pointing_min_ext = get_gesture_threshold('pointing', 'min_extension_ratio', default=0.12)
             pointing_max_extra = get_gesture_threshold('pointing', 'max_extra_fingers', default=1)
@@ -984,7 +989,7 @@ class GestureManager:
         except Exception:
             print("Failed to load config file and so falling back to hadcoded value")
             # Fallback to hardcoded defaults if config access fails
-            pinch_thresh, pinch_hold, pinch_cd = 0.055, 5, 0.6
+            pinch_thresh, pinch_hold, pinch_cd,index_middle_gap_threshold = 0.055, 5, 0.6,0.2
             pointing_min_ext = 0.12
             pointing_max_extra = 1
             pointing_max_speed = 0.5
@@ -1019,7 +1024,12 @@ class GestureManager:
             thumbs_conf_thresh = 0.6
 
         # Initialize detectors with resolved parameters
-        self.pinch = PinchDetector(thresh_rel=pinch_thresh, hold_frames=pinch_hold, cooldown_s=pinch_cd)
+        self.pinch = PinchDetector(
+            thresh_rel=pinch_thresh, 
+            hold_frames=pinch_hold, 
+            cooldown_s=pinch_cd,
+            index_middle_gap_threshold=pinch_indx_midl_gap_thresh
+        )
         self.pointing = PointingDetector(
             min_extension_ratio=pointing_min_ext,
             max_extra_fingers=pointing_max_extra,

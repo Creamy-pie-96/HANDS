@@ -609,7 +609,8 @@ class VisualFeedback:
                 f"Dist:{meta.get('dist_rel', 0):.3f}",
                 f"Thrs:{meta.get('threshold', 0):.3f}",
                 f"Hold:{meta.get('hold_count', 0)}/{meta.get('hold_frames_needed', 0)}",
-                f"CDwn:{meta.get('cooldown_remaining', 0):.1f}s"
+                f"CDwn:{meta.get('cooldown_remaining', 0):.1f}s",
+                f"Index-Middle Dist: {meta.get('indx_mdl_dist',0):.3f}"
             ]
         
         elif gesture_name == 'pointing':

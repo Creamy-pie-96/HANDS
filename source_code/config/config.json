@@ -1,31 +1,84 @@
 {
   "gestures_enabled": {
-    "_comment": [
-      "Enable/disable individual gestures. Disabled gestures still show detection (with red dot indicator) but don't trigger actions."
+    "_comment": "Enable/disable individual gestures. Disabled gestures still show detection (with red dot indicator) but don't trigger actions.",
+    "pointing": [
+      true,
+      "Enable pointing gesture for cursor control"
     ],
-    "pointing": [false, "Enable pointing gesture for cursor control"],
-    "pinch": [true, "Enable pinch gesture for click/drag"],
-    "zoom_in": [true, "Enable zoom-in gesture (spread fingers)"],
-    "zoom_out": [true, "Enable zoom-out gesture (pinch fingers)"],
-    "swipe_left": [true, "Enable swipe-left gesture (workspace switch left)"],
-    "swipe_right": [true, "Enable swipe-right gesture (workspace switch right)"],
-    "swipe_up": [true, "Enable swipe-up gesture (scroll up)"],
-    "swipe_down": [true, "Enable swipe-down gesture (scroll down)"],
-    "thumbs_up": [true, "Enable static thumbs-up gesture (reserved for future use)"],
-    "thumbs_down": [true, "Enable static thumbs-down gesture (quit app when held)"],
-    "thumbs_up_moving_up": [true, "Enable thumbs-up moving upward (volume up)"],
-    "thumbs_up_moving_down": [true, "Enable thumbs-up moving downward (volume down)"],
-    "thumbs_down_moving_up": [true, "Enable thumbs-down moving upward (brightness up)"],
-    "thumbs_down_moving_down": [true, "Enable thumbs-down moving downward (brightness down)"],
-    "open_hand": [true, "Enable open hand gesture (pause detection)"],
-    "pan": [true, "Enable bimanual pan gesture (scroll with two hands)"],
-    "precision_cursor": [true, "Enable bimanual precision cursor (fine cursor control)"]
+    "pinch": [
+      false,
+      "Enable pinch gesture for click/drag"
+    ],
+    "zoom_in": [
+      true,
+      "Enable zoom-in gesture (spread fingers)"
+    ],
+    "zoom_out": [
+      true,
+      "Enable zoom-out gesture (pinch fingers)"
+    ],
+    "swipe_left": [
+      false,
+      "Enable swipe-left gesture (workspace switch left)"
+    ],
+    "swipe_right": [
+      false,
+      "Enable swipe-right gesture (workspace switch right)"
+    ],
+    "swipe_up": [
+      false,
+      "Enable swipe-up gesture (scroll up)"
+    ],
+    "swipe_down": [
+      false,
+      "Enable swipe-down gesture (scroll down)"
+    ],
+    "thumbs_up": [
+      true,
+      "Enable static thumbs-up gesture (reserved for future use)"
+    ],
+    "thumbs_down": [
+      true,
+      "Enable static thumbs-down gesture (quit app when held)"
+    ],
+    "thumbs_up_moving_up": [
+      true,
+      "Enable thumbs-up moving upward (volume up)"
+    ],
+    "thumbs_up_moving_down": [
+      true,
+      "Enable thumbs-up moving downward (volume down)"
+    ],
+    "thumbs_down_moving_up": [
+      false,
+      "Enable thumbs-down moving upward (brightness up)"
+    ],
+    "thumbs_down_moving_down": [
+      false,
+      "Enable thumbs-down moving downward (brightness down)"
+    ],
+    "open_hand": [
+      true,
+      "Enable open hand gesture (pause detection)"
+    ],
+    "pan": [
+      false,
+      "Enable bimanual pan gesture (scroll with two hands)"
+    ],
+    "precision_cursor": [
+      true,
+      "Enable bimanual precision cursor (fine cursor control)"
+    ]
   },
   "gesture_thresholds": {
     "pinch": {
       "threshold_rel": [
         0.2,
         "Maximum distance between thumb and index fingertips to trigger pinch (normalized 0-1)"
+      ],
+      "index_middle_gap_threshold":[
+        0.175,
+        "Minimum distance between index and thumb fingertips to trigger pinch(normalized 0-1)"
       ],
       "hold_frames": [
         3,
@@ -112,15 +165,15 @@
         "Maximum allowed distance between index and middle fingers (they must stay together)"
       ],
       "ewma_alpha": [
-        0.5,
+        0.2,
         "EWMA smoothing factor for spread change rate (0-1, higher=more responsive, lower=smoother)"
       ],
       "velocity_threshold": [
-        0.04,
+        0.02,
         "Minimum EWMA-smoothed spread change velocity to gain confidence (normalized units/frame)"
       ],
       "confidence_ramp_up": [
-        0.95,
+        0.29,
         "Confidence increase per frame when correct movement detected (0-1, higher=faster trigger)"
       ],
       "confidence_decay": [
@@ -128,11 +181,11 @@
         "Confidence decrease per frame when movement stops/reverses (0-1, higher=faster turnoff)"
       ],
       "confidence_threshold": [
-        0.6,
+        0.68,
         "Minimum confidence level to report zoom as detected (0-1, lower=easier trigger)"
       ],
       "max_velocity": [
-        2.0,
+        0.05,
         "Maximum spread change velocity allowed (filters sudden jumps/noise)"
       ],
       "require_fingers_extended": [
@@ -232,16 +285,16 @@
     },
     "zoom": {
       "sensitivity": [
-        1.9,
+        0.3,
         "System zoom sensitivity multiplier"
       ],
       "speed_neutral": [
-        1.0,
+        0.03,
         "Neutral gesture velocity where no speed modulation is applied"
       ],
       "speed_factor": [
-        0.2,
-        "Max influence of velocity on zoom rate (0.2 = ±20% adjustment)"
+        0.3,
+        "Max influence of velocity on zoom rate (0.2 = \u00b120% adjustment)"
       ],
       "base_delay": [
         0.1,
@@ -265,7 +318,7 @@
         ],
         "speed_factor": [
           0.3,
-          "Max influence of velocity on action rate (±30% adjustment)"
+          "Max influence of velocity on action rate (\u00b130% adjustment)"
         ],
         "base_delay": [
           0.3,
@@ -283,7 +336,7 @@
         ],
         "speed_factor": [
           0.3,
-          "Max influence of velocity on action rate (±30% adjustment)"
+          "Max influence of velocity on action rate (\u00b130% adjustment)"
         ],
         "base_delay": [
           0.3,
@@ -301,7 +354,7 @@
         ],
         "speed_factor": [
           0.4,
-          "Max influence of velocity on scroll rate (±40% adjustment)"
+          "Max influence of velocity on scroll rate (\u00b140% adjustment)"
         ],
         "base_delay": [
           0.05,
@@ -319,7 +372,7 @@
         ],
         "speed_factor": [
           0.4,
-          "Max influence of velocity on scroll rate (±40% adjustment)"
+          "Max influence of velocity on scroll rate (\u00b140% adjustment)"
         ],
         "base_delay": [
           0.05,
@@ -339,7 +392,7 @@
         ],
         "speed_factor": [
           0.4,
-          "Max influence of velocity on action rate (±40% adjustment)"
+          "Max influence of velocity on action rate (\u00b140% adjustment)"
         ],
         "base_delay": [
           0.15,
@@ -357,7 +410,7 @@
         ],
         "speed_factor": [
           0.4,
-          "Max influence of velocity on action rate (±40% adjustment)"
+          "Max influence of velocity on action rate (\u00b140% adjustment)"
         ],
         "base_delay": [
           0.15,
@@ -375,7 +428,7 @@
         ],
         "speed_factor": [
           0.4,
-          "Max influence of velocity on action rate (±40% adjustment)"
+          "Max influence of velocity on action rate (\u00b140% adjustment)"
         ],
         "base_delay": [
           0.15,
@@ -393,7 +446,7 @@
         ],
         "speed_factor": [
           0.4,
-          "Max influence of velocity on action rate (±40% adjustment)"
+          "Max influence of velocity on action rate (\u00b140% adjustment)"
         ],
         "base_delay": [
           0.15,
