@@ -260,13 +260,13 @@ class HANDSApplication:
             return "none"
             
         # 1. High Priority: Directional/Active gestures
-        # Thumbs moves, Swipes, Zooms
+        # Thumbs moves, Swipes, Zooms, and specific hand poses (Victory, Rock, etc.)
         for name in gestures_dict:
             # Skip internal metadata keys
             if name.startswith('__'):
                 continue
                 
-            if any(x in name for x in ['moving', 'swipe', 'zoom', 'pinch']):
+            if any(x in name for x in ['moving', 'swipe', 'zoom', 'pinch', 'victory', 'rock', 'shaka', 'ILY', 'middle_finger', 'pinky', 'closed_hand', 'thumbs']):
                  # Check if enabled
                  if is_gesture_enabled(name):
                      return name
@@ -726,6 +726,27 @@ class HANDSApplication:
                             elif key == Qt.Key.Key_T:
                                 self.visual.show_gesture_debug['thumbs'] = not self.visual.show_gesture_debug['thumbs']
                                 print(f"Thumbs debug: {'ON' if self.visual.show_gesture_debug['thumbs'] else 'OFF'}")
+                            elif key == Qt.Key.Key_C:
+                                self.visual.show_gesture_debug['closed_hand'] = not self.visual.show_gesture_debug['closed_hand']
+                                print(f"Closed hand debug: {'ON' if self.visual.show_gesture_debug['closed_hand'] else 'OFF'}")
+                            elif key == Qt.Key.Key_V:
+                                self.visual.show_gesture_debug['victory'] = not self.visual.show_gesture_debug['victory']
+                                print(f"Victory debug: {'ON' if self.visual.show_gesture_debug['victory'] else 'OFF'}")
+                            elif key == Qt.Key.Key_M:
+                                self.visual.show_gesture_debug['middle_finger'] = not self.visual.show_gesture_debug['middle_finger']
+                                print(f"Middle finger debug: {'ON' if self.visual.show_gesture_debug['middle_finger'] else 'OFF'}")
+                            elif key == Qt.Key.Key_K:
+                                self.visual.show_gesture_debug['pinky'] = not self.visual.show_gesture_debug['pinky']
+                                print(f"Pinky debug: {'ON' if self.visual.show_gesture_debug['pinky'] else 'OFF'}")
+                            elif key == Qt.Key.Key_R:
+                                self.visual.show_gesture_debug['rock'] = not self.visual.show_gesture_debug['rock']
+                                print(f"Rock debug: {'ON' if self.visual.show_gesture_debug['rock'] else 'OFF'}")
+                            elif key == Qt.Key.Key_Y:
+                                self.visual.show_gesture_debug['shaka'] = not self.visual.show_gesture_debug['shaka']
+                                print(f"Shaka debug: {'ON' if self.visual.show_gesture_debug['shaka'] else 'OFF'}")
+                            elif key == Qt.Key.Key_L:
+                                self.visual.show_gesture_debug['ILY'] = not self.visual.show_gesture_debug['ILY']
+                                print(f"ILY debug: {'ON' if self.visual.show_gesture_debug['ILY'] else 'OFF'}")
                     except queue.Empty:
                         pass
                     except Exception as e:
@@ -789,6 +810,13 @@ class HANDSApplication:
         print("  S - Toggle Swipe debug")
         print("  O - Toggle Open hand debug")
         print("  T - Toggle Thumbs debug")
+        print("  C - Toggle Closed hand debug")
+        print("  V - Toggle Victory debug")
+        print("  M - Toggle Middle finger debug")
+        print("  K - Toggle Pinky debug")
+        print("  R - Toggle Rock debug")
+        print("  Y - Toggle Shaka debug")
+        print("  L - Toggle ILY debug")
         print("\n" + "="*60)
         print("GESTURE CONTROLS")
         print("="*60)

@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from source_code.utils.math_utils import landmarks_to_array, euclidean, EWMA, ClickDetector
 
 
+
 # Data Structures
 
 @dataclass
@@ -772,12 +773,11 @@ class UniversalGestureDetector:
         hold_frames: int = 5,
         confidence_ramp_up: float = 0.3,
         confidence_decay: float = 0.2,
-        confidence_threshold: float = 0.6,
-        max_finger_gap_pair: Optional[Tuple[str, str]] = None,
-        max_finger_gap_threshold: float = 1.0, # default loose
-        orientation_tip_index: Optional[int] = None,
-        orientation_ref_index: Optional[int] = None # usually MCP
-    ):
+            confidence_threshold: float = 0.6,
+            max_finger_gap_pair: Optional[Tuple[str, str]] = None,
+            max_finger_gap_threshold: float = 0.1,
+            orientation_conditions: Optional[List[Tuple[int, int]]] = None # List of (tip_index, ref_index) pairs
+    ) -> None:
         self.finger_config = finger_config
         self.gesture_name = gesture_name
         self.velocity_threshold_x = velocity_threshold_x
@@ -789,8 +789,10 @@ class UniversalGestureDetector:
         self.confidence_threshold = confidence_threshold
         self.max_finger_gap_pair = max_finger_gap_pair
         self.max_finger_gap_threshold = max_finger_gap_threshold
-        self.orientation_tip_index = orientation_tip_index
-        self.orientation_ref_index = orientation_ref_index
+        
+        # orientation_conditions is a list of (tip, ref) pairs.
+        # e.g. [(INDEX_TIP, INDEX_MCP), (MIDDLE_TIP, MIDDLE_MCP)] for victory
+        self.orientation_conditions = orientation_conditions
         
         # Per-hand state
         self._hand_state = {
@@ -835,22 +837,35 @@ class UniversalGestureDetector:
                 fingers_match = False
 
         # 3. Check Orientation (Up/Down) if configured
-        gesture_suffix = ""
-        if fingers_match and self.orientation_tip_index is not None and self.orientation_ref_index is not None:
-            # Check Y-coord of tip vs reference (MCP)
-            # In image coords, y increases downwards.
-            # Up means Tip Y < Ref Y
-            # Down means Tip Y > Ref Y
+        orientation_suffix = ""
+        if self.orientation_conditions:
             try:
-                tip_y = metrics.landmarks_norm[self.orientation_tip_index][1]
-                ref_y = metrics.landmarks_norm[self.orientation_ref_index][1]
+                # Check UP condition: ALL tips must be ABOVE (y < ref_y) their references
+                # Note: In image coordinates, y increases downwards. So "above" means y < ref_y.
+                all_up = True
+                for tip_idx, ref_idx in self.orientation_conditions:
+                    tip_y = metrics.landmarks_norm[tip_idx][1]
+                    ref_y = metrics.landmarks_norm[ref_idx][1]
+                    if tip_y >= ref_y: # tip is below or eq reference (visually lower)
+                         all_up = False
+                         break
                 
-                if tip_y < ref_y:
-                    gesture_suffix = "_up"
-                else:
-                    gesture_suffix = "_down"
+                # Check DOWN condition: ALL tips must be BELOW (y > ref_y) their references
+                # Note: In image coordinates, y increases downwards. So "below" means y > ref_y.
+                all_down = True
+                for tip_idx, ref_idx in self.orientation_conditions:
+                    tip_y = metrics.landmarks_norm[tip_idx][1]
+                    ref_y = metrics.landmarks_norm[ref_idx][1]
+                    if tip_y <= ref_y: # tip is above or eq reference (visually higher)
+                        all_down = False
+                        break
+
+                if all_up:
+                    orientation_suffix = "_up"
+                elif all_down:
+                    orientation_suffix = "_down"
             except IndexError:
-                fingers_match = False # Safety fallback
+                pass # Landmarks missing checks skipped
 
         base_metadata = {
             'fingers_match': fingers_match,
@@ -918,7 +933,7 @@ class UniversalGestureDetector:
         # Combine base name + suffix (e.g. thumbs_up)
         # Only add suffix if orientation is configured AND matched
         # If not orientation configured, suffix is empty, so name is just base
-        current_static_name = f"{self.gesture_name}{gesture_suffix}"
+        current_static_name = f"{self.gesture_name}{orientation_suffix}"
 
         # 6. Determine Result (Moving vs Static)
         if movement_confirmed and state['current_move_direction']:
@@ -1028,7 +1043,8 @@ class GestureManager:
             victory_index_middle_gap_threshold = get_gesture_threshold('victory', 'index_middle_gap_threshold', default=0.175)
 
             # For middle finger
-            middle_velocity_thresh = get_gesture_threshold('middle_finger', 'velocity_threshold', default=0.2)
+            middle_velocity_thresh_x = get_gesture_threshold('middle_finger', 'velocity_threshold_x', default=0.2)
+            middle_velocity_thresh_y = get_gesture_threshold('middle_finger', 'velocity_threshold_y', default=0.2)
             middle_ewma_alpha = get_gesture_threshold('middle_finger', 'ewma_alpha', default=0.3)
             middle_hold_frames = get_gesture_threshold('middle_finger', 'hold_frames', default=5)
             middle_conf_ramp = get_gesture_threshold('middle_finger', 'confidence_ramp_up', default=0.3)
@@ -1036,12 +1052,40 @@ class GestureManager:
             middle_conf_thresh = get_gesture_threshold('middle_finger', 'confidence_threshold', default=0.6)
 
             # For pinky
-            pinky_velocity_thresh = get_gesture_threshold('pinky', 'velocity_threshold', default=0.2)
+            pinky_velocity_thresh_x = get_gesture_threshold('pinky', 'velocity_threshold_x', default=0.2)
+            pinky_velocity_thresh_y = get_gesture_threshold('pinky', 'velocity_threshold_y', default=0.2)
             pinky_ewma_alpha = get_gesture_threshold('pinky', 'ewma_alpha', default=0.3)
             pinky_hold_frames = get_gesture_threshold('pinky', 'hold_frames', default=5)
             pinky_conf_ramp = get_gesture_threshold('pinky', 'confidence_ramp_up', default=0.3)
             pinky_conf_decay = get_gesture_threshold('pinky', 'confidence_decay', default=0.2)
             pinky_conf_thresh = get_gesture_threshold('pinky', 'confidence_threshold', default=0.6)
+
+            # For rock
+            rock_velocity_thresh_x = get_gesture_threshold('rock', 'velocity_threshold_x', default=0.3)
+            rock_velocity_thresh_y = get_gesture_threshold('rock', 'velocity_threshold_y', default=0.3)
+            rock_ewma_alpha = get_gesture_threshold('rock', 'ewma_alpha', default=0.3)
+            rock_hold_frames = get_gesture_threshold('rock', 'hold_frames', default=5)
+            rock_conf_ramp = get_gesture_threshold('rock', 'confidence_ramp_up', default=0.3)
+            rock_conf_decay = get_gesture_threshold('rock', 'confidence_decay', default=0.2)
+            rock_conf_thresh = get_gesture_threshold('rock', 'confidence_threshold', default=0.6)
+
+            # For shaka
+            shaka_velocity_thresh_x = get_gesture_threshold('shaka', 'velocity_threshold_x', default=0.3)
+            shaka_velocity_thresh_y = get_gesture_threshold('shaka', 'velocity_threshold_y', default=0.3)
+            shaka_ewma_alpha = get_gesture_threshold('shaka', 'ewma_alpha', default=0.3)
+            shaka_hold_frames = get_gesture_threshold('shaka', 'hold_frames', default=5)
+            shaka_conf_ramp = get_gesture_threshold('shaka', 'confidence_ramp_up', default=0.3)
+            shaka_conf_decay = get_gesture_threshold('shaka', 'confidence_decay', default=0.2)
+            shaka_conf_thresh = get_gesture_threshold('shaka', 'confidence_threshold', default=0.6)
+
+            # For IYL
+            iyl_velocity_thresh_x = get_gesture_threshold('ILY', 'velocity_threshold_x', default=0.3)
+            iyl_velocity_thresh_y = get_gesture_threshold('ILY', 'velocity_threshold_y', default=0.3)
+            iyl_ewma_alpha = get_gesture_threshold('ILY', 'ewma_alpha', default=0.3)
+            iyl_hold_frames = get_gesture_threshold('ILY', 'hold_frames', default=5)
+            iyl_conf_ramp = get_gesture_threshold('ILY', 'confidence_ramp_up', default=0.3)
+            iyl_conf_decay = get_gesture_threshold('ILY', 'confidence_decay', default=0.2)
+            iyl_conf_thresh = get_gesture_threshold('ILY', 'confidence_threshold', default=0.6)
         except Exception:
             print("Failed to load config file and so falling back to hadcoded value")
             # Fallback to hardcoded defaults if config access fails
@@ -1123,8 +1167,7 @@ class GestureManager:
             confidence_ramp_up=thumbs_conf_ramp,
             confidence_decay=thumbs_conf_decay,
             confidence_threshold=thumbs_conf_thresh,
-            orientation_tip_index=LANDMARK_NAMES['THUMB_TIP'],
-            orientation_ref_index=LANDMARK_NAMES['PINKY_MCP']
+            orientation_conditions=[(LANDMARK_NAMES['THUMB_TIP'], LANDMARK_NAMES['THUMB_MCP'])]
         )
         self.closed_hand = UniversalGestureDetector(
             finger_config={'thumb': False, 'index': False, 'middle': False, 'ring': False, 'pinky': False},
@@ -1148,33 +1191,68 @@ class GestureManager:
             confidence_decay=victory_conf_decay,
             confidence_threshold=victory_conf_thresh,
             max_finger_gap_pair=('index', 'middle'),
-            max_finger_gap_threshold=victory_index_middle_gap_threshold
+            max_finger_gap_threshold=victory_index_middle_gap_threshold,
+            orientation_conditions=[(LANDMARK_NAMES['INDEX_TIP'], LANDMARK_NAMES['INDEX_MCP']), (LANDMARK_NAMES['MIDDLE_TIP'], LANDMARK_NAMES['MIDDLE_MCP'])]
         )
         self.middlefinger = UniversalGestureDetector(
             finger_config={'thumb': False, 'index': False, 'middle': True, 'ring': False, 'pinky': False},
             gesture_name='middle_finger',
-            velocity_threshold_x=middle_velocity_thresh,
-            velocity_threshold_y=middle_velocity_thresh,
+            velocity_threshold_x=middle_velocity_thresh_x,
+            velocity_threshold_y=middle_velocity_thresh_y,
             ewma_alpha=middle_ewma_alpha,
             hold_frames=middle_hold_frames,
             confidence_ramp_up=middle_conf_ramp,
             confidence_decay=middle_conf_decay,
             confidence_threshold=middle_conf_thresh,
-            orientation_tip_index=LANDMARK_NAMES['MIDDLE_TIP'],
-            orientation_ref_index=LANDMARK_NAMES['PINKY_MCP']
+            orientation_conditions=[(LANDMARK_NAMES['MIDDLE_TIP'], LANDMARK_NAMES['MIDDLE_MCP'])]
         )
         self.pinky = UniversalGestureDetector(
             finger_config={'thumb': False, 'index': False, 'middle': False, 'ring': False, 'pinky': True},
             gesture_name='pinky',
-            velocity_threshold_x=pinky_velocity_thresh,
-            velocity_threshold_y=pinky_velocity_thresh,
+            velocity_threshold_x=pinky_velocity_thresh_x,
+            velocity_threshold_y=pinky_velocity_thresh_y,
             ewma_alpha=pinky_ewma_alpha,
             hold_frames=pinky_hold_frames,
             confidence_ramp_up=pinky_conf_ramp,
             confidence_decay=pinky_conf_decay,
             confidence_threshold=pinky_conf_thresh,
-            orientation_tip_index=LANDMARK_NAMES['PINKY_TIP'],
-            orientation_ref_index=LANDMARK_NAMES['PINKY_MCP']
+            orientation_conditions=[(LANDMARK_NAMES['PINKY_TIP'], LANDMARK_NAMES['PINKY_MCP'])]
+        )
+        self.rock = UniversalGestureDetector(
+            finger_config={'thumb': False, 'index': True, 'middle': False, 'ring': False, 'pinky': True},
+            gesture_name='rock',
+            velocity_threshold_x=rock_velocity_thresh_x,
+            velocity_threshold_y=rock_velocity_thresh_y,
+            ewma_alpha=rock_ewma_alpha,
+            hold_frames=rock_hold_frames,
+            confidence_ramp_up=rock_conf_ramp,
+            confidence_decay=rock_conf_decay,
+            confidence_threshold=rock_conf_thresh,
+            orientation_conditions=[(LANDMARK_NAMES['INDEX_TIP'], LANDMARK_NAMES['INDEX_MCP']), (LANDMARK_NAMES['PINKY_TIP'], LANDMARK_NAMES['PINKY_MCP'])]
+        )
+        self.IYL = UniversalGestureDetector(
+            finger_config={'thumb': True, 'index': True, 'middle': False, 'ring': False, 'pinky': True},
+            gesture_name='ILY', # Note: gesture_name will be 'ILY_up' or 'ILY_down' etc.
+            velocity_threshold_x=iyl_velocity_thresh_x,
+            velocity_threshold_y=iyl_velocity_thresh_y,
+            ewma_alpha=iyl_ewma_alpha,
+            hold_frames=iyl_hold_frames,
+            confidence_ramp_up=iyl_conf_ramp,
+            confidence_decay=iyl_conf_decay,
+            confidence_threshold=iyl_conf_thresh,
+            orientation_conditions=[(LANDMARK_NAMES['THUMB_TIP'], LANDMARK_NAMES['THUMB_MCP']), (LANDMARK_NAMES['INDEX_TIP'], LANDMARK_NAMES['INDEX_MCP']), (LANDMARK_NAMES['PINKY_TIP'], LANDMARK_NAMES['PINKY_MCP'])]
+        )
+        self.shaka = UniversalGestureDetector(
+            finger_config={'thumb': True, 'index': False, 'middle': False, 'ring': False, 'pinky': True},
+            gesture_name='shaka',
+            velocity_threshold_x=shaka_velocity_thresh_x,
+            velocity_threshold_y=shaka_velocity_thresh_y,
+            ewma_alpha=shaka_ewma_alpha,
+            hold_frames=shaka_hold_frames,
+            confidence_ramp_up=shaka_conf_ramp,
+            confidence_decay=shaka_conf_decay,
+            confidence_threshold=shaka_conf_thresh,
+            orientation_conditions=[(LANDMARK_NAMES['THUMB_TIP'], LANDMARK_NAMES['THUMB_MCP']), (LANDMARK_NAMES['PINKY_TIP'], LANDMARK_NAMES['PINKY_MCP'])]
         )
         # Store finger-extension hysteresis for use during metric computation
         self.finger_open_ratio = open_ratio
@@ -1220,6 +1298,14 @@ class GestureManager:
         thumbs_result = self.thumbs.detect(metrics, hand_label)
         open_hand_result = self.open_hand.detect(metrics)  # Stateless, no hand_label needed
 
+        # New detectors
+        closed_result = self.closed_hand.detect(metrics, hand_label)
+        victory_result = self.victory_hand.detect(metrics, hand_label)
+        middle_result = self.middlefinger.detect(metrics, hand_label)
+        pinky_result = self.pinky.detect(metrics, hand_label)
+        rock_result = self.rock.detect(metrics, hand_label)
+        shaka_result = self.shaka.detect(metrics, hand_label)
+        iyl_result = self.IYL.detect(metrics, hand_label)
 
         results['__pinch_meta'] = pinch_result
         results['__pointing_meta'] = pointing_result
@@ -1230,7 +1316,7 @@ class GestureManager:
 
         # Priority rules and conflict resolution:
         # PRIORITY ORDER (highest to lowest):
-        # 1. Thumbs
+        # 1. Thumbs, Victory, Rock, Shaka, IYL, Middle, Pinky, Closed
         # 2. Zoom
         # 3. Pinch
         # 4. Pointing
@@ -1240,8 +1326,34 @@ class GestureManager:
         # Check high-priority gestures first
         if thumbs_result.detected:
             results[thumbs_result.gesture_name] = thumbs_result
-            # if swipe_result.detected:
-            #     results['swipe'] = swipe_result
+            return results
+        
+        if victory_result.detected:
+            results[victory_result.gesture_name] = victory_result
+            return results
+
+        if rock_result.detected:
+            results[rock_result.gesture_name] = rock_result
+            return results
+
+        if shaka_result.detected:
+            results[shaka_result.gesture_name] = shaka_result
+            return results
+
+        if iyl_result.detected:
+            results[iyl_result.gesture_name] = iyl_result
+            return results
+
+        if middle_result.detected:
+            results[middle_result.gesture_name] = middle_result
+            return results
+
+        if pinky_result.detected:
+            results[pinky_result.gesture_name] = pinky_result
+            return results
+
+        if closed_result.detected:
+            results[closed_result.gesture_name] = closed_result
             return results
         
         if zoom_result.detected:

@@ -73,6 +73,266 @@
       true,
       "Enable thumbs-down moving right"
     ],
+    "closed_hand": [
+      true,
+      "Enable closed hand gesture"
+    ],
+    "closed_hand_moving_up": [
+      true,
+      "Enable closed hand moving up"
+    ],
+    "closed_hand_moving_down": [
+      true,
+      "Enable closed hand moving down"
+    ],
+    "closed_hand_moving_left": [
+      true,
+      "Enable closed hand moving left"
+    ],
+    "closed_hand_moving_right": [
+      true,
+      "Enable closed hand moving right"
+    ],
+    "victory_up": [
+      true,
+      "Enable victory sign up"
+    ],
+    "victory_down": [
+      true,
+      "Enable victory sign down"
+    ],
+    "victory_up_moving_up": [
+      true,
+      "Enable victory up moving up"
+    ],
+    "victory_up_moving_down": [
+      true,
+      "Enable victory up moving down"
+    ],
+    "victory_up_moving_left": [
+      true,
+      "Enable victory up moving left"
+    ],
+    "victory_up_moving_right": [
+      true,
+      "Enable victory up moving right"
+    ],
+    "victory_down_moving_up": [
+      true,
+      "Enable victory down moving up"
+    ],
+    "victory_down_moving_down": [
+      true,
+      "Enable victory down moving down"
+    ],
+    "victory_down_moving_left": [
+      true,
+      "Enable victory down moving left"
+    ],
+    "victory_down_moving_right": [
+      true,
+      "Enable victory down moving right"
+    ],
+    "middle_finger_up": [
+      true,
+      "Enable middle finger up"
+    ],
+    "middle_finger_down": [
+      true,
+      "Enable middle finger down"
+    ],
+    "middle_finger_up_moving_up": [
+      true,
+      "Enable middle finger up moving up"
+    ],
+    "middle_finger_up_moving_down": [
+      true,
+      "Enable middle finger up moving down"
+    ],
+    "middle_finger_up_moving_left": [
+      true,
+      "Enable middle finger up moving left"
+    ],
+    "middle_finger_up_moving_right": [
+      true,
+      "Enable middle finger up moving right"
+    ],
+    "middle_finger_down_moving_up": [
+      true,
+      "Enable middle finger down moving up"
+    ],
+    "middle_finger_down_moving_down": [
+      true,
+      "Enable middle finger down moving down"
+    ],
+    "middle_finger_down_moving_left": [
+      true,
+      "Enable middle finger down moving left"
+    ],
+    "middle_finger_down_moving_right": [
+      true,
+      "Enable middle finger down moving right"
+    ],
+    "pinky_up": [
+      true,
+      "Enable pinky up"
+    ],
+    "pinky_down": [
+      true,
+      "Enable pinky down"
+    ],
+    "pinky_up_moving_up": [
+      true,
+      "Enable pinky up moving up"
+    ],
+    "pinky_up_moving_down": [
+      true,
+      "Enable pinky up moving down"
+    ],
+    "pinky_up_moving_left": [
+      true,
+      "Enable pinky up moving left"
+    ],
+    "pinky_up_moving_right": [
+      true,
+      "Enable pinky up moving right"
+    ],
+    "pinky_down_moving_up": [
+      true,
+      "Enable pinky down moving up"
+    ],
+    "pinky_down_moving_down": [
+      true,
+      "Enable pinky down moving down"
+    ],
+    "pinky_down_moving_left": [
+      true,
+      "Enable pinky down moving left"
+    ],
+    "pinky_down_moving_right": [
+      true,
+      "Enable pinky down moving right"
+    ],
+    "rock_up": [
+      true,
+      "Enable rock sign up"
+    ],
+    "rock_down": [
+      true,
+      "Enable rock sign down"
+    ],
+    "rock_up_moving_up": [
+      true,
+      "Enable rock up moving up"
+    ],
+    "rock_up_moving_down": [
+      true,
+      "Enable rock up moving down"
+    ],
+    "rock_up_moving_left": [
+      true,
+      "Enable rock up moving left"
+    ],
+    "rock_up_moving_right": [
+      true,
+      "Enable rock up moving right"
+    ],
+    "rock_down_moving_up": [
+      true,
+      "Enable rock down moving up"
+    ],
+    "rock_down_moving_down": [
+      true,
+      "Enable rock down moving down"
+    ],
+    "rock_down_moving_left": [
+      true,
+      "Enable rock down moving left"
+    ],
+    "rock_down_moving_right": [
+      true,
+      "Enable rock down moving right"
+    ],
+    "shaka_up": [
+      true,
+      "Enable shaka sign up"
+    ],
+    "shaka_down": [
+      true,
+      "Enable shaka sign down"
+    ],
+    "shaka_up_moving_up": [
+      true,
+      "Enable shaka up moving up"
+    ],
+    "shaka_up_moving_down": [
+      true,
+      "Enable shaka up moving down"
+    ],
+    "shaka_up_moving_left": [
+      true,
+      "Enable shaka up moving left"
+    ],
+    "shaka_up_moving_right": [
+      true,
+      "Enable shaka up moving right"
+    ],
+    "shaka_down_moving_up": [
+      true,
+      "Enable shaka down moving up"
+    ],
+    "shaka_down_moving_down": [
+      true,
+      "Enable shaka down moving down"
+    ],
+    "shaka_down_moving_left": [
+      true,
+      "Enable shaka down moving left"
+    ],
+    "shaka_down_moving_right": [
+      true,
+      "Enable shaka down moving right"
+    ],
+    "ILY_up": [
+      true,
+      "Enable ILY sign up"
+    ],
+    "ILY_down": [
+      true,
+      "Enable ILY sign down"
+    ],
+    "ILY_up_moving_up": [
+      true,
+      "Enable ILY up moving up"
+    ],
+    "ILY_up_moving_down": [
+      true,
+      "Enable ILY up moving down"
+    ],
+    "ILY_up_moving_left": [
+      true,
+      "Enable ILY up moving left"
+    ],
+    "ILY_up_moving_right": [
+      true,
+      "Enable ILY up moving right"
+    ],
+    "ILY_down_moving_up": [
+      true,
+      "Enable ILY down moving up"
+    ],
+    "ILY_down_moving_down": [
+      true,
+      "Enable ILY down moving down"
+    ],
+    "ILY_down_moving_left": [
+      true,
+      "Enable ILY down moving left"
+    ],
+    "ILY_down_moving_right": [
+      true,
+      "Enable ILY down moving right"
+    ],
     "open_hand": [
       true,
       "Enable open hand gesture (pause detection)"
@@ -344,6 +604,96 @@
       ]
     },
     "pinky": {
+      "velocity_threshold_x": [
+        0.2,
+        "Minimum velocity to detect movement in x direction"
+      ],
+      "velocity_threshold_y": [
+        0.2,
+        "Minimum velocity to detect movement in y direction"
+      ],
+      "ewma_alpha": [
+        0.3,
+        "EWMA smoothing factor for velocity"
+      ],
+      "hold_frames": [
+        5,
+        "Frames to wait before confirming static gesture"
+      ],
+      "confidence_ramp_up": [
+        0.3,
+        "Confidence increase per frame"
+      ],
+      "confidence_decay": [
+        0.2,
+        "Confidence decrease per frame"
+      ],
+      "confidence_threshold": [
+        0.6,
+        "Minimum confidence to report moving gesture"
+      ]
+    },
+    "shaka": {
+      "velocity_threshold_x": [
+        0.2,
+        "Minimum velocity to detect movement in x direction"
+      ],
+      "velocity_threshold_y": [
+        0.2,
+        "Minimum velocity to detect movement in y direction"
+      ],
+      "ewma_alpha": [
+        0.3,
+        "EWMA smoothing factor for velocity"
+      ],
+      "hold_frames": [
+        5,
+        "Frames to wait before confirming static gesture"
+      ],
+      "confidence_ramp_up": [
+        0.3,
+        "Confidence increase per frame"
+      ],
+      "confidence_decay": [
+        0.2,
+        "Confidence decrease per frame"
+      ],
+      "confidence_threshold": [
+        0.6,
+        "Minimum confidence to report moving gesture"
+      ]
+    },
+    "rock": {
+      "velocity_threshold_x": [
+        0.2,
+        "Minimum velocity to detect movement in x direction"
+      ],
+      "velocity_threshold_y": [
+        0.2,
+        "Minimum velocity to detect movement in y direction"
+      ],
+      "ewma_alpha": [
+        0.3,
+        "EWMA smoothing factor for velocity"
+      ],
+      "hold_frames": [
+        5,
+        "Frames to wait before confirming static gesture"
+      ],
+      "confidence_ramp_up": [
+        0.3,
+        "Confidence increase per frame"
+      ],
+      "confidence_decay": [
+        0.2,
+        "Confidence decrease per frame"
+      ],
+      "confidence_threshold": [
+        0.6,
+        "Minimum confidence to report moving gesture"
+      ]
+    },
+    "IYL": {
       "velocity_threshold_x": [
         0.2,
         "Minimum velocity to detect movement in x direction"
@@ -669,7 +1019,958 @@
           "Base delay between actions in seconds"
         ]
       }
+    },
+    "middle_finger":{
+      "middle_finger_up_moving_up": {
+        "sensitivity": [
+          1.0,
+          "Middle finger up moving up action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "middle_finger_up_moving_down": {
+        "sensitivity": [
+          1.0,
+          "Middle finger up moving down action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "middle_finger_up_moving_left": {
+        "sensitivity": [
+          1.0,
+          "Middle finger up moving left action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "middle_finger_up_moving_right": {
+        "sensitivity": [
+          1.0,
+          "Middle finger up moving right action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "middle_finger_down_moving_up":{
+        "sensitivity": [
+          1.0,
+          "Middle finger down moving up action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "middle_finger_down_moving_down":{
+        "sensitivity": [
+          1.0,
+          "Middle finger down moving down action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "middle_finger_down_moving_left":{
+        "sensitivity": [
+          1.0,
+          "Middle finger down moving left action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "middle_finger_down_moving_right":{
+        "sensitivity": [
+          1.0,
+          "Middle finger down moving right action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      }
+    },
+    "pinky":{
+      "pinky_up_moving_up": {
+        "sensitivity": [
+          1.0,
+          "Pinky up moving up action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "pinky_up_moving_down": {
+        "sensitivity": [
+          1.0,
+          "Pinky up moving down action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "pinky_up_moving_left": {
+        "sensitivity": [
+          1.0,
+          "Pinky up moving left action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "pinky_up_moving_right": {
+        "sensitivity": [
+          1.0,
+          "Pinky up moving right action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "pinky_down_moving_up":{
+        "sensitivity": [
+          1.0,
+          "Pinky down moving up action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "pinky_down_moving_down":{
+        "sensitivity": [
+          1.0,
+          "Pinky down moving down action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "pinky_down_moving_left":{
+        "sensitivity": [
+          1.0,
+          "Pinky down moving left action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "pinky_down_moving_right":{
+        "sensitivity": [
+          1.0,
+          "Pinky down moving right action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      }
+    },
+    "victory":{
+      "victory_up_moving_up":{
+        "sensitivity": [
+          1.0,
+          "Victory up moving up action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "victory_up_moving_down":{
+        "sensitivity": [
+          1.0,
+          "Victory up moving down action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "victory_up_moving_left":{
+        "sensitivity": [
+          1.0,
+          "Victory up moving left action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "victory_up_moving_right":{
+        "sensitivity": [
+          1.0,
+          "Victory up moving right action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "victory_down_moving_up":{
+        "sensitivity": [
+          1.0,
+          "Victory down moving up action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "victory_down_moving_down":{
+        "sensitivity": [
+          1.0,
+          "Victory down moving down action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "victory_down_moving_left":{
+        "sensitivity": [
+          1.0,
+          "Victory down moving left action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "victory_down_moving_right":{
+        "sensitivity": [
+          1.0,
+          "Victory down moving right action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      }
+    },
+    "closed":{
+      "closed_moving_up":{
+        "sensitivity": [
+          1.0,
+          "Closed moving up action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "closed_moving_down":{
+        "sensitivity": [
+          1.0,
+          "Closed moving down action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "closed_moving_left":{
+        "sensitivity": [
+          1.0,
+          "Closed moving left action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "closed_moving_right":{
+        "sensitivity": [
+          1.0,
+          "Closed moving right action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      }
+    },
+    "rock": {
+      "rock_up_moving_up":{
+        "sensitivity": [
+          1.0,
+          "Rock up moving up action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "rock_up_moving_down":{
+        "sensitivity": [
+          1.0,
+          "Rock up moving down action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "rock_up_moving_left":{
+        "sensitivity": [
+          1.0,
+          "Rock up moving left action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "rock_up_moving_right":{
+        "sensitivity": [
+          1.0,
+          "Rock up moving right action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "rock_down_moving_up":{
+        "sensitivity": [
+          1.0,
+          "Rock down moving up action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "rock_down_moving_down":{
+        "sensitivity": [
+          1.0,
+          "Rock down moving down action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "rock_down_moving_left":{
+        "sensitivity": [
+          1.0,
+          "Rock down moving left action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "rock_down_moving_right":{
+        "sensitivity": [
+          1.0,
+          "Rock down moving right action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      }
+    },
+    "ILY": {
+      "ILY_up_moving_up": {
+        "sensitivity": [
+          1.0,
+          "ILY up moving up action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "ILY_up_moving_down": {
+        "sensitivity": [
+          1.0,
+          "ILY up moving down action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "ILY_up_moving_left": {
+        "sensitivity": [
+          1.0,
+          "ILY up moving left action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "ILY_up_moving_right": {
+        "sensitivity": [
+          1.0,
+          "ILY up moving right action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "ILY_down_moving_up": {
+        "sensitivity": [
+          1.0,
+          "ILY down moving up action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "ILY_down_moving_down": {
+        "sensitivity": [
+          1.0,
+          "ILY down moving down action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "ILY_down_moving_left": {
+        "sensitivity": [
+          1.0,
+          "ILY down moving left action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "ILY_down_moving_right": {
+        "sensitivity": [
+          1.0,
+          "ILY down moving right action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      }
+    },
+    "shka": {
+      "shka_up_moving_up": {
+        "sensitivity": [
+          1.0,
+          "Shka up moving up action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "shka_up_moving_down": {
+        "sensitivity": [
+          1.0,
+          "Shka up moving down action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "shka_up_moving_left": {
+        "sensitivity": [
+          1.0,
+          "Shka up moving left action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "shka_up_moving_right": {
+        "sensitivity": [
+          1.0,
+          "Shka up moving right action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "shka_down_moving_up": {
+        "sensitivity": [
+          1.0,
+          "Shka down moving up action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "shka_down_moving_down": {
+        "sensitivity": [
+          1.0,
+          "Shka down moving down action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "shka_down_moving_left": {
+        "sensitivity": [
+          1.0,
+          "Shka down moving left action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      },
+      "shka_down_moving_right": {
+        "sensitivity": [
+          1.0,
+          "Shka down moving right action sensitivity"
+        ],
+        "speed_neutral": [
+          0.5,
+          "Neutral velocity where no modulation occurs"
+        ],
+        "speed_factor": [
+          0.4,
+          "Max influence of velocity on action rate"
+        ],
+        "base_delay": [
+          0.15,
+          "Base delay between actions in seconds"
+        ]
+      }
     }
+
   },
   "visual_feedback": {
     "enabled": [
@@ -1143,7 +2444,224 @@
         "thumbs_down_moving_down": [
           "thumbs_down_moving_down.png",
           "Sticker for thumbs down moving downward"
+        ],
+        "thumbs_up_moving_left": [
+          "thumbs_up_moving_left.png",
+          "Sticker for thumbs up moving left"
+        ],
+        "thumbs_up_moving_right": [
+          "thumbs_up_moving_right.png",
+          "Sticker for thumbs up moving right"
+        ],
+        "thumbs_down_moving_left": [
+          "thumbs_down_moving_left.png",
+          "Sticker for thumbs down moving left"
+        ],
+        "thumbs_down_moving_right": [
+          "thumbs_down_moving_right.png",
+          "Sticker for thumbs down moving right"
+        ],
+        "closed_hand_up": [
+          "closed_hand_up.png",
+          "Sticker for closed hand up gesture"
+        ],
+        "closed_hand_down": [
+          "closed_hand_down.png",
+          "Sticker for closed hand down gesture"
+        ],
+        "closed_hand_up_moving_up": [
+          "closed_hand_up_moving_up.png",
+          "Sticker for closed hand up moving upward"
+        ],
+        "closed_hand_up_moving_down": [
+          "closed_hand_up_moving_down.png",
+          "Sticker for closed hand up moving downward"
+        ],
+        "closed_hand_down_moving_up": [
+          "closed_hand_down_moving_up.png",
+          "Sticker for closed hand down moving upward"
+        ],
+        "closed_hand_down_moving_down": [
+          "closed_hand_down_moving_down.png",
+          "Sticker for closed hand down moving downward"
+        ],
+        "closed_hand_up_moving_left": [
+          "closed_hand_moving_left.png",
+          "Sticker for closed hand up moving left"
+        ],
+        "closed_hand_up_moving_right": [
+          "closed_hand_moving_right.png",
+          "Sticker for closed hand up moving right"
+        ],
+        "closed_hand_down_moving_left": [
+          "closed_hand_moving_left.png",
+          "Sticker for closed hand down moving left"
+        ],
+        "closed_hand_down_moving_right": [
+          "closed_hand_moving_right.png",
+          "Sticker for closed hand down moving right"
+        ],
+        "middle_finger_down_moving_down":[
+          "middle_finger_down_moving_down.png",
+          "Sticker for middle finger down moving down"
+        ],
+        "middle_finger_down_moving_left":[
+          "middle_finger_down_moving_left.png",
+          "Sticker for middle finger down moving left"
+        ],
+        "middle_finger_down_moving_right":[
+          "middle_finger_down_moving_right.png",
+          "Sticker for middle finger down moving right"
+        ],
+        "middle_finger_down_moving_up":[
+          "middle_finger_down_moving_up.png",
+          "Sticker for middle finger down moving up"
+        ],
+        "middle_finger_up_moving_down":[
+          "middle_finger_up_moving_down.png",
+          "Sticker for middle finger up moving down"
+        ],
+        "middle_finger_up_moving_left":[
+          "middle_finger_up_moving_left.png",
+          "Sticker for middle finger up moving left"
+        ],
+        "middle_finger_up_moving_right":[
+          "middle_finger_up_moving_right.png",
+          "Sticker for middle finger up moving right"
+        ],
+        "middle_finger_up_moving_up":[
+          "middle_finger_up_moving_up.png",
+          "Sticker for middle finger up moving up"
+        ],
+        "middle_finger_down":[
+          "middle_finger_down_moving_down.png",
+          "Sticker for middle finger down"
+        ],
+        "middle_finger_up":[
+          "middle_finger_up.png",
+          "Sticker for middle finger up"
+        ],
+        "pinky_finger_up":[
+          "pinky_finger_up.png",
+          "Sticker for pinky finger up"
+        ],
+        "pinky_finger_down":[
+          "pinky_finger_down_moving_down.png",
+          "Sticker for pinky finger down"
+        ],
+        "pinky_finger_up_moving_down":[
+          "pinky_finger_up_moving_down.png",
+          "Sticker for pinky finger up moving down"
+        ],
+        "pinky_finger_up_moving_left":[
+          "pinky_finger_up_moving_left.png",
+          "Sticker for pinky finger up moving left"
+        ],
+        "pinky_finger_up_moving_right":[
+          "pinky_finger_up_moving_right.png",
+          "Sticker for pinky finger up moving right"
+        ],
+        "pinky_finger_up_moving_up":[
+          "pinky_finger_up_moving_up.png",
+          "Sticker for pinky finger up moving up"
+        ],
+        "pinky_finger_down_moving_down":[
+          "pinky_finger_down_moving_down.png",
+          "Sticker for pinky finger down moving down"
+        ],
+        "pinky_finger_down_moving_left":[
+          "pinky_finger_down_moving_left.png",
+          "Sticker for pinky finger down moving left"
+        ],
+        "pinky_finger_down_moving_right":[
+          "pinky_finger_down_moving_right.png",
+          "Sticker for pinky finger down moving right"
+        ],
+        "pinky_finger_down_moving_up":[
+          "pinky_finger_down_moving_up.png",
+          "Sticker for pinky finger down moving up"
+        ],
+        "rock_up_moving_down":[
+          "rock_up_moving_down.png",
+          "Sticker for rock up moving down"
+        ],
+        "rock_up_moving_left":[
+          "rock_up_moving_left.png",
+          "Sticker for rock up moving left"
+        ],
+        "rock_up_moving_right":[
+          "rock_up_moving_right.png",
+          "Sticker for rock up moving right"
+        ],
+        "rock_up_moving_up":[
+          "rock_up_moving_up.png",
+          "Sticker for rock up moving up"
+        ],
+        "rock_up":[
+          "rock_up.png",
+          "Sticker for rock up"
+        ],
+        "rock_down":[
+          "rock_down_moving_down.png",
+          "Sticker for rock down"
+        ],
+        "rock_down_moving_down":[
+          "rock_down_moving_down.png",
+          "Sticker for rock down moving down"
+        ],
+        "rock_down_moving_up":[
+          "rock_down_moving_up.png",
+          "Sticker for rock down moving up"
+        ],
+        "rock_down_moving_left":[
+          "rock_down_moving_right.png",
+          "Sticker for rock down moving left"
+        ],
+        "rock_down_moving_right":[
+          "rock_down_moving_right.png",
+          "Sticker for rock up moving right"
+        ],
+        "shaka_up": [
+          "shaka_up.png",
+          "Sticker for shaka up"
+        ],
+        "shaka_down": [
+          "shaka_down_moving_down.png",
+          "Sticker for shaka down"
+        ],
+        "shaka_up_moving_down": [
+          "shaka_up_moving_down.png",
+          "Sticker for shaka up moving down"
+        ],
+        "shaka_up_moving_left": [
+          "shaka_up_moving_left.png",
+          "Sticker for shaka up moving left"
+        ],
+        "shaka_up_moving_right": [
+          "shaka_up_moving_right.png",
+          "Sticker for shaka up moving right"
+        ],
+        "shaka_up_moving_up": [
+          "shaka_up_moving_up.png",
+          "Sticker for shaka up moving up"
+        ],
+        "shaka_down_moving_down": [
+          "shaka_down_moving_down.png",
+          "Sticker for shaka down moving down"
+        ],
+        "shaka_down_moving_left": [
+          "shaka_down_moving_left.png",
+          "Sticker for shaka down moving left"
+        ],
+        "shaka_down_moving_right": [
+          "shaka_down_moving_right.png",
+          "Sticker for shaka down moving right"
+        ],
+        "shaka_down_moving_up": [
+          "shaka_down_moving_up.png",
+          "Sticker for shaka down moving up"
         ]
+
       },
       "colors": {
         "red": [

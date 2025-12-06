@@ -26,6 +26,15 @@ class UIColors:
     swipe = (255, 255, 0)        # Yellow
     open_hand = (200, 150, 255)  # Purple
     
+    # New gestures
+    closed_hand = (100, 100, 100) # Grey
+    victory = (255, 215, 0)       # Gold
+    rock = (255, 50, 50)          # Red
+    shaka = (0, 255, 255)         # Cyan
+    ily = (255, 105, 180)         # Hot Pink
+    middle_finger = (255, 0, 0)   # Red
+    pinky = (255, 192, 203)       # Pink
+    
     # UI elements
     cursor_preview = (0, 255, 0)      # Green
     cursor_trail = (0, 200, 0)        # Dark green
@@ -56,14 +65,21 @@ class VisualFeedback:
         self.gesture_pulses = {}  # gesture_name -> (timestamp, intensity)
         self.particle_effects = []  # For click/action feedback
         
-        # Gesture debug toggles (keyboard: Z, P, I, S, O, T)
+        # Gesture debug toggles (keyboard: Z, P, I, S, O, T, C, V, M, K, R, Y, L)
         self.show_gesture_debug = {
             'zoom': False,
             'pinch': False,
             'pointing': False,
             'swipe': False,
             'open_hand': False,
-            'thumbs': False
+            'thumbs': False,
+            'closed_hand': False,
+            'victory': False,
+            'middle_finger': False,
+            'pinky': False,
+            'rock': False,
+            'shaka': False,
+            'ILY': False
         }
         
         # Position cache for debug panels
@@ -349,17 +365,16 @@ class VisualFeedback:
             p2 = (int(index_pos[0] * w), int(index_pos[1] * h))
             cv2.line(frame, p1, p2, self.colors.pointing, 2)
             cv2.circle(frame, p2, 6, self.colors.pointing, -1)
-        
-        # Draw gesture debug overlays for all gestures based on toggle state
-        self._draw_gesture_debug_overlays(frame, metrics, gestures, hand_label)
-    
-    def _draw_gesture_debug_overlays(self, frame, metrics, gestures, hand_label):
-        """Draw debug metadata overlays with intelligent dynamic positioning."""
+
+    def draw_debug_overlays(self, frame, gestures, metrics):
+        """Draw data overlays with intelligent dynamic positioning."""
         h, w = frame.shape[:2]
         
         # Collect active debug gestures
-        meta_keys = ['__zoom_meta', '__pinch_meta', '__pointing_meta', '__swipe_meta', '__open_hand_meta', '__thumbs_meta']
-        gesture_names = ['zoom', 'pinch', 'pointing', 'swipe', 'open_hand', 'thumbs']
+        meta_keys = ['__zoom_meta', '__pinch_meta', '__pointing_meta', '__swipe_meta', '__open_hand_meta', '__thumbs_meta',
+                     '__closed_hand_meta', '__victory_meta', '__middle_finger_meta', '__pinky_meta', '__rock_meta', '__shaka_meta', '__ILY_meta']
+        gesture_names = ['zoom', 'pinch', 'pointing', 'swipe', 'open_hand', 'thumbs',
+                         'closed_hand', 'victory', 'middle_finger', 'pinky', 'rock', 'shaka', 'ILY']
         
         active_panels = []
         for meta_key, gesture_name in zip(meta_keys, gesture_names):
@@ -651,6 +666,18 @@ class VisualFeedback:
                 f"Vel:({vel[0]:.2f},{vel[1]:.2f})"
             ]
         
+        elif gesture_name in ['closed_hand', 'victory', 'middle_finger', 'pinky', 'rock', 'shaka', 'ILY']:
+            vel = meta.get('velocity', (0, 0))
+            params = [
+                f"Match:{meta.get('fingers_match', False)}",
+                f"Vel:({vel[0]:.2f},{vel[1]:.2f})",
+                f"Conf:{meta.get('move_confidence', 0):.2f}",
+                f"Hold:{meta.get('static_hold_count', 0)}/{meta.get('hold_frames_needed', 0)}",
+                f"Dir:{meta.get('current_move_direction', 'none')}"
+            ]
+            if meta.get('reason'):
+                params.append(f"Rsn:{meta['reason'][:12]}")
+        
         return params
     
     def draw_cursor_preview(self, frame, norm_x, norm_y, active=True):
@@ -783,25 +810,35 @@ class VisualFeedback:
     def _blend_colors(self, color1, color2, t):
         """Blend two colors by factor t (0..1)."""
         return tuple(int(c1 * (1 - t) + c2 * t) for c1, c2 in zip(color1, color2))
-    
+
     def _get_gesture_color(self, gesture_name):
-        """Get color for gesture type."""
-        # Extract base gesture name for directional gestures
-        base_name = gesture_name
-        if '_' in gesture_name:
-            # Handle directional gestures: swipe_up, zoom_in, thumbs_up_moving_up, etc.
-            parts = gesture_name.split('_')
-            if parts[0] in ['swipe', 'zoom']:
-                base_name = parts[0]
-            elif parts[0] == 'thumbs':
-                base_name = 'thumbs'
+        """Get color for gesture name."""
+        parts = gesture_name.split('_')
+        base_name = parts[0]
         
+        # Handle multi-word base names
+        if parts[0] == 'open' and len(parts) > 1 and parts[1] == 'hand':
+            base_name = 'open_hand'
+        elif parts[0] == 'closed' and len(parts) > 1 and parts[1] == 'hand':
+            base_name = 'closed_hand'
+        elif parts[0] == 'middle' and len(parts) > 1 and parts[1] == 'finger':
+            base_name = 'middle_finger'
+        elif parts[0] == 'thumbs':
+            base_name = 'thumbs'
+            
         color_map = {
             'pinch': self.colors.pinch,
             'zoom': self.colors.zoom,
             'pointing': self.colors.pointing,
             'swipe': self.colors.swipe,
             'open_hand': self.colors.open_hand,
-            'thumbs': self.colors.accent,  # Thumbs gestures use accent color
+            'thumbs': self.colors.accent,
+            'closed_hand': self.colors.closed_hand,
+            'victory': self.colors.victory,
+            'rock': self.colors.rock,
+            'shaka': self.colors.shaka,
+            'ILY': self.colors.ily,
+            'middle_finger': self.colors.middle_finger,
+            'pinky': self.colors.pinky
         }
         return color_map.get(base_name, self.colors.accent)
