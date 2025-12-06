@@ -97,9 +97,12 @@ class ActionDispatcher:
         if left_gesture != "none" and right_gesture != "none":
             combo_key = (left_gesture, right_gesture)
             if combo_key in self.bimanual_map:
-                print(f"  > Bimanual Match: {combo_key} -> {self.bimanual_map[combo_key]['name']}")
+                entry = self.bimanual_map[combo_key]
+                desc = entry.get('name', entry.get('keys', 'Unknown Action'))
+                print(f"  > Bimanual Match: {combo_key} -> {desc}")
                 try:
-                    self._execute_entry(self.bimanual_map[combo_key], metadata)
+                    # Pass combined name for potential future rate limiting
+                    self._execute_entry(entry, metadata, f"{left_gesture}+{right_gesture}")
                 except Exception as e:
                     print(f"⚠ Error executing bimanual action: {e}")
                 return # Exclusive: Don't do single hand actions if bimanual matched
@@ -108,26 +111,49 @@ class ActionDispatcher:
         # We can execute both left and right actions if they don't conflict
         
         if left_gesture != "none" and left_gesture in self.left_map:
-            # print(f"  > Left Match: {left_gesture} -> {self.left_map[left_gesture]['name']}") # Noise reduction
+            entry = self.left_map[left_gesture]
+            # desc = entry.get('name', entry.get('keys', 'Unknown Action'))
+            # print(f"  > Left Match: {left_gesture} -> {desc}") # Noise reduction
             try:
-                self._execute_entry(self.left_map[left_gesture], metadata)
+                self._execute_entry(entry, metadata, left_gesture)
             except Exception as e:
                 print(f"⚠ Error executing left action: {e}")
                 
         if right_gesture != "none" and right_gesture in self.right_map:
-            print(f"  > Right Match: {right_gesture} -> {self.right_map[right_gesture]['name']}")
+            entry = self.right_map[right_gesture]
+            desc = entry.get('name', entry.get('keys', 'Unknown Action'))
+            print(f"  > Right Match: {right_gesture} -> {desc}")
             try:
-                self._execute_entry(self.right_map[right_gesture], metadata)
+                self._execute_entry(entry, metadata, right_gesture)
             except Exception as e:
                 print(f"⚠ Error executing right action: {e}")
 
-    def _execute_entry(self, entry: Dict, metadata: Dict):
+    def _execute_entry(self, entry: Dict, metadata: Dict, gesture_name: str = None):
         """Execute a single action entry."""
         action_type = entry.get("type")
         
         if action_type == "key":
+            # Rate limiting for velocity-based gestures mapped to keys
+            if gesture_name:
+                velocity = metadata.get("velocity_norm", 1.0)
+                sensitivity = self.sys_ctrl.get_velocity_sensitivity(gesture_name)
+                
+                if sensitivity:
+                    if not sensitivity.try_act(velocity):
+                        # print(f"DEBUG: Rate limited {gesture_name}")
+                        return # Rate limited
+                else:
+                    # Fallback rate limiting for static gestures (e.g. fist -> enter)
+                    # Prevent spamming keys every frame for static gestures
+                    current_time = time.time()
+                    last_time = getattr(self, f"_last_key_time_{gesture_name}", 0)
+                    if current_time - last_time < 0.5: # 500ms default delay
+                        return
+                    setattr(self, f"_last_key_time_{gesture_name}", current_time)
+            
             keys = entry.get("keys", "")
             if keys:
+                print(f"DEBUG: Dispatching key combo '{keys}' for gesture '{gesture_name}'")
                 self.sys_ctrl.execute_key_combo(keys)
                 
         elif action_type == "function":

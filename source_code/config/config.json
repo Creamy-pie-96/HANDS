@@ -1020,7 +1020,7 @@
         ]
       }
     },
-    "middle_finger":{
+    "middle_finger": {
       "middle_finger_up_moving_up": {
         "sensitivity": [
           1.0,
@@ -1093,7 +1093,7 @@
           "Base delay between actions in seconds"
         ]
       },
-      "middle_finger_down_moving_up":{
+      "middle_finger_down_moving_up": {
         "sensitivity": [
           1.0,
           "Middle finger down moving up action sensitivity"
@@ -1111,7 +1111,7 @@
           "Base delay between actions in seconds"
         ]
       },
-      "middle_finger_down_moving_down":{
+      "middle_finger_down_moving_down": {
         "sensitivity": [
           1.0,
           "Middle finger down moving down action sensitivity"
@@ -1129,7 +1129,7 @@
           "Base delay between actions in seconds"
         ]
       },
-      "middle_finger_down_moving_left":{
+      "middle_finger_down_moving_left": {
         "sensitivity": [
           1.0,
           "Middle finger down moving left action sensitivity"
@@ -1147,7 +1147,7 @@
           "Base delay between actions in seconds"
         ]
       },
-      "middle_finger_down_moving_right":{
+      "middle_finger_down_moving_right": {
         "sensitivity": [
           1.0,
           "Middle finger down moving right action sensitivity"
@@ -1166,7 +1166,7 @@
         ]
       }
     },
-    "pinky":{
+    "pinky": {
       "pinky_up_moving_up": {
         "sensitivity": [
           1.0,
@@ -1239,7 +1239,7 @@
           "Base delay between actions in seconds"
         ]
       },
-      "pinky_down_moving_up":{
+      "pinky_down_moving_up": {
         "sensitivity": [
           1.0,
           "Pinky down moving up action sensitivity"
@@ -1257,7 +1257,7 @@
           "Base delay between actions in seconds"
         ]
       },
-      "pinky_down_moving_down":{
+      "pinky_down_moving_down": {
         "sensitivity": [
           1.0,
           "Pinky down moving down action sensitivity"
@@ -1275,7 +1275,7 @@
           "Base delay between actions in seconds"
         ]
       },
-      "pinky_down_moving_left":{
+      "pinky_down_moving_left": {
         "sensitivity": [
           1.0,
           "Pinky down moving left action sensitivity"
@@ -1293,7 +1293,7 @@
           "Base delay between actions in seconds"
         ]
       },
-      "pinky_down_moving_right":{
+      "pinky_down_moving_right": {
         "sensitivity": [
           1.0,
           "Pinky down moving right action sensitivity"
@@ -1312,8 +1312,8 @@
         ]
       }
     },
-    "victory":{
-      "victory_up_moving_up":{
+    "victory": {
+      "victory_up_moving_up": {
         "sensitivity": [
           1.0,
           "Victory up moving up action sensitivity"
@@ -1331,7 +1331,7 @@
           "Base delay between actions in seconds"
         ]
       },
-      "victory_up_moving_down":{
+      "victory_up_moving_down": {
         "sensitivity": [
           1.0,
           "Victory up moving down action sensitivity"
@@ -1349,7 +1349,7 @@
           "Base delay between actions in seconds"
         ]
       },
-      "victory_up_moving_left":{
+      "victory_up_moving_left": {
         "sensitivity": [
           1.0,
           "Victory up moving left action sensitivity"
@@ -1367,7 +1367,7 @@
           "Base delay between actions in seconds"
         ]
       },
-      "victory_up_moving_right":{
+      "victory_up_moving_right": {
         "sensitivity": [
           1.0,
           "Victory up moving right action sensitivity"
@@ -1385,7 +1385,7 @@
           "Base delay between actions in seconds"
         ]
       },
-      "victory_down_moving_up":{
+      "victory_down_moving_up": {
         "sensitivity": [
           1.0,
           "Victory down moving up action sensitivity"
@@ -1403,7 +1403,7 @@
           "Base delay between actions in seconds"
         ]
       },
-      "victory_down_moving_down":{
+      "victory_down_moving_down": {
         "sensitivity": [
           1.0,
           "Victory down moving down action sensitivity"
@@ -1421,7 +1421,7 @@
           "Base delay between actions in seconds"
         ]
       },
-      "victory_down_moving_left":{
+      "victory_down_moving_left": {
         "sensitivity": [
           1.0,
           "Victory down moving left action sensitivity"
@@ -1439,7 +1439,7 @@
           "Base delay between actions in seconds"
         ]
       },
-      "victory_down_moving_right":{
+      "victory_down_moving_right": {
         "sensitivity": [
           1.0,
           "Victory down moving right action sensitivity"
@@ -1458,8 +1458,8 @@
         ]
       }
     },
-    "closed":{
-      "closed_moving_up":{
+    "closed": {
+      "closed_moving_up": {
         "sensitivity": [
           1.0,
           "Closed moving up action sensitivity"
@@ -1477,7 +1477,7 @@
           "Base delay between actions in seconds"
         ]
       },
-      "closed_moving_down":{
+      "closed_moving_down": {
         "sensitivity": [
           1.0,
           "Closed moving down action sensitivity"
@@ -1495,7 +1495,7 @@
           "Base delay between actions in seconds"
         ]
       },
-      "closed_moving_left":{
+      "closed_moving_left": {
         "sensitivity": [
           1.0,
           "Closed moving left action sensitivity"
@@ -1513,7 +1513,7 @@
           "Base delay between actions in seconds"
         ]
       },
-      "closed_moving_right":{
+      "closed_moving_right": {
         "sensitivity": [
           1.0,
           "Closed moving right action sensitivity"
@@ -1533,7 +1533,7 @@
       }
     },
     "rock": {
-      "rock_up_moving_up":{
+      "rock_up_moving_up": {
         "sensitivity": [
           1.0,
           "Rock up moving up action sensitivity"
@@ -1551,7 +1551,7 @@
           "Base delay between actions in seconds"
         ]
       },
-      "rock_up_moving_down":{
+      "rock_up_moving_down": {
         "sensitivity": [
           1.0,
           "Rock up moving down action sensitivity"
@@ -1569,7 +1569,7 @@
           "Base delay between actions in seconds"
         ]
       },
-      "rock_up_moving_left":{
+      "rock_up_moving_left": {
         "sensitivity": [
           1.0,
           "Rock up moving left action sensitivity"
@@ -1587,7 +1587,7 @@
           "Base delay between actions in seconds"
         ]
       },
-      "rock_up_moving_right":{
+      "rock_up_moving_right": {
         "sensitivity": [
           1.0,
           "Rock up moving right action sensitivity"
@@ -1605,7 +1605,7 @@
           "Base delay between actions in seconds"
         ]
       },
-      "rock_down_moving_up":{
+      "rock_down_moving_up": {
         "sensitivity": [
           1.0,
           "Rock down moving up action sensitivity"
@@ -1623,7 +1623,7 @@
           "Base delay between actions in seconds"
         ]
       },
-      "rock_down_moving_down":{
+      "rock_down_moving_down": {
         "sensitivity": [
           1.0,
           "Rock down moving down action sensitivity"
@@ -1641,7 +1641,7 @@
           "Base delay between actions in seconds"
         ]
       },
-      "rock_down_moving_left":{
+      "rock_down_moving_left": {
         "sensitivity": [
           1.0,
           "Rock down moving left action sensitivity"
@@ -1659,7 +1659,7 @@
           "Base delay between actions in seconds"
         ]
       },
-      "rock_down_moving_right":{
+      "rock_down_moving_right": {
         "sensitivity": [
           1.0,
           "Rock down moving right action sensitivity"
@@ -1970,7 +1970,6 @@
         ]
       }
     }
-
   },
   "visual_feedback": {
     "enabled": [
@@ -2501,123 +2500,123 @@
           "closed_hand_moving_right.png",
           "Sticker for closed hand down moving right"
         ],
-        "middle_finger_down_moving_down":[
+        "middle_finger_down_moving_down": [
           "middle_finger_down_moving_down.png",
           "Sticker for middle finger down moving down"
         ],
-        "middle_finger_down_moving_left":[
+        "middle_finger_down_moving_left": [
           "middle_finger_down_moving_left.png",
           "Sticker for middle finger down moving left"
         ],
-        "middle_finger_down_moving_right":[
+        "middle_finger_down_moving_right": [
           "middle_finger_down_moving_right.png",
           "Sticker for middle finger down moving right"
         ],
-        "middle_finger_down_moving_up":[
+        "middle_finger_down_moving_up": [
           "middle_finger_down_moving_up.png",
           "Sticker for middle finger down moving up"
         ],
-        "middle_finger_up_moving_down":[
+        "middle_finger_up_moving_down": [
           "middle_finger_up_moving_down.png",
           "Sticker for middle finger up moving down"
         ],
-        "middle_finger_up_moving_left":[
+        "middle_finger_up_moving_left": [
           "middle_finger_up_moving_left.png",
           "Sticker for middle finger up moving left"
         ],
-        "middle_finger_up_moving_right":[
+        "middle_finger_up_moving_right": [
           "middle_finger_up_moving_right.png",
           "Sticker for middle finger up moving right"
         ],
-        "middle_finger_up_moving_up":[
+        "middle_finger_up_moving_up": [
           "middle_finger_up_moving_up.png",
           "Sticker for middle finger up moving up"
         ],
-        "middle_finger_down":[
+        "middle_finger_down": [
           "middle_finger_down_moving_down.png",
           "Sticker for middle finger down"
         ],
-        "middle_finger_up":[
+        "middle_finger_up": [
           "middle_finger_up.png",
           "Sticker for middle finger up"
         ],
-        "pinky_finger_up":[
+        "pinky_finger_up": [
           "pinky_finger_up.png",
           "Sticker for pinky finger up"
         ],
-        "pinky_finger_down":[
+        "pinky_finger_down": [
           "pinky_finger_down_moving_down.png",
           "Sticker for pinky finger down"
         ],
-        "pinky_finger_up_moving_down":[
+        "pinky_finger_up_moving_down": [
           "pinky_finger_up_moving_down.png",
           "Sticker for pinky finger up moving down"
         ],
-        "pinky_finger_up_moving_left":[
+        "pinky_finger_up_moving_left": [
           "pinky_finger_up_moving_left.png",
           "Sticker for pinky finger up moving left"
         ],
-        "pinky_finger_up_moving_right":[
+        "pinky_finger_up_moving_right": [
           "pinky_finger_up_moving_right.png",
           "Sticker for pinky finger up moving right"
         ],
-        "pinky_finger_up_moving_up":[
+        "pinky_finger_up_moving_up": [
           "pinky_finger_up_moving_up.png",
           "Sticker for pinky finger up moving up"
         ],
-        "pinky_finger_down_moving_down":[
+        "pinky_finger_down_moving_down": [
           "pinky_finger_down_moving_down.png",
           "Sticker for pinky finger down moving down"
         ],
-        "pinky_finger_down_moving_left":[
+        "pinky_finger_down_moving_left": [
           "pinky_finger_down_moving_left.png",
           "Sticker for pinky finger down moving left"
         ],
-        "pinky_finger_down_moving_right":[
+        "pinky_finger_down_moving_right": [
           "pinky_finger_down_moving_right.png",
           "Sticker for pinky finger down moving right"
         ],
-        "pinky_finger_down_moving_up":[
+        "pinky_finger_down_moving_up": [
           "pinky_finger_down_moving_up.png",
           "Sticker for pinky finger down moving up"
         ],
-        "rock_up_moving_down":[
+        "rock_up_moving_down": [
           "rock_up_moving_down.png",
           "Sticker for rock up moving down"
         ],
-        "rock_up_moving_left":[
+        "rock_up_moving_left": [
           "rock_up_moving_left.png",
           "Sticker for rock up moving left"
         ],
-        "rock_up_moving_right":[
+        "rock_up_moving_right": [
           "rock_up_moving_right.png",
           "Sticker for rock up moving right"
         ],
-        "rock_up_moving_up":[
+        "rock_up_moving_up": [
           "rock_up_moving_up.png",
           "Sticker for rock up moving up"
         ],
-        "rock_up":[
+        "rock_up": [
           "rock_up.png",
           "Sticker for rock up"
         ],
-        "rock_down":[
+        "rock_down": [
           "rock_down_moving_down.png",
           "Sticker for rock down"
         ],
-        "rock_down_moving_down":[
+        "rock_down_moving_down": [
           "rock_down_moving_down.png",
           "Sticker for rock down moving down"
         ],
-        "rock_down_moving_up":[
+        "rock_down_moving_up": [
           "rock_down_moving_up.png",
           "Sticker for rock down moving up"
         ],
-        "rock_down_moving_left":[
+        "rock_down_moving_left": [
           "rock_down_moving_right.png",
           "Sticker for rock down moving left"
         ],
-        "rock_down_moving_right":[
+        "rock_down_moving_right": [
           "rock_down_moving_right.png",
           "Sticker for rock up moving right"
         ],
@@ -2661,7 +2660,6 @@
           "shaka_down_moving_up.png",
           "Sticker for shaka down moving up"
         ]
-
       },
       "colors": {
         "red": [
@@ -2704,15 +2702,87 @@
   "action_map": [
     {
       "left": "none",
-      "right": "pointing",
+      "right": "pinch",
       "type": "function",
       "name": "left_click"
     },
     {
       "left": "none",
       "right": "swipe_right",
+      "type": "key",
+      "keys": "ctrl+p"
+    },
+    {
+      "left": "none",
+      "right": "swipe_left",
+      "type": "key",
+      "keys": "ctrl+c"
+    },
+    {
+      "left": "none",
+      "right": "swipe_up",
+      "type": "function",
+      "name": "scroll_up"
+    },
+    {
+      "left": "none",
+      "right": "swipe_down",
+      "type": "function",
+      "name": "scroll_down"
+    },
+    {
+      "left": "none",
+      "right": "zoom_in",
+      "type": "function",
+      "name": "zoom_in"
+    },
+    {
+      "left": "none",
+      "right": "zoom_out",
+      "type": "function",
+      "name": "zoom_out"
+    },
+    {
+      "left": "none",
+      "right": "thumbs_up_moving_down",
+      "type": "function",
+      "name": "decrease_volume"
+    },
+    {
+      "left": "none",
+      "right": "thumbs_up_moving_up",
+      "type": "function",
+      "name": "increase_volume"
+    },
+    {
+      "left": "none",
+      "right": "thumbs_up_moving_left",
+      "type": "function",
+      "name": "decrease_brightness"
+    },
+    {
+      "left": "none",
+      "right": "thumbs_up_moving_right",
+      "type": "function",
+      "name": "increase_brightness"
+    },
+    {
+      "left": "none",
+      "right": "pointing",
+      "type": "function",
+      "name": "move_cursor"
+    },
+    {
+      "left": "swipe_right",
+      "right": "none",
       "type": "function",
       "name": "next_workspace"
+    },
+    {
+      "left": "swipe_left",
+      "right": "none",
+      "type": "function",
+      "name": "previous_workspace"
     }
   ]
 }

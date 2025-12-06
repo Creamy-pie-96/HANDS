@@ -409,8 +409,15 @@ class SystemController:
         Args:
             key_string: String describing the key combo
         """
-        if self.paused or not PYNPUT_AVAILABLE:
+        print("called execute key combo for", key_string)
+        if self.paused:
             return
+        
+        if not PYNPUT_AVAILABLE:
+            print("⚠ Cannot execute key combo: pynput not available")
+            return
+
+        print(f"DEBUG: Attempting to execute key combo: '{key_string}'")
 
         # Normalize string
         parts = [p.strip().lower() for p in key_string.split('+')]
@@ -465,6 +472,7 @@ class SystemController:
                     print(f"⚠ Unknown key in combo: {part}")
                     return
 
+            print(f"DEBUG: Pressing keys: {keys_to_press}")
             # Press all in order
             for k in keys_to_press:
                 self.keyboard.press(k)
@@ -472,9 +480,15 @@ class SystemController:
             # Release all in reverse order
             for k in reversed(keys_to_press):
                 self.keyboard.release(k)
+            
+            print(f"DEBUG: Successfully executed '{key_string}'")
                 
         except Exception as e:
-            print(f"⚠ Error executing key combo '{key_string}': {e}")
+            import traceback
+            print(f"⚠ CRASH/ERROR executing key combo '{key_string}': {e}")
+            traceback.print_exc()
+
+    def start_drag(self):
         """Start drag operation (press and hold)."""
         if self.paused or self.is_dragging:
             return

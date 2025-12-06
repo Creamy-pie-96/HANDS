@@ -134,7 +134,7 @@ class ActionMapEditor(ttk.Frame):
             # Map keysym to pynput style strings where possible
             key = event.keysym.lower()
             if key == "return": key = "enter"
-            # ... simple mapping
+            if key == "iso_left_tab": key = "tab" # Fix for Shift+Tab on Linux
             
             if key not in parts: 
                 parts.append(key)
@@ -169,7 +169,8 @@ class ActionMapEditor(ttk.Frame):
                  w.pack(fill=tk.BOTH, expand=True)
                  
                  # visual cue
-                 w.insert(0, "Click to record keys...") 
+                 if not current_val:
+                     w.insert(0, "Click to record keys...") 
                  
                  # Bind events for recording
                  w.bind("<FocusIn>", lambda e: w.selection_range(0, tk.END))
@@ -220,6 +221,13 @@ class ActionMapEditor(ttk.Frame):
             # Skip incomplete
             if not act or act == "Click to record keys...":
                 continue
+            
+            # Clean up placeholder artifacts if present
+            if act.startswith("Click to record keys..."):
+                act = act.replace("Click to record keys...", "")
+                if not act:
+                    continue
+            
             if left == "none" and right == "none":
                 continue
 

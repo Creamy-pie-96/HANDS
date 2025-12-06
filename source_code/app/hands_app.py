@@ -311,6 +311,10 @@ class HANDSApplication:
              # Check swipe/zoom
              pass # Already merged if present
         
+        # Map tip_position to cursor_pos for pointing
+        if 'tip_position' in metadata and 'cursor_pos' not in metadata:
+            metadata['cursor_pos'] = metadata['tip_position']
+
         # 2. Determine Primary Gestures (Strings)
         left_name = self._get_primary_gesture(all_gestures.get('left', {}))
         right_name = self._get_primary_gesture(all_gestures.get('right', {}))
