@@ -35,11 +35,15 @@ from mediapipe.tasks.python import vision as mp_vision
 from mediapipe.tasks.python.core.base_options import BaseOptions
 
 # Model URL and local path
-HAND_LANDMARKER_MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'
-HAND_LANDMARKER_MODEL_PATH = Path(__file__).parent.parent / 'models' / 'hand_landmarker.task'
+# Using float32 model for better accuracy, especially on GPU
+HAND_LANDMARKER_MODEL_URL_f32 = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float32/1/hand_landmarker.task'
+HAND_LANDMARKER_MODEL_PATH_f32 = Path(__file__).parent.parent / 'models' / 'hand_landmarker_f32.task'
+
+HAND_LANDMARKER_MODEL_URL_f16 = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'
+HAND_LANDMARKER_MODEL_PATH_f16 = Path(__file__).parent.parent / 'models' / 'hand_landmarker_f16.task'
 
 
-def ensure_model_downloaded():
+def ensure_model_downloaded(HAND_LANDMARKER_MODEL_PATH,HAND_LANDMARKER_MODEL_URL):
     """Download the hand landmarker model if not present."""
     model_path = HAND_LANDMARKER_MODEL_PATH
     model_path.parent.mkdir(parents=True, exist_ok=True)
@@ -119,6 +123,11 @@ class HANDSApplication:
         tracking_conf = config.get('performance', 'min_tracking_confidence', default=0.3)
         max_hands = config.get('performance', 'max_hands', default=2)
         use_gpu = config.get('performance', 'use_gpu', default=True)
+        cpu_model_path = config.get('performance','cpu_model_path', default=HAND_LANDMARKER_MODEL_PATH_f16)
+        gpu_model_path = config.get('performance','gpu_model_path', default=HAND_LANDMARKER_MODEL_PATH_f32)
+        cpu_model_url = config.get('performance','cpu_model_url', default=HAND_LANDMARKER_MODEL_URL_f16)
+        gpu_model_url = config.get('performance','gpu_model_url', default=HAND_LANDMARKER_MODEL_URL_f32)
+        use_downloaded_model=config.get('performance', 'use_download', default=False)
         
         # Store for later reference
         self.use_gpu = False
@@ -127,8 +136,8 @@ class HANDSApplication:
         self.use_tasks_api = False
         
         # Try to use Tasks API with GPU if enabled
-        if use_gpu:
-            model_path = ensure_model_downloaded()
+        if use_gpu and use_downloaded_model:
+            model_path = ensure_model_downloaded(gpu_model_path, gpu_model_url)
             if model_path:
                 try:
                     delegate = BaseOptions.Delegate.GPU
@@ -145,66 +154,62 @@ class HANDSApplication:
                     self.hand_landmarker = mp_vision.HandLandmarker.create_from_options(options)
                     self.use_tasks_api = True
                     self.use_gpu = True
-                    print(f"✓ MediaPipe HandLandmarker initialized with GPU (max_hands={max_hands})")
+                    print(f"MediaPipe HandLandmarker initialized with GPU (max_hands={max_hands})")
                 except Exception as e:
-                    print(f"⚠ GPU initialization failed: {e}")
+                    print(f"GPU initialization failed: {e}")
                     print("  Falling back to CPU...")
                     self.use_gpu = False
-        
-        # Fallback to CPU (either GPU disabled or failed)
-        if not self.use_tasks_api:
-            if use_gpu:
-                # Try CPU with Tasks API first (still faster than legacy)
-                model_path = ensure_model_downloaded()
-                if model_path:
-                    try:
-                        options = mp_vision.HandLandmarkerOptions(
-                            base_options=BaseOptions(
-                                model_asset_path=model_path,
-                                delegate=BaseOptions.Delegate.CPU
-                            ),
-                            running_mode=mp_vision.RunningMode.IMAGE,
-                            num_hands=max_hands,
-                            min_hand_detection_confidence=detection_conf,
-                            min_tracking_confidence=tracking_conf
-                        )
-                        self.hand_landmarker = mp_vision.HandLandmarker.create_from_options(options)
-                        self.use_tasks_api = True
-                        print(f"✓ MediaPipe HandLandmarker initialized with CPU (max_hands={max_hands})")
-                    except Exception as e:
-                        print(f"⚠ Tasks API CPU fallback failed: {e}")
-            
-            # Final fallback to legacy API
-            if not self.use_tasks_api:
-                self.hands = mp_hands.Hands(
-                    min_detection_confidence=detection_conf,
-                    min_tracking_confidence=tracking_conf,
-                    max_num_hands=max_hands
-                )
-                print(f"✓ MediaPipe Hands (legacy) initialized (max_hands={max_hands})")
+        elif not use_gpu and use_downloaded_model:
+            model_path = ensure_model_downloaded(cpu_model_path, cpu_model_url)
+            if model_path:
+                try:
+                    options = mp_vision.HandLandmarkerOptions(
+                        base_options=BaseOptions(
+                            model_asset_path=model_path,
+                            delegate=BaseOptions.Delegate.CPU
+                        ),
+                        running_mode=mp_vision.RunningMode.IMAGE,
+                        num_hands=max_hands,
+                        min_hand_detection_confidence=detection_conf,
+                        min_tracking_confidence=tracking_conf
+                    )
+                    self.hand_landmarker = mp_vision.HandLandmarker.create_from_options(options)
+                    self.use_tasks_api = True
+                    print(f"MediaPipe HandLandmarker initialized with CPU (max_hands={max_hands})")
+                except Exception as e:
+                    print(f"Tasks API CPU fallback failed: {e}")
+
+        # Final fallback to legacy API if Tasks API was not used
+        if not self.use_tasks_api or not use_downloaded_model:
+            self.hands = mp_hands.Hands(
+                min_detection_confidence=detection_conf,
+                min_tracking_confidence=tracking_conf,
+                max_num_hands=max_hands
+            )
+            print(f"MediaPipe Hands (legacy) initialized (max_hands={max_hands})")
         
         # Initialize gesture manager
         self.gesture_mgr = ComprehensiveGestureManager(config)
-        print(f"✓ Gesture manager initialized")
+        print(f"Gesture manager initialized")
         
         # Initialize system controller
         self.enable_system_control = enable_system_control
         if enable_system_control:
             try:
                 self.system_ctrl = SystemController(config)
-                print(f"✓ System controller initialized")
+                print(f"System controller initialized")
             except Exception as e:
-                print(f"⚠ System controller failed: {e}")
-                print("  Running in visualization-only mode")
+                print(f"System controller failed: {e}")
+                print("Running in visualization-only mode")
                 self.enable_system_control = False
                 self.system_ctrl = None
         else:
-            print("  Running in DRY-RUN mode (no system control)")
+            print("Running in DRY-RUN mode (no system control)")
             self.system_ctrl = None
         
         # Initialize visual feedback
         self.visual = VisualFeedback(config)
-        print(f"✓ Visual feedback initialized")
+        print(f"Visual feedback initialized")
 
         # Initialize Action Dispatcher
         if self.system_ctrl:
@@ -226,9 +231,11 @@ class HANDSApplication:
         self.fps = 0.0
         
         # Current cursor position (from pointing gesture)
+        # TODO: needs to check it: cz the hardcoded gesture mapping was part of old version. Needs checking if it's not properly refractored and if i forgot something
         self.cursor_pos = None
         
         # Quit gesture state
+        # TODO: currently the gesture is hardcoded to thumbs down! need to make it configureable via config app
         self.quit_gesture_start_time = 0
         self.quit_hold_duration = 3.0  # Seconds to hold gesture to quit
         
@@ -259,8 +266,9 @@ class HANDSApplication:
         if not gestures_dict:
             return "none"
             
-        # 1. High Priority: Directional/Active gestures
+        # 1. High Priority: Directional gestures
         # Thumbs moves, Swipes, Zooms, and specific hand poses (Victory, Rock, etc.)
+        # TODO: Now that the gesture mappings are dynamic, i am considering about removing the priority lists and do one look up! But still i am not sure about it and as it is not that high priotiry task or the code is not breaking for it also I don't want to break things! So I will let it be as it is for now 
         for name in gestures_dict:
             # Skip internal metadata keys
             if name.startswith('__'):
@@ -292,10 +300,10 @@ class HANDSApplication:
         if self.paused or not self.enable_system_control or not self.dispatcher:
             return
         
-        # 1. Gather Metadata from all active gestures
+        # 1. Dict to gather Metadata from all active gestures
         metadata = {}
         
-        # Recursive helper to merge metadata
+        # helper to reccursively merge metadata
         def extract_meta(source_dict):
             for g_res in source_dict.values():
                 if hasattr(g_res, 'metadata') and g_res.metadata:
@@ -305,96 +313,38 @@ class HANDSApplication:
         extract_meta(all_gestures.get('right', {}))
         extract_meta(all_gestures.get('bimanual', {}))
         
-        # Ensure critical fields exist
+        # Ensure critical fields exist. 
+        #TODO: It is currenlty a placeholder and I did not implement anything for it! I think i will do it later if anything needs done
         if 'velocity_norm' not in metadata:
-             # Try to find velocity in common places
-             # Check swipe/zoom
-             pass # Already merged if present
+
+             pass
         
         # Map tip_position to cursor_pos for pointing
+        # TODO: this is super wrong as it's still doing like the old hardcoded gesture to action mapping. We now have dynamic gesture mapping by user using config app. we really need to use that spesific finger's tip instead of hard coded index finger's tip!
         if 'tip_position' in metadata and 'cursor_pos' not in metadata:
             metadata['cursor_pos'] = metadata['tip_position']
 
-        # 2. Determine Primary Gestures (Strings)
+        # 2. Determines each hand's primary Gestures (Strings)
         left_name = self._get_primary_gesture(all_gestures.get('left', {}))
         right_name = self._get_primary_gesture(all_gestures.get('right', {}))
         
-        # Check Bimanual Overrides (e.g. pan is bimanual)
-        # Bimanual detector logic often puts result in 'bimanual' key
-        # We need to map detected bimanual results to the dispatcher format.
-        # Dispatcher expects "left_gesture" and "right_gesture" names.
-        # But if the system detects a "bimanual" event like 'precision_cursor', 
-        # it might be easier to handle it here or map it in the dispatcher.
-        
-        # Current design: Dispatcher keys are (left, right). 
-        # If we have a dedicated bimanual gesture like 'precision_cursor', 
-        # it typically implies specific hand states (e.g. Left Still + Right Point).
-        # We should respect the detected per-hand states, which will naturally match the map.
-        # BUT, if the bimanual detector synthesized a high-level state that supersedes individual hands,
-        # we might need to look at 'bimanual' dict.
-        
-        # Special Case: 'precision_cursor' in bimanual
-        # In this case, we might want to force specific names to match default map
-        # Or rely on the fact that existing logic detected it.
-        # The default map has {"left": "pointing", "right": "pointing", ...} for precision.
-        # Is that what 'precision_cursor' detects?
-        # Let's look at `bimanual_gestures.py`. It likely checks for Left Point + Right Point.
-        # So `left_name` and `right_name` *should* be 'pointing' already.
-        
-        # 3. Check Bimanual Overrides from Detector
-        # Some complex gestures (like precision cursor, pan) are detected specially 
-        # and put in the 'bimanual' dictionary. We map them to the dispatcher's expected keys.
+        #TODO: Bimanual is not being integrated yet, I am currently making plan on how to integrate it with my existing architecture where user can map any arbitary action to any gesture or combination of them! So my bimanual should also be able to be handled bby user dynamically using the config app!    
         
         bimanual_gestures = all_gestures.get('bimanual', {})
         
-        if 'precision_cursor' in bimanual_gestures:
-             # Precision cursor is detected as a bimanual state.
-             # Default action map expects: left="pointing", right="pointing" -> move_cursor(precision=True)
-             left_name = "pointing"
-             right_name = "pointing"
-             
-             # Ensure metadata has the damped cursor pos from the specific result
-             res = bimanual_gestures['precision_cursor']
-             if res.metadata:
-                 metadata.update(res.metadata)
-                 
-        elif 'pan' in bimanual_gestures:
-             # Pan gesture detected (typically for scrolling)
-             # Map to a special combo or utilize scroll action
-             # For now, let's map to a reserved key tuple if the user wants to map it
-             # But default config doesn't have "pan" + "pan".
-             # To make it work out of the box with the default "pan" behavior (scrolling):
-             # We can't easily map it to dispatcher without a config entry.
-             # User said: "Left still + Right move - Pan/Scroll".
-             pass # Requires config update to support proper dispatching
+        #TODO: need to implement the bimanual gesture logics here once I have properly refractored the bimanula class
         
         if not self.dispatcher.bimanual_map and not self.dispatcher.left_map and not self.dispatcher.right_map:
-             # Warn once
              if not hasattr(self, "_map_warned"):
-                 print("⚠ Action Dispatcher has NO mappings loaded!")
+                 print("Action Dispatcher has NO mappings loaded!")
                  self._map_warned = True
-
-        # 3. Dispatch
-        # Debug print (throttled)
-        # if left_name != "none" or right_name != "none":
-        #    print(f"Dispatching: L={left_name}, R={right_name}")
             
         self.dispatcher.dispatch(left_name, right_name, metadata)
         
-        # 4. Handle "Open Hand" pause toggle (Special Hardcoded Loop Exception?)
-        # The plan says "Replace all hard-coded...". 
-        # We can map Open Hand -> 'toggle_pause' in the config!
-        # Default config checks for open hand? 
-        # Wait, 'toggle_pause' is a SystemController method, exposed now.
-        # So we can just map it! No hardcoding needed.
-        # EXCEPT: The pause logic check in the old code was:
-        # "Toggle pause on open hand... pass # Handled in keyboard input 'p'"
-        # It seems it wasn't actually enabled in the old code? "pass".
-        # We will leave it to the user config now.
+        # TODO: I initially planned would make pause gesture driven too by action mapping but bcz there are some complications in the toggling via gesture(like rapid call or spamming and also if any gesture for one hand is toggled to pause then making the same gesture for 2 hands will make it hard for us as the app will pause frequently if any detection error happens!) So i am keeping it simple for now
 
     
     def run(self):
-        """Main application loop."""
         
         self.print_controls()
         
@@ -403,10 +353,8 @@ class HANDSApplication:
         
         visual_mode = config.get('display', 'visual_mode', default='full')
         show_camera = visual_mode in ['full', 'debug']
-        
-        # Note: We no longer use cv2.imshow directly. 
-        # Frames are sent to the GUI thread via frame_queue if show_camera is True.
-        
+
+
         try:
             while self.running:
                 self.frame_count += 1
@@ -419,7 +367,7 @@ class HANDSApplication:
                 flip_horizontal = config.get('display', 'flip_horizontal', default=True)
                 if flip_horizontal:
                     frame_bgr = cv2.flip(frame_bgr, 1)
-                h, w = frame_bgr.shape[:2]
+                h, w = frame_bgr.shape[:2] # the shape is [height,width,channel] so we take just 1st two.
                 
                 fps_update_interval = config.get('display', 'fps_update_interval', default=30)
                 if self.frame_count % fps_update_interval == 0:
@@ -427,13 +375,11 @@ class HANDSApplication:
                     self.fps = float(fps_update_interval) / (now - self.fps_time)
                     self.fps_time = now
                 
-                    self.fps_time = now
-                
                 if self.frame_count % fps_update_interval == 0:
                     try:
                         current_mtime = os.path.getmtime(self.config_path)
                         if current_mtime != self.last_config_mtime:
-                            print("\n🔄 Config change detected, reloading...")
+                            print("\nConfig change detected, reloading...")
                             self.last_config_mtime = current_mtime
                             self.config.reload()
                             
@@ -447,7 +393,7 @@ class HANDSApplication:
                             if self.dispatcher and self.config.get("action_map"):
                                 self.dispatcher.load_map(self.config.get("action_map"))
                                 
-                            print("✓ Components reloaded with new configuration\n")
+                            print("Components reloaded with new configuration\n")
                         
                         # Check app_control flags (hot-reloaded)
                         config_pause = self.config.get('app_control', 'pause', default=False)
@@ -458,25 +404,25 @@ class HANDSApplication:
                             self.paused = config_pause
                             if self.system_ctrl:
                                 self.system_ctrl.toggle_pause()
-                            print(f"{'⏸ PAUSED (via config)' if self.paused else '▶ RESUMED (via config)'}")
+                            print(f"{' PAUSED via config' if self.paused else ' RESUMED via config'}")
                         
                         # Handle exit via config
                         if config_exit:
-                            print("\n🛑 Exit signal received via config")
+                            print("\n Exit signal received via config")
                             self.running = False
                             
                     except Exception as e:
-                        print(f"⚠ Error checking config update: {e}")
+                        print(f" Error checking config update: {e}")
 
-                # Process with MediaPipe
+                # convert brg to rgb for processing my media pipe
                 frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
                 
-                # Separate hands
+                # Separate hands landmarks
                 left_landmarks = None
                 right_landmarks = None
                 
                 if self.use_tasks_api:
-                    # Use Tasks API (supports GPU)
+                    # Tasks API supports GPU
                     mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame_rgb)
                     results = self.hand_landmarker.detect(mp_image)
                     
@@ -484,9 +430,9 @@ class HANDSApplication:
                         for hand_landmarks, handedness in zip(results.hand_landmarks, results.handedness):
                             # Convert Tasks API landmarks to legacy format wrapper
                             hand_label = handedness[0].category_name.lower()
-                            # IMPORTANT: Tasks API doesn't account for flipped images
+                            # Tasks API doesn't account for flipped images
                             # When image is flipped horizontally, we need to swap handedness
-                            # to match user's perspective (mirror mode)
+                            # to match perspective (mirror mode)
                             if flip_horizontal:
                                 hand_label = 'right' if hand_label == 'left' else 'left'
                             landmarks_wrapper = TasksLandmarksWrapper(hand_landmarks)
@@ -495,7 +441,7 @@ class HANDSApplication:
                             else:
                                 right_landmarks = landmarks_wrapper
                 else:
-                    # Use legacy API
+                    # Use pyhton package media piple API
                     results = self.hands.process(frame_rgb)
                     
                     if results.multi_hand_landmarks and results.multi_handedness:
@@ -506,14 +452,14 @@ class HANDSApplication:
                             else:
                                 right_landmarks = hand_landmarks
                 
-                # Detect gestures
+                # Detect gestures for each hand's landmarks separately and gives all the gestures detected for both hands
                 all_gestures = self.gesture_mgr.process_hands(
                     left_landmarks,
                     right_landmarks,
                     frame_bgr.shape
                 )
                 
-                # Process gestures for system control
+                # Based on the detected gestures make decision of what action is mapped and what action to call
                 self.process_gestures(all_gestures)
                 
                 # Get hand metrics for visualization
@@ -551,27 +497,17 @@ class HANDSApplication:
                     cv2.putText(frame_bgr, fps_text, (w - 200, 30),
                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2, cv2.LINE_AA)
                 
-                # Debug: Print detected gestures to terminal
-                if self.show_debug:
-                    for category, gestures in all_gestures.items():
-                        for gesture_name, result in gestures.items():
-                            meta_str = ""
-                            if 'zoom_type' in result.metadata:
-                                meta_str = f" ({result.metadata['zoom_type']})"
-                            elif 'direction' in result.metadata:
-                                meta_str = f" ({result.metadata['direction']})"
-                            print(f"[{category}] {gesture_name.upper()}{meta_str}")
                 
-                # Update Status Indicator - Now sends per-hand data
+                # Update Status Indicator. sends per-hand data
                 # Each indicator shows what THAT hand is doing, not bimanual combinations
                 if self.status_queue:
-                    # Helper function to get gesture name with direction
                     def get_gesture_with_direction(gestures_dict):
                         """Get gesture name with direction suffix if available."""
                         if not gestures_dict:
                             return ""
-                        # Skip internal metadata gestures (start with __)
+                        
                         for name in gestures_dict:
+                            # Skip internal metadata gestures (starts with __)
                             if name.startswith('__'):
                                 continue
                             result = gestures_dict[name]
@@ -589,7 +525,6 @@ class HANDSApplication:
                         """Check if a gesture is disabled in config."""
                         if not gesture_name:
                             return False
-                        # For directional gestures like zoom_in, swipe_up, etc.
                         return not is_gesture_enabled(gesture_name)
                     
                     # Build per-hand status data
@@ -619,12 +554,13 @@ class HANDSApplication:
                                 hands_data['left']['disabled'] = check_gesture_disabled(gesture_name)
                             
                             # Check for thumbs down quit gesture on left
+                            # TODO: this is hardcoded to thumbs down but the user might want to make it configurable via config app! We will later make it configurable and enable mapping this action in the action mapping. Actually it's quite easy, in the controll system create a function named quite and then run a quiting script(which i do have in start.sh like app/start.sh --quite(or something i forgot need checking for proper use))
                             if 'thumbs_down' in l_gests:
                                 if self.quit_gesture_start_time == 0:
                                     self.quit_gesture_start_time = time.time()
                                 elapsed = time.time() - self.quit_gesture_start_time
                                 if elapsed > self.quit_hold_duration:
-                                    print("\n🛑 Quit gesture detected! Exiting...")
+                                    print("\nQuit gesture detected! Exiting...")
                                     self.running = False
                                 else:
                                     remaining = int(self.quit_hold_duration - elapsed + 0.9)
@@ -645,6 +581,7 @@ class HANDSApplication:
                                 hands_data['right']['disabled'] = check_gesture_disabled(gesture_name)
                             
                             # Check for thumbs down quit gesture on right
+                            # TODO: this is hardcoded to thumbs down but the user might want to make it configurable via config app! We will later make it configurable and enable mapping this action in the action mapping. Actually it's quite easy, in the controll system create a function named quite and then run a quiting script(which i do have in start.sh like app/start.sh --quite(or something i forgot need checking for proper use))
                             if 'thumbs_down' in r_gests:
                                 if self.quit_gesture_start_time == 0:
                                     self.quit_gesture_start_time = time.time()
@@ -656,7 +593,7 @@ class HANDSApplication:
                                     remaining = int(self.quit_hold_duration - elapsed + 0.9)
                                     hands_data['right']['gesture'] = f"exit_{remaining}"
                                     hands_data['right']['state'] = 'red'
-                                    hands_data['right']['disabled'] = False  # Quit gesture is always enabled
+                                    hands_data['right']['disabled'] = False  # Quit gesture is always enabled for safety, even if the user has forgotten or mistakenly made it disabled. We will let the user know it properly
                         
                         # NOTE: Bimanual gestures are detected and used for system control,
                         # but the status indicators show individual hand gestures.
@@ -667,6 +604,8 @@ class HANDSApplication:
                                          'thumbs_down' in all_gestures.get('left', {})
                         if not is_thumbs_down:
                             self.quit_gesture_start_time = 0
+                        
+                        # TODO: need to refractor this whole part for turning the app off via gesture. Wait maybe I have toggle pause function. So i can make one for quite too.
 
                     self.status_queue.put(hands_data)
 
@@ -686,7 +625,6 @@ class HANDSApplication:
                     except queue.Full:
                         pass
                     
-                    # No cv2.waitKey needed here as GUI handles events
                     time.sleep(0.001) # Small sleep to yield
                 else:
                     # No window, just sleep briefly to avoid busy loop
@@ -754,22 +692,22 @@ class HANDSApplication:
                     except queue.Empty:
                         pass
                     except Exception as e:
-                        print(f"⚠ Keyboard processing error: {e}")
+                        print(f"Keyboard processing error: {e}")
                         
         finally:
             self.cleanup()
     
     def cleanup(self):
         """Clean up resources."""
-        print("\n🧹 Cleaning up...")
+        print("\nCleaning up...")
         
         # Signal GUI to quit if present
         if self.status_queue:
             try:
-                # Send shutdown sentinel
+                # Send shutdown signal
                 self.status_queue.put(('shutdown', 'shutdown'), timeout=0.5)
             except Exception as e:
-                print(f"⚠ Could not send shutdown signal: {e}")
+                print(f"Could not send shutdown signal: {e}")
         
         # Small delay to let GUI process shutdown
         try:
@@ -781,21 +719,21 @@ class HANDSApplication:
             try:
                 self.cap.release()
             except Exception as e:
-                print(f"⚠ Error releasing camera: {e}")
+                print(f"Error releasing camera: {e}")
         
         if self.hand_landmarker:
             try:
                 self.hand_landmarker.close()
             except Exception as e:
-                print(f"⚠ Error closing hand landmarker: {e}")
+                print(f"Error closing hand landmarker: {e}")
         
         if self.hands:
             try:
                 self.hands.close()
             except Exception as e:
-                print(f"⚠ Error closing hands: {e}")
+                print(f"Error closing hands: {e}")
         
-        print("✓ HANDS application stopped\n")
+        print("HANDS application stopped\n")
     
     def print_controls(self):
         """Print control instructions."""
@@ -822,21 +760,11 @@ class HANDSApplication:
         print("  Y - Toggle Shaka debug")
         print("  L - Toggle ILY debug")
         print("\n" + "="*60)
-        print("GESTURE CONTROLS")
-        print("="*60)
-        print("  👆 Pointing (index finger) - Move cursor")
-        print("  🤏 Pinch (thumb+index) - Click / Drag")
-        print("  🤌 Zoom (3 fingers) - System zoom in/out")
-        print("  👋 Swipe (4 fingers) - Scroll / Switch workspace")
-        print("  ✋ Open hand (5 fingers) - (Reserved)")
-        print("\n  TWO-HAND GESTURES:")
-        print("  Left still + Right move - Pan/Scroll")
-        print("  Left still + Right point - Precision cursor")
-        print("="*60 + "\n")
+        print("You can edit configuration and totally customize the app and each gestures mapping using the app/run_config.sh")
 
 
 def main():
-    """Main entry point."""
+    # perse the passed arguments
     parser = argparse.ArgumentParser(
         description="HANDS - Hand Assisted Navigation and Device System"
     )
@@ -888,7 +816,7 @@ def main():
         key_queue = queue.Queue()  # For keyboard input from PyQt
     
     # Print display mode info
-    print(f"📺 Display mode: camera_window={show_camera}, status_indicator={status_enabled}")
+    print(f"Display mode: camera_window={show_camera}, status_indicator={status_enabled}")
     
     # Create application
     try:
@@ -916,13 +844,13 @@ def main():
             run_gui(config, status_queue, frame_queue, key_queue)
         else:
             # No GUI needed - run app directly (headless mode)
-            print("🖥️ Running in headless mode (no camera window, no status indicator)")
+            print("Running in headless mode (no camera window, no status indicator)")
             app.run()
             
     except KeyboardInterrupt:
-        print("\n⚠ Interrupted by user")
+        print("\nInterrupted by user")
     except Exception as e:
-        print(f"\n❌ Error: {e}")
+        print(f"\nError: {e}")
         import traceback
         traceback.print_exc()
         return 1

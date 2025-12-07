@@ -2261,8 +2261,28 @@
   },
   "performance": {
     "use_gpu": [
-      false,
+      true,
       "Use GPU acceleration for hand detection (requires compatible GPU, falls back to CPU if unavailable)"
+    ],
+    "use_download":[
+      false,
+      "Enable to use downloaded model"
+    ],
+    "cpu_model_path": [
+      "source_code/models/hand_landmarker_f16.task",
+      "Path to the CPU hand landmarker model file"
+    ],
+    "gpu_model_path": [
+      "source_code/models/hand_landmarker_f32.task",
+      "Path to the GPU hand landmarker model"
+    ],
+    "cpu_model_url": [
+      "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+      "URL for downloading the CPU hand landmarker model"
+    ],
+    "gpu_model_url": [
+      "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float32/1/hand_landmarker.task",
+      "URL for downloading the GPU hand landmarker model"
     ],
     "show_fps": [
       true,
@@ -2710,13 +2730,13 @@
       "left": "none",
       "right": "swipe_right",
       "type": "key",
-      "keys": "ctrl+p"
+      "keys": "alt+tab"
     },
     {
       "left": "none",
       "right": "swipe_left",
       "type": "key",
-      "keys": "ctrl+c"
+      "keys": "shift+alt+tab"
     },
     {
       "left": "none",
