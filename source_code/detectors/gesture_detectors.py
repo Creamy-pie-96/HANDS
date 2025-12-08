@@ -5,7 +5,7 @@ from collections import deque
 from typing import Dict, Tuple, Optional, List
 from dataclasses import dataclass, field
 
-from source_code.utils.math_utils import landmarks_to_array, euclidean, EWMA, ClickDetector
+from source_code.utils.math_utils import landmarks_to_array, euclidean, EWMA
 
 
 

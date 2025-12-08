@@ -2264,7 +2264,7 @@
       true,
       "Use GPU acceleration for hand detection (requires compatible GPU, falls back to CPU if unavailable)"
     ],
-    "use_download":[
+    "use_download": [
       false,
       "Enable to use downloaded model"
     ],

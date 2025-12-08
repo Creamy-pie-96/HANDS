@@ -1,0 +1,3 @@
+2025-12-08 pinch should require other 3 fingers to be extended
+Victory gestures indicator image is missing
+I dont know why but the hand detection is pretty bad! it got worse. need to know why!

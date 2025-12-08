@@ -86,58 +86,8 @@ class EWMA:
         return self.value
 
 
-# I will never ever use it! As EWMA is far superior. It's just here because I already had created it
-class MovingAverage:
-    """Simple moving average buffer (keeps last N samples)."""
-
-    def __init__(self, n: int = 5) -> None:
-        self.n = int(n)
-        self.buf = deque(maxlen=self.n)
-
-    def update(self, x: Iterable) -> np.ndarray:
-        self.buf.append(np.array(x, dtype=float))
-        return np.mean(self.buf, axis=0)
 
 
-class ClickDetector:
-    """Relative-only pinch/click detector.
-
-    This detector operates on a normalized distance value (unitless) where
-    distances are expressed relative to the image diagonal (0..~1). Call
-    `pinched(dist_rel)` with `dist_rel = pixel_dist / image_diag_px`.
-
-    Rationale: using a distance normalized by the image diagonal makes the
-    detection invariant to camera resolution and hand distance from camera.
-    """
-
-    def __init__(self, thresh_rel: float = 0.055, hold_frames: int = 3, cooldown_s: float = 0.4) -> None:
-        # thresh_rel: fraction of image diagonal (e.g. 0.08 ~= 8% of diagonal)
-        self.thresh_rel = float(thresh_rel)
-        self.hold_frames = int(hold_frames)
-        self.cooldown_s = float(cooldown_s)
-        self._count = 0
-        self._last_time = -999.0
-
-    def pinched(self, dist_rel: float) -> bool:
-        """Return True when a pinch/click is detected using relative distance.
-
-        Args:
-            dist_rel: distance between index and thumb normalized by image diagonal
-        """
-        now = time.time()
-        if now - self._last_time < self.cooldown_s:
-            return False
-
-        if float(dist_rel) <= self.thresh_rel:
-            self._count += 1
-            if self._count >= self.hold_frames:
-                self._last_time = now
-                self._count = 0
-                return True
-            return False
-        else:
-            self._count = 0
-            return False
 
 
 __all__ = [
@@ -145,7 +95,6 @@ __all__ = [
     "normalized_to_pixels",
     "euclidean",
     "EWMA",
-    "MovingAverage",
-    "ClickDetector",
+
 ]
 
