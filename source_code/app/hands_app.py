@@ -490,6 +490,13 @@ class HANDSApplication:
                 status = "PAUSED" if self.paused else ("DRY-RUN" if not self.enable_system_control else "ACTIVE")
                 self.visual.draw_gesture_panel(frame_bgr, all_gestures, status_text=status)
                 
+                # Draw debug overlays for gestures
+                if left_metrics:
+                    self.visual.draw_debug_overlays(frame_bgr, all_gestures.get('left', {}), left_metrics)
+                
+                if right_metrics:
+                    self.visual.draw_debug_overlays(frame_bgr, all_gestures.get('right', {}), right_metrics)
+                
                 # Draw FPS and debug info
                 if self.show_fps:
                     mode_str = "GPU" if self.use_gpu else "CPU"
