@@ -289,6 +289,11 @@ class PinchDetector:
             'indx_mdl_dist' : index_middle_dist
         }
         
+        # Check if pinky, middle, and ring are extended; if not, return false with reason
+        for finger in ['pinky', 'middle', 'ring']:
+            if not metrics.fingers_extended.get(finger, False):
+                base_metadata['reason'] = f"{finger} not extended"
+                return GestureResult(detected=False, gesture_name='pinch', metadata=base_metadata)
         if in_cooldown:
             return GestureResult(detected=False, gesture_name='pinch', metadata=base_metadata)
         if index_middle_dist <= self.index_middle_gap_threshold:
@@ -476,7 +481,7 @@ class SwipeDetector:
         base_metadata = {
             'direction': detected_direction,
             'current_direction': state['current_direction'],
-            'raw_velocity': (vx, vy),
+            'velocity': (vx, vy),  
             'ewma_velocity': (ewma_vx, ewma_vy),
             'velocity_threshold_x': self.velocity_threshold_x,
             'velocity_threshold_y': self.velocity_threshold_y,
@@ -869,7 +874,7 @@ class UniversalGestureDetector:
 
         base_metadata = {
             'fingers_match': fingers_match,
-            'velocity': metrics.velocity,
+            'velocity': metrics.velocity,  # Add raw velocity for debug panel
             'ewma_velocity_y': 0.0,
             'move_confidence': state['move_confidence'],
             'static_hold_count': state['static_hold_count'],

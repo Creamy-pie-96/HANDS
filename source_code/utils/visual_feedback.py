@@ -642,11 +642,12 @@ class VisualFeedback:
                 params.append(f"Rsn:{meta['reason'][:12]}")
         
         elif gesture_name == 'swipe':
+            ewma_vel = meta.get('ewma_velocity', (0, 0))
             params = [
-                f"Dir:{str(meta.get('current_direction', meta.get('direction', 'none')))[:4]}",
-                f"VelX:{meta.get('velocity_threshold_x', 0):.2f}",
-                f"VelY:{meta.get('velocity_threshold_y', 0):.2f}",
-                f"Conf:{meta.get('confidence', 0):.2f}"
+                f"Dir:{str(meta.get('current_move_direction', meta.get('direction', 'none')))[:4]}",
+                f"EVel:({ewma_vel[0]:.2f},{ewma_vel[1]:.2f})",
+                f"Conf:{meta.get('move_confidence', meta.get('confidence', 0)):.2f}",
+                f"Vel:({meta.get('velocity', (0,0))[0]:.2f},{meta.get('velocity', (0,0))[1]:.2f})"
             ]
             if meta.get('reason'):
                 params.append(f"Rsn:{meta['reason'][:12]}")
