@@ -5,3 +5,4 @@ pynput>=1.7.0
 screeninfo>=0.8.0
 PyQt6>=6.0.0
 pyarmor>=8.0.0
+PySide6>=6.0.0

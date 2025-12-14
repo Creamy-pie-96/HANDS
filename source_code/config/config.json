@@ -2728,18 +2728,6 @@
     },
     {
       "left": "none",
-      "right": "swipe_right",
-      "type": "key",
-      "keys": "alt+tab"
-    },
-    {
-      "left": "none",
-      "right": "swipe_left",
-      "type": "key",
-      "keys": "shift+alt+tab"
-    },
-    {
-      "left": "none",
       "right": "swipe_up",
       "type": "function",
       "name": "scroll_up"
