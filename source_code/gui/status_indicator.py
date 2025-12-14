@@ -18,6 +18,7 @@ from pathlib import Path
 from PyQt6.QtWidgets import QApplication, QWidget, QLabel
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QObject, QRect
 from PyQt6.QtGui import QColor, QPainter, QBrush, QFont, QPixmap, QImage
+from source_code.utils.os_handler import OSHandler
 
 
 class StatusSignals(QObject):
@@ -115,6 +116,7 @@ class HandIndicator(QWidget):
         self.sticker_cache = sticker_cache
         self.color_map = color_map
         self.debug = debug
+        self.os_type = OSHandler.get_os(config)
         
         # Current state
         self.current_color = QColor(100, 100, 100)
@@ -150,8 +152,8 @@ class HandIndicator(QWidget):
         # Initially hidden (will be shown when hand is detected)
         self.hide()
         
-        # Set up click-through after window is created
-        self._setup_click_through()
+        if self.os_type == 'linux' or self.os_type == 'windows':
+             self._setup_click_through()
     
     def update_position(self):
         """Update widget position based on config."""
@@ -292,19 +294,47 @@ class HandIndicator(QWidget):
     
     def _setup_click_through(self):
         """
-        Platform-specific setup for true click-through on Linux/X11.
-        
-        Qt's WA_TransparentForMouseEvents doesn't work properly on X11,
-        so we use the XShape extension to set an empty input region.
-        This makes ALL mouse events pass through to windows below.
+        Platform-specific setup for true click-through.
         """
-        try:
-            self._setup_click_through_ctypes()
-        except Exception as e:
-            if self.debug:
-                print(f"[{self.hand_label.upper()}] Click-through setup failed: {e}")
+        if self.os_type == 'linux':
+            try:
+                self._setup_click_through_linux()
+            except Exception as e:
+                if self.debug:
+                    print(f"[{self.hand_label.upper()}] Linux click-through setup failed: {e}")
+        elif self.os_type == 'windows':
+            try:
+                self._setup_click_through_windows()
+            except Exception as e:
+                if self.debug:
+                    print(f"[{self.hand_label.upper()}] Windows click-through setup failed: {e}")
     
-    def _setup_click_through_ctypes(self):
+    def _setup_click_through_windows(self):
+        """
+        Platform-specific setup for click-through on Windows.
+        Uses SetWindowLong with WS_EX_LAYERED | WS_EX_TRANSPARENT.
+        """
+        import ctypes
+        from ctypes import wintypes
+        
+        # Constants
+        GWL_EXSTYLE = -20
+        WS_EX_LAYERED = 0x00080000
+        WS_EX_TRANSPARENT = 0x00000020
+        
+        hwnd = int(self.winId())
+        
+        # Get current ex-style
+        user32 = ctypes.windll.user32
+        ex_style = user32.GetWindowLongA(hwnd, GWL_EXSTYLE)
+        
+        # Add layered and transparent
+        user32.SetWindowLongA(hwnd, GWL_EXSTYLE, ex_style | WS_EX_LAYERED | WS_EX_TRANSPARENT)
+        
+        if self.debug:
+             print(f"[{self.hand_label.upper()}] Windows click-through enabled via user32")
+
+    def _setup_click_through_linux(self):
         """Fallback click-through using ctypes to call X11 directly."""
         import ctypes
         import ctypes.util
@@ -344,8 +374,9 @@ class HandIndicator(QWidget):
         """Re-apply click-through when window becomes visible."""
         super().showEvent(event)
         # Delay slightly to ensure window is mapped
-        from PyQt6.QtCore import QTimer
-        QTimer.singleShot(50, self._setup_click_through)
+        if self.os_type == 'linux' or self.os_type == 'windows':
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(50, self._setup_click_through)
 
 
 class DualHandIndicator:

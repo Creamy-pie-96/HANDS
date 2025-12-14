@@ -1,8 +1,7 @@
-numpy>=2.0
-opencv-python>=4.10
-mediapipe>=0.10.14
-pynput
-screeninfo
-opencv-python-headless
-opencv-contrib-python-headless
-PyQt6
+numpy>=1.21.0
+opencv-python>=4.5.0
+mediapipe>=0.10.0
+pynput>=1.7.0
+screeninfo>=0.8.0
+PyQt6>=6.0.0
+pyarmor>=8.0.0

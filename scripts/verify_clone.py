@@ -18,15 +18,16 @@ IGNORE_PATTERNS = {
     ".venv",
     ".git",
     ".gitignore",
-    "install.sh",
-    "requirements.txt",
     "__pycache__",
     ".DS_Store",
     "creator_of_clone.sh",
+    "install.sh",
+    "install.sh",
     "clone.sh",
     "clone_hashes.txt",
     "test_clone",
     "test_clone_final",
+    "installation"
 }
 
 IGNORE_EXTENSIONS = {".pyc", ".pyo", ".pyd"}

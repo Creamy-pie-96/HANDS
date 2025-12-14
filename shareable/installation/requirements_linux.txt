@@ -1,0 +1,8 @@
+Requires:
+- brightnessctl (for screen brightness control)
+- pulseaudio-utils (for 'pactl' volume control)
+- python3-venv (for creating virtual environments)
+
+Install command (Debian/Ubuntu):
+sudo apt update && sudo apt install -y brightnessctl python3-venv libgl1
+

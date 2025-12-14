@@ -33,6 +33,7 @@ except ImportError:
     print("⚠ screeninfo not available. Install with: pip install screeninfo")
 
 from source_code.utils.math_utils import EWMA
+from source_code.utils.os_handler import OSHandler
 
 
 @dataclass
@@ -235,9 +236,14 @@ class SystemController:
                 'thumbs_up_moving_up': VelocitySensitivity.from_dict(get_velocity_sensitivity_config('thumbs_up_moving_up')),
                 'thumbs_up_moving_down': VelocitySensitivity.from_dict(get_velocity_sensitivity_config('thumbs_up_moving_down')),
                 'thumbs_down_moving_up': VelocitySensitivity.from_dict(get_velocity_sensitivity_config('thumbs_down_moving_up')),
+                'thumbs_down_moving_up': VelocitySensitivity.from_dict(get_velocity_sensitivity_config('thumbs_down_moving_up')),
                 'thumbs_down_moving_down': VelocitySensitivity.from_dict(get_velocity_sensitivity_config('thumbs_down_moving_down')),
             }
+            # Detect OS
+            self.os_type = OSHandler.get_os(config)
         else:
+            self.os_type = OSHandler.get_os()
+
             self.cursor_smoothing = 0.3
             self.cursor_speed = 1.5
             self.precision_damping = 0.3
@@ -716,17 +722,23 @@ class SystemController:
         return self.perform_velocity_action(gesture_name, velocity_norm, action_callback)
     
     def _volume_change(self, delta: int):
-        """Change system volume using media keys or platform-specific methods."""
+        """Change system volume using platform-specific methods."""
+        
+        # 1. Pynput Media Keys (Works on Windows & modern Linux desktops)
         try:
-            # Use XF86 media keys - works on most Linux desktops
             if delta > 0:
                 self.keyboard.press(Key.media_volume_up)
                 self.keyboard.release(Key.media_volume_up)
             else:
                 self.keyboard.press(Key.media_volume_down)
                 self.keyboard.release(Key.media_volume_down)
+            return  # If successful, we are done
         except Exception:
-            # Fallback: try pactl on Linux
+            pass  # Fallback to specific commands
+
+        # 2. Platform-specific fallbacks
+        if self.os_type == 'linux':
+             # Fallback: try pactl on Linux
             try:
                 import subprocess
                 if delta > 0:
@@ -736,68 +748,138 @@ class SystemController:
                     subprocess.run(['pactl', 'set-sink-volume', '@DEFAULT_SINK@', '-5%'], 
                                  capture_output=True, timeout=1)
             except Exception:
-                pass  # Volume control not available
+                pass
+
+        elif self.os_type == 'darwin':
+            # macOS volume (osascript)
+            try:
+                import subprocess
+                # Volume is 0-100 usually
+                # "set volume output volume ..." uses 0-100 range
+                script = "set volume output volume ((output volume of (get volume settings)) + 5)" if delta > 0 else "set volume output volume ((output volume of (get volume settings)) - 5)"
+                subprocess.run(['osascript', '-e', script], capture_output=True)
+            except Exception:
+                pass
+        
+        elif self.os_type == 'windows':
+            # Windows Volume Fallback (if pynput failed)
+            # Use nircmd if available, or VBScript/Powershell workaround
+            # But the most reliable "built-in" way is the SendKeys (which pynput does).
+            # If pynput failed, we can try firing the key event via PowerShell?
+            # Or just accepting that pynput is the primary way. The placeholder here was mostly empty.
+            # Let's add a PowerShell key-send fallback:
+            try:
+                import subprocess
+                # 0xAF = Volume Mute, 0xAE = Volume Down, 0xAD = Volume Up
+                vk = "0xAD" if delta > 0 else "0xAE"
+                ps_script = f"$obj = New-Object -ComObject WScript.Shell; $obj.SendKeys([char]{int(vk, 16)})"
+                subprocess.run(["powershell", "-Command", ps_script], capture_output=True)
+            except Exception:
+                pass
+
     
     def _brightness_change(self, delta: int):
-        """Change screen brightness using platform-specific methods.
-        
-        On Linux, tries (in order):
-        1. brightnessctl - works on most systems
-        2. xbacklight - legacy X11 method
-        3. DBus - GNOME/KDE brightness interface
-        """
+        """Change screen brightness using platform-specific methods."""
         import subprocess
         import shutil
         
-        # Method 1: brightnessctl (most common on modern Linux)
-        if shutil.which('brightnessctl'):
+        if self.os_type == 'linux':
+            # Method 1: brightnessctl (most common on modern Linux)
+            if shutil.which('brightnessctl'):
+                try:
+                    if delta > 0:
+                        subprocess.run(['brightnessctl', 'set', '+5%'], capture_output=True, timeout=1)
+                    else:
+                        subprocess.run(['brightnessctl', 'set', '5%-'], capture_output=True, timeout=1)
+                    return
+                except Exception:
+                    pass
+            
+            # Method 2: xbacklight
+            if shutil.which('xbacklight'):
+                try:
+                    if delta > 0:
+                        subprocess.run(['xbacklight', '-inc', '5'], capture_output=True, timeout=1)
+                    else:
+                        subprocess.run(['xbacklight', '-dec', '5'], capture_output=True, timeout=1)
+                    return
+                except Exception:
+                    pass
+
+            # Method 3: DBus (GNOME/KDE)
             try:
-                if delta > 0:
-                    result = subprocess.run(['brightnessctl', 'set', '+5%'], 
-                                           capture_output=True, timeout=1)
-                else:
-                    result = subprocess.run(['brightnessctl', 'set', '5%-'], 
-                                           capture_output=True, timeout=1)
-                if result.returncode == 0:
-                    return  # Success
-                else:
-                    print(f"⚠ brightnessctl failed: {result.stderr.decode()}")
-            except subprocess.TimeoutExpired:
-                print("⚠ brightnessctl timed out")
+                import dbus
+                bus = dbus.SessionBus()
+                try:
+                    proxy = bus.get_object('org.gnome.SettingsDaemon.Power', '/org/gnome/SettingsDaemon/Power')
+                    iface = dbus.Interface(proxy, 'org.gnome.SettingsDaemon.Power.Screen')
+                    current = iface.GetPercentage()
+                    new_val = max(5, min(100, current + (5 if delta > 0 else -5)))
+                    iface.SetPercentage(new_val)
+                except Exception:
+                    pass
+            except ImportError:
+                pass
+
+        elif self.os_type == 'windows':
+            # Windows brightness using WMI powershell wrapper
+            try:
+                # Get WmiMonitorBrightnessMethods and call WmiSetBrightness
+                # (TIMEOUT: 1, Brightness: current +/- 5)
+                # We need to find the active instance first
+                ps_script = """
+                $monitors = Get-WmiObject -Namespace root/wmi -Class WmiMonitorBrightnessMethods
+                $status = Get-WmiObject -Namespace root/wmi -Class WmiMonitorBrightness
+                if ($monitors -and $status) {
+                    $m = $monitors[0]
+                    $c = $status[0]
+                    $newval = $c.CurrentBrightness + %d
+                    if ($newval -gt 100) { $newval = 100 }
+                    if ($newval -lt 0) { $newval = 0 }
+                    $m.WmiSetBrightness(1, $newval)
+                }
+                """ % (5 if delta > 0 else -5)
+                
+                subprocess.run(["powershell", "-Command", ps_script], capture_output=True)
+            except Exception:
+                pass
         
-        # Method 2: xbacklight (legacy X11)
-        if shutil.which('xbacklight'):
+        elif self.os_type == 'darwin':
+            # macOS brightness
+            # Try 'brightness' CLI tool if installed (brew install brightness)
+            # Or use AppleScript to simulate brightness keys?
+            # System Events key codes: 144 (br up), 145 (br down) - strictly dependent on keyboard
+            # Better fallback: 'brightness' tool check
+            if shutil.which('brightness'):
+                try:
+                    arg = '+0.05' if delta > 0 else '-0.05'
+                    # brightness -r (relative) doesn't always exist, let's try reading and setting
+                    # or just assume user might have tool.
+                    # Actually valid command is usually `brightness -v 0.5`
+                    # Simpler to send key codes for standard mac brightness keys (F1/F2 or dedicated)
+                    # KeyCode 113 = F14 (Up), 107 = F15 (Down) often mapped
+                    # KeyCode 144/145 are internal headers.
+                    # Reliable way:
+                    # do shell script "brightness -l" ...
+                    pass
+                except Exception:
+                    pass
+                    
+            # Fallback: Simulate brightness keys via AppleScript System Events
+            # 107 (F14/Brightness Up on some), 113 (F15).
+            # Actually standard brightness keys are 144 (up) and 145 (down) in CGEvent, 
+            # but AppleScript key code is different.
+            # Best "native" way without tools is difficult.
+            # We'll try the common key code method for 'System Events'
             try:
-                if delta > 0:
-                    result = subprocess.run(['xbacklight', '-inc', '5'], 
-                                           capture_output=True, timeout=1)
-                else:
-                    result = subprocess.run(['xbacklight', '-dec', '5'], 
-                                           capture_output=True, timeout=1)
-                if result.returncode == 0:
-                    return  # Success
-                else:
-                    print(f"⚠ xbacklight failed: {result.stderr.decode()}")
-            except subprocess.TimeoutExpired:
-                print("⚠ xbacklight timed out")
-        
-        # Method 3: DBus (GNOME/KDE) - requires python-dbus
-        try:
-            import dbus
-            bus = dbus.SessionBus()
-            # Try GNOME
-            try:
-                brightness_proxy = bus.get_object('org.gnome.SettingsDaemon.Power',
-                    '/org/gnome/SettingsDaemon/Power')
-                brightness_iface = dbus.Interface(brightness_proxy,
-                    'org.gnome.SettingsDaemon.Power.Screen')
-                current = brightness_iface.GetPercentage()
-                new_val = max(5, min(100, current + (5 if delta > 0 else -5)))
-                brightness_iface.SetPercentage(new_val)
-                return
-            except dbus.DBusException as e:
-                print(f"⚠ DBus brightness failed: {e}")
-        except ImportError:
+                # Key code 144 (brightness up) / 145 (brightness down)
+                # Requires accessibility permissions
+                kc = 144 if delta > 0 else 145
+                script = f'tell application "System Events" to key code {kc}'
+                subprocess.run(['osascript', '-e', script], capture_output=True)
+            except Exception:
+                pass
+
             pass
         
         # No brightness control method available

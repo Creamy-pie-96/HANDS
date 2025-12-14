@@ -2804,5 +2804,11 @@
       "type": "function",
       "name": "previous_workspace"
     }
-  ]
+  ],
+  "system": {
+    "os_type": [
+      "linux",
+      "Detected Operating System (linux/windows/darwin)"
+    ]
+  }
 }

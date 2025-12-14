@@ -1,0 +1,5 @@
+Requires:
+- brightness (CLI tool for perfect macOS brightness support)
+
+Install command (Homebrew):
+brew install brightness

@@ -1,0 +1,5 @@
+Requires:
+- PowerShell (Built-in)
+- Visual C++ Redistributable (often needed for OpenCV/MediaPipe)
+
+No additional manual CLI tools required. Python dependencies handle most interactions.
