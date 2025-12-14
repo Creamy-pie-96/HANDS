@@ -37,10 +37,13 @@ workspace_root = Path(__file__).resolve().parent.parent
 shareable_path = workspace_root / shareable_dir
 test_path = (workspace_root / test_dir).resolve()
 
+
 # 1. Obfuscate workspace
 print(f"Obfuscating workspace to: {shareable_path}")
 print(f"Resolved test path: {test_path}")
-# Run obfuscation against the repository root (absolute) to avoid cwd issues
+print(f"sys.executable: {sys.executable}")
+print(f"PATH: {os.environ.get('PATH')}")
+print(f"VIRTUAL_ENV: {os.environ.get('VIRTUAL_ENV')}")
 subprocess.run([
     sys.executable,
     str(workspace_root / "scripts" / "obfuscate_workspace.py"),
